@@ -14,13 +14,13 @@ export const ErrorState: React.FC<ErrorStateProps> = ({
   onRetry,
 }) => {
   return (
-    <div className="p-6 rounded-2xl border border-rose-200 bg-rose-50/60 text-center space-y-3 my-4 animate-in fade-in">
-      <div className="w-10 h-10 rounded-xl bg-rose-100 text-rose-700 flex items-center justify-center mx-auto shadow-2xs">
+    <div className="p-6 rounded-2xl border border-[rgba(239,68,68,0.25)] bg-[rgba(239,68,68,0.10)] text-center space-y-3 my-4 animate-in fade-in">
+      <div className="w-10 h-10 rounded-xl bg-[rgba(239,68,68,0.20)] text-[#EF4444] flex items-center justify-center mx-auto shadow-sm">
         <AlertTriangle className="w-5 h-5" />
       </div>
       <div>
-        <h4 className="text-sm font-bold text-rose-900">{title}</h4>
-        <p className="text-xs text-rose-700 mt-0.5 leading-relaxed">{message}</p>
+        <h4 className="text-sm font-bold text-[#FCA5A5]">{title}</h4>
+        <p className="text-xs text-[#CBD5E1] mt-0.5 leading-relaxed">{message}</p>
       </div>
       {onRetry && (
         <div className="pt-2">

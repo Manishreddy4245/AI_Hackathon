@@ -19,12 +19,12 @@ export const RoomScheduleTimeline: React.FC<RoomScheduleTimelineProps> = ({ room
   ];
 
   return (
-    <div className="space-y-3 p-4 bg-slate-50/80 rounded-xl border border-slate-200">
+    <div className="space-y-3 p-4 bg-[#101D31] rounded-xl border border-[#243650]">
       <div className="flex items-center justify-between">
-        <span className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
-          <Clock className="w-3.5 h-3.5 text-brand-600" /> Today's Venue Schedule Timeline — {room.name}
+        <span className="text-xs font-bold text-[#F8FAFC] flex items-center gap-1.5">
+          <Clock className="w-3.5 h-3.5 text-[#3B82F6]" /> Today's Venue Schedule Timeline — {room.name}
         </span>
-        <span className="text-[10px] font-semibold text-slate-500">{room.building}</span>
+        <span className="text-[10px] font-semibold text-[#CBD5E1]">{room.building}</span>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2">
@@ -33,23 +33,23 @@ export const RoomScheduleTimeline: React.FC<RoomScheduleTimelineProps> = ({ room
             key={b.time}
             className={`p-2.5 rounded-lg border text-xs flex flex-col justify-between transition-all ${
               b.status === 'occupied'
-                ? 'bg-amber-50 border-amber-200/80 text-amber-900'
-                : 'bg-white border-slate-200 text-slate-700 hover:border-slate-300'
+                ? 'bg-[rgba(245,158,11,0.10)] border-[rgba(245,158,11,0.25)] text-[#FCD34D]'
+                : 'bg-[#0B1628] border-[#243650] text-[#F8FAFC] hover:border-[#31527A]'
             }`}
           >
             <div className="flex items-center justify-between">
-              <span className="font-bold text-[11px]">{b.time}</span>
+              <span className="font-bold text-[11px] text-[#F8FAFC]">{b.time}</span>
               {b.status === 'occupied' ? (
-                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 uppercase">
+                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-[rgba(245,158,11,0.20)] text-[#FCD34D] uppercase border border-[rgba(245,158,11,0.30)]">
                   Occupied
                 </span>
               ) : (
-                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 uppercase">
+                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-[rgba(34,197,94,0.10)] text-[#86EFAC] uppercase border border-[rgba(34,197,94,0.25)]">
                   Free Block
                 </span>
               )}
             </div>
-            <p className="text-[11px] font-medium mt-1 truncate">
+            <p className="text-[11px] font-medium mt-1 truncate text-[#CBD5E1]">
               {b.status === 'occupied' ? b.driveName || 'Interview Session' : 'Available for booking'}
             </p>
           </div>

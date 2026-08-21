@@ -17,15 +17,15 @@ export const Card: React.FC<CardProps> = ({
 }) => {
   const levelClass =
     level === 1
-      ? 'bg-slate-900/90 border-slate-800/90 text-slate-100 shadow-3d-sm'
-      : 'bg-slate-850/90 border-slate-800/70 text-slate-100 shadow-xs';
+      ? 'bg-[#101D31] border-[#243650] text-[#F8FAFC] shadow-[0_12px_35px_rgba(0,0,0,0.22)]'
+      : 'bg-[#14243B] border-[#243650] text-[#F8FAFC] shadow-sm';
 
   return (
     <div
       onClick={onClick}
       className={`${levelClass} rounded-2xl border ${
         hover3d ? 'card-3d-surface' : 'transition-all'
-      } ${onClick ? 'cursor-pointer hover:border-indigo-500/50 hover:shadow-3d-hover' : ''} ${className}`}
+      } ${onClick ? 'cursor-pointer hover:bg-[#14243B] hover:border-[#31527A] hover:shadow-[0_16px_40px_rgba(0,0,0,0.3)]' : ''} ${className}`}
     >
       {children}
     </div>
@@ -35,14 +35,14 @@ export const Card: React.FC<CardProps> = ({
 export const CardHeader: React.FC<{ children: React.ReactNode; className?: string }> = ({
   children,
   className = '',
-}) => <div className={`p-5 pb-3 border-b border-slate-800/80 ${className}`}>{children}</div>;
+}) => <div className={`p-5 pb-3 border-b border-[#1B2A40] ${className}`}>{children}</div>;
 
 export const CardTitle: React.FC<{ children: React.ReactNode; className?: string }> = ({
   children,
   className = '',
-}) => <h3 className={`text-base font-black text-white tracking-tight ${className}`}>{children}</h3>;
+}) => <h3 className={`text-base font-black text-[#F8FAFC] tracking-tight ${className}`}>{children}</h3>;
 
 export const CardContent: React.FC<{ children: React.ReactNode; className?: string }> = ({
   children,
   className = '',
-}) => <div className={`p-5 text-slate-200 ${className}`}>{children}</div>;
+}) => <div className={`p-5 text-[#CBD5E1] ${className}`}>{children}</div>;

@@ -23,16 +23,16 @@ export function DataTable<T>({
 }: DataTableProps<T>) {
   if (data.length === 0) {
     return (
-      <div className="py-12 text-center text-xs font-semibold text-slate-400 bg-slate-900 rounded-2xl border border-slate-800 shadow-3d-sm">
+      <div className="py-12 text-center text-xs font-semibold text-[#94A3B8] bg-[#101D31] rounded-2xl border border-[#243650] shadow-3d-sm">
         {emptyMessage}
       </div>
     );
   }
 
   return (
-    <div className="overflow-x-auto rounded-2xl border border-slate-800/80 bg-slate-900/95 shadow-3d-md">
-      <table className="w-full text-left text-xs text-slate-100 border-collapse">
-        <thead className="bg-slate-950 text-[11px] font-bold uppercase tracking-wider text-slate-200 border-b border-slate-800 sticky top-0 z-10">
+    <div className="overflow-x-auto rounded-2xl border border-[#243650] bg-[#101D31] shadow-[0_12px_35px_rgba(0,0,0,0.22)]">
+      <table className="w-full text-left text-xs text-[#F8FAFC] border-collapse">
+        <thead className="bg-[#14243B] text-[11px] font-bold uppercase tracking-wider text-[#CBD5E1] border-b border-[#243650] sticky top-0 z-10">
           <tr>
             {columns.map((col, index) => (
               <th key={index} className={`px-4 py-3.5 ${col.className || ''}`}>
@@ -41,12 +41,12 @@ export function DataTable<T>({
             ))}
           </tr>
         </thead>
-        <tbody className="divide-y divide-slate-800/60 font-medium">
+        <tbody className="divide-y divide-[#243650] font-medium">
           {data.map((item) => (
             <tr
               key={keyExtractor(item)}
               onClick={() => onRowClick && onRowClick(item)}
-              className={`transition-colors hover:bg-slate-800/70 text-slate-100 ${onRowClick ? 'cursor-pointer' : ''}`}
+              className={`transition-colors hover:bg-[#14243B] text-[#F8FAFC] ${onRowClick ? 'cursor-pointer' : ''}`}
             >
               {columns.map((col, cIndex) => (
                 <td key={cIndex} className={`px-4 py-3.5 align-middle ${col.className || ''}`}>

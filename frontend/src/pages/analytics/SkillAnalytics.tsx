@@ -111,14 +111,14 @@ export const SkillAnalytics: React.FC = () => {
       </div>
 
       {/* FILTER TOOLBAR */}
-      <Card className="p-4 bg-white">
+      <Card className="p-4 bg-[#101D31] border-[#243650]">
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
           <div>
-            <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">Branch</label>
+            <label className="block text-[10px] font-bold uppercase text-[#94A3B8] mb-1">Branch</label>
             <select
               value={selectedBranch}
               onChange={(e) => setSelectedBranch(e.target.value)}
-              className="w-full text-xs p-2 bg-slate-100/80 border border-slate-200 rounded-lg focus:outline-none cursor-pointer font-medium"
+              className="w-full text-xs p-2 bg-[#0B1628] border border-[#243650] text-[#F8FAFC] rounded-lg focus:outline-none cursor-pointer font-medium"
             >
               <option value="all">All Branches</option>
               <option value="CSE">CSE</option>
@@ -129,11 +129,11 @@ export const SkillAnalytics: React.FC = () => {
           </div>
 
           <div>
-            <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">Graduation Year</label>
+            <label className="block text-[10px] font-bold uppercase text-[#94A3B8] mb-1">Graduation Year</label>
             <select
               value={selectedGradYear}
               onChange={(e) => setSelectedGradYear(e.target.value)}
-              className="w-full text-xs p-2 bg-slate-100/80 border border-slate-200 rounded-lg focus:outline-none cursor-pointer font-medium"
+              className="w-full text-xs p-2 bg-[#0B1628] border border-[#243650] text-[#F8FAFC] rounded-lg focus:outline-none cursor-pointer font-medium"
             >
               <option value="all">All Batches</option>
               <option value="2027">Batch 2027</option>
@@ -142,11 +142,11 @@ export const SkillAnalytics: React.FC = () => {
           </div>
 
           <div>
-            <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">Readiness Level</label>
+            <label className="block text-[10px] font-bold uppercase text-[#94A3B8] mb-1">Readiness Level</label>
             <select
               value={selectedReadiness}
               onChange={(e) => setSelectedReadiness(e.target.value)}
-              className="w-full text-xs p-2 bg-slate-100/80 border border-slate-200 rounded-lg focus:outline-none cursor-pointer font-medium"
+              className="w-full text-xs p-2 bg-[#0B1628] border border-[#243650] text-[#F8FAFC] rounded-lg focus:outline-none cursor-pointer font-medium"
             >
               <option value="all">All Readiness Levels</option>
               <option value="Ready">Ready (80%+)</option>
@@ -156,8 +156,8 @@ export const SkillAnalytics: React.FC = () => {
           </div>
 
           <div>
-            <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">Target Company</label>
-            <select className="w-full text-xs p-2 bg-slate-100/80 border border-slate-200 rounded-lg focus:outline-none cursor-pointer font-medium">
+            <label className="block text-[10px] font-bold uppercase text-[#94A3B8] mb-1">Target Company</label>
+            <select className="w-full text-xs p-2 bg-[#0B1628] border border-[#243650] text-[#F8FAFC] rounded-lg focus:outline-none cursor-pointer font-medium">
               <option value="all">All Visiting Recruiters</option>
               <option value="technova">TechNova Solutions</option>
               <option value="datasphere">DataSphere Analytics</option>
@@ -170,10 +170,10 @@ export const SkillAnalytics: React.FC = () => {
       {/* GRID: PLACEMENT READINESS OVERVIEW & READINESS SCORE DISTRIBUTION */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Placement Readiness Donut Chart */}
-        <Card>
-          <CardHeader>
+        <Card className="bg-[#101D31] border-[#243650] text-[#F8FAFC]">
+          <CardHeader className="border-b border-[#1B2A40]">
             <CardTitle>Placement Readiness Overview</CardTitle>
-            <p className="text-xs text-slate-500">Student qualification proportion across placement readiness tiers</p>
+            <p className="text-xs text-[#CBD5E1]">Student qualification proportion across placement readiness tiers</p>
           </CardHeader>
           <CardContent className="h-64 flex flex-col md:flex-row items-center justify-between gap-4">
             <div className="w-full md:w-1/2 h-full">
@@ -198,12 +198,12 @@ export const SkillAnalytics: React.FC = () => {
             </div>
             <div className="w-full md:w-1/2 space-y-3">
               {mockReadinessMetrics.map((m) => (
-                <div key={m.category} className="p-3 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between text-xs">
+                <div key={m.category} className="p-3 bg-[#0B1628] rounded-xl border border-[#243650] flex items-center justify-between text-xs">
                   <div className="flex items-center gap-2">
                     <span className="w-3 h-3 rounded-full" style={{ backgroundColor: m.fillColor }} />
-                    <span className="font-bold text-slate-900">{m.category}</span>
+                    <span className="font-bold text-[#F8FAFC]">{m.category}</span>
                   </div>
-                  <span className="font-semibold text-slate-700">{m.studentCount} ({m.percentage}%)</span>
+                  <span className="font-semibold text-[#CBD5E1]">{m.studentCount} ({m.percentage}%)</span>
                 </div>
               ))}
             </div>
@@ -211,17 +211,17 @@ export const SkillAnalytics: React.FC = () => {
         </Card>
 
         {/* Readiness Score Distribution Bar Chart */}
-        <Card>
-          <CardHeader>
+        <Card className="bg-[#101D31] border-[#243650] text-[#F8FAFC]">
+          <CardHeader className="border-b border-[#1B2A40]">
             <CardTitle>Readiness Score Distribution</CardTitle>
-            <p className="text-xs text-slate-500">Number of students within score percentile brackets</p>
+            <p className="text-xs text-[#CBD5E1]">Number of students within score percentile brackets</p>
           </CardHeader>
           <CardContent className="h-64 space-y-3">
             <div className="h-44">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={mockReadinessScoreDistribution} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                  <XAxis dataKey="range" tick={{ fontSize: 11, fill: '#64748b' }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fontSize: 11, fill: '#64748b' }} axisLine={false} tickLine={false} />
+                  <XAxis dataKey="range" tick={{ fontSize: 11, fill: '#94A3B8' }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fontSize: 11, fill: '#94A3B8' }} axisLine={false} tickLine={false} />
                   <Tooltip formatter={(value: number) => [`${value} Students`, 'Count']} />
                   <Bar dataKey="count" radius={[4, 4, 0, 0]}>
                     {mockReadinessScoreDistribution.map((entry, index) => (
@@ -231,7 +231,7 @@ export const SkillAnalytics: React.FC = () => {
                 </BarChart>
               </ResponsiveContainer>
             </div>
-            <p className="text-[11px] text-slate-600 bg-slate-50 p-2.5 rounded-lg border border-slate-200 font-medium leading-relaxed">
+            <p className="text-[11px] text-[#CBD5E1] bg-[#0B1628] p-2.5 rounded-lg border border-[#243650] font-medium leading-relaxed">
               "Most students currently fall between 70–89, indicating a strong base with targeted skill gaps."
             </p>
           </CardContent>
@@ -239,36 +239,36 @@ export const SkillAnalytics: React.FC = () => {
       </div>
 
       {/* MOST REQUESTED SKILLS (HORIZONTAL BAR CHART) */}
-      <Card>
-        <CardHeader>
+      <Card className="bg-[#101D31] border-[#243650] text-[#F8FAFC]">
+        <CardHeader className="border-b border-[#1B2A40]">
           <CardTitle>Most Requested Industry Skills vs Campus Alignment</CardTitle>
-          <p className="text-xs text-slate-500">Top technical competencies demanded by visiting recruiters</p>
+          <p className="text-xs text-[#CBD5E1]">Top technical competencies demanded by visiting recruiters</p>
         </CardHeader>
         <CardContent className="h-72">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart layout="vertical" data={mockSkillDemands} margin={{ top: 5, right: 20, left: 30, bottom: 5 }}>
-              <XAxis type="number" domain={[0, 100]} tick={{ fontSize: 11, fill: '#64748b' }} />
-              <YAxis dataKey="skill" type="category" tick={{ fontSize: 11, fill: '#334155' }} width={120} />
+              <XAxis type="number" domain={[0, 100]} tick={{ fontSize: 11, fill: '#94A3B8' }} />
+              <YAxis dataKey="skill" type="category" tick={{ fontSize: 11, fill: '#CBD5E1' }} width={120} />
               <Tooltip formatter={(value: number) => [`${value}%`, 'Value']} />
-              <Bar dataKey="demandPercent" fill="#0284c7" name="Industry Demand %" radius={[0, 4, 4, 0]} />
-              <Bar dataKey="proficientPercent" fill="#10b981" name="Student Proficiency %" radius={[0, 4, 4, 0]} />
+              <Bar dataKey="demandPercent" fill="#3B82F6" name="Industry Demand %" radius={[0, 4, 4, 0]} />
+              <Bar dataKey="proficientPercent" fill="#22C55E" name="Student Proficiency %" radius={[0, 4, 4, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </CardContent>
       </Card>
 
       {/* CAMPUS SKILL GAPS TABLE / CARDS */}
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
+      <Card className="bg-[#101D31] border-[#243650] text-[#F8FAFC]">
+        <CardHeader className="flex flex-row items-center justify-between border-b border-[#1B2A40]">
           <div>
-            <CardTitle>Campus Skill Gaps & Deficit Breakdown</CardTitle>
-            <p className="text-xs text-slate-500">Click any skill item to open deep-dive analytics</p>
+            <CardTitle>Campus Skill Gaps &amp; Deficit Breakdown</CardTitle>
+            <p className="text-xs text-[#CBD5E1]">Click any skill item to open deep-dive analytics</p>
           </div>
-          <span className="text-xs text-slate-500 font-medium">Click to expand details</span>
+          <span className="text-xs text-[#94A3B8] font-medium">Click to expand details</span>
         </CardHeader>
         <CardContent className="p-0 overflow-x-auto">
-          <table className="w-full text-left text-xs text-slate-700 border-collapse">
-            <thead className="bg-slate-50 text-[11px] font-semibold uppercase tracking-wider text-slate-500 border-b border-slate-200">
+          <table className="w-full text-left text-xs text-[#F8FAFC] border-collapse">
+            <thead className="bg-[#14243B] text-[11px] font-bold uppercase tracking-wider text-[#CBD5E1] border-b border-[#243650]">
               <tr>
                 <th className="px-4 py-3">Technical Skill</th>
                 <th className="px-4 py-3">Industry Demand</th>
@@ -279,33 +279,33 @@ export const SkillAnalytics: React.FC = () => {
                 <th className="px-4 py-3 text-right">Action</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-[#243650]">
               {mockCampusSkillGaps.map((sg) => (
                 <tr
                   key={sg.skill}
                   onClick={() => setSelectedSkillGap(sg)}
-                  className="hover:bg-slate-50/70 transition-colors cursor-pointer"
+                  className="hover:bg-[#14243B] transition-colors cursor-pointer text-[#F8FAFC]"
                 >
-                  <td className="px-4 py-3 font-bold text-slate-900">{sg.skill}</td>
-                  <td className="px-4 py-3 font-semibold text-slate-700">{sg.industryDemand}%</td>
-                  <td className="px-4 py-3 font-semibold text-slate-700">{sg.studentProficiency}%</td>
-                  <td className="px-4 py-3 font-bold text-amber-700">{sg.gapPercent}%</td>
-                  <td className="px-4 py-3 font-bold text-slate-900">{sg.affectedCount} Candidates</td>
+                  <td className="px-4 py-3 font-bold text-[#F8FAFC]">{sg.skill}</td>
+                  <td className="px-4 py-3 font-semibold text-[#CBD5E1]">{sg.industryDemand}%</td>
+                  <td className="px-4 py-3 font-semibold text-[#CBD5E1]">{sg.studentProficiency}%</td>
+                  <td className="px-4 py-3 font-bold text-[#FCD34D]">{sg.gapPercent}%</td>
+                  <td className="px-4 py-3 font-bold text-[#F8FAFC]">{sg.affectedCount} Candidates</td>
                   <td className="px-4 py-3">
                     <span
-                      className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase ${
+                      className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase border ${
                         sg.priority === 'high'
-                          ? 'bg-rose-50 text-rose-700 border border-rose-200'
+                          ? 'bg-[rgba(239,68,68,0.10)] text-[#FCA5A5] border-[rgba(239,68,68,0.25)]'
                           : sg.priority === 'medium'
-                          ? 'bg-amber-50 text-amber-700 border border-amber-200'
-                          : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                          ? 'bg-[rgba(245,158,11,0.10)] text-[#FCD34D] border-[rgba(245,158,11,0.25)]'
+                          : 'bg-[rgba(34,197,94,0.10)] text-[#86EFAC] border-[rgba(34,197,94,0.25)]'
                       }`}
                     >
                       {sg.priority} Priority
                     </span>
                   </td>
                   <td className="px-4 py-3 text-right">
-                    <button className="text-xs font-bold text-brand-600 hover:text-brand-700">View Detail →</button>
+                    <button className="text-xs font-bold text-[#60A5FA] hover:text-[#93C5FD] cursor-pointer">View Detail →</button>
                   </td>
                 </tr>
               ))}
@@ -317,20 +317,20 @@ export const SkillAnalytics: React.FC = () => {
       {/* GRID: BRANCH READINESS & COMPANY SKILL DEMAND */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Branch Readiness */}
-        <Card className="p-5 space-y-4">
-          <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-            <Layers className="w-4 h-4 text-brand-600" /> Branch-Wise Placement Readiness
+        <Card className="p-5 space-y-4 bg-[#101D31] border-[#243650] text-[#F8FAFC]">
+          <h3 className="text-sm font-bold text-[#F8FAFC] flex items-center gap-2">
+            <Layers className="w-4 h-4 text-[#3B82F6]" /> Branch-Wise Placement Readiness
           </h3>
           <div className="grid grid-cols-2 gap-3">
             {mockBranchReadiness.map((b) => (
-              <div key={b.branch} className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/60 space-y-2">
+              <div key={b.branch} className="p-3.5 rounded-xl border border-[#243650] bg-[#0B1628] space-y-2">
                 <div className="flex items-center justify-between">
-                  <span className="font-bold text-slate-900 text-sm">{b.branch}</span>
-                  <span className="text-xs font-bold text-brand-600">{b.avgReadiness}% Avg</span>
+                  <span className="font-bold text-[#F8FAFC] text-sm">{b.branch}</span>
+                  <span className="text-xs font-bold text-[#60A5FA]">{b.avgReadiness}% Avg</span>
                 </div>
-                <div className="flex items-center justify-between text-[11px] text-slate-600 font-medium">
-                  <span>Ready: <strong className="text-emerald-700">{b.readyPercent}%</strong></span>
-                  <span>Improvement: <strong className="text-amber-700">{b.needsImprovementPercent}%</strong></span>
+                <div className="flex items-center justify-between text-[11px] text-[#CBD5E1] font-medium">
+                  <span>Ready: <strong className="text-[#86EFAC]">{b.readyPercent}%</strong></span>
+                  <span>Improvement: <strong className="text-[#FCD34D]">{b.needsImprovementPercent}%</strong></span>
                 </div>
               </div>
             ))}
@@ -338,17 +338,17 @@ export const SkillAnalytics: React.FC = () => {
         </Card>
 
         {/* Company Skill Demand */}
-        <Card className="p-5 space-y-4">
-          <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-            <Building2 className="w-4 h-4 text-brand-600" /> Recruiter Skill Demand Matrix
+        <Card className="p-5 space-y-4 bg-[#101D31] border-[#243650] text-[#F8FAFC]">
+          <h3 className="text-sm font-bold text-[#F8FAFC] flex items-center gap-2">
+            <Building2 className="w-4 h-4 text-[#3B82F6]" /> Recruiter Skill Demand Matrix
           </h3>
           <div className="space-y-2.5">
             {mockCompanySkillDemand.map((c) => (
-              <div key={c.company} className="p-3 rounded-lg border border-slate-200 bg-white flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                <span className="font-bold text-slate-900 text-xs">{c.company}</span>
+              <div key={c.company} className="p-3 rounded-lg border border-[#243650] bg-[#0B1628] flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <span className="font-bold text-[#F8FAFC] text-xs">{c.company}</span>
                 <div className="flex flex-wrap gap-1">
                   {c.skills.map((s) => (
-                    <span key={s} className="text-[10px] font-semibold px-2 py-0.5 rounded bg-slate-100 text-slate-800 border border-slate-200">
+                    <span key={s} className="text-[10px] font-bold px-2 py-0.5 rounded bg-[rgba(59,130,246,0.15)] text-[#60A5FA] border border-[rgba(59,130,246,0.30)]">
                       {s}
                     </span>
                   ))}
@@ -360,19 +360,19 @@ export const SkillAnalytics: React.FC = () => {
       </div>
 
       {/* STUDENTS REQUIRING ATTENTION TABLE */}
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
+      <Card className="bg-[#101D31] border-[#243650] text-[#F8FAFC]">
+        <CardHeader className="flex flex-row items-center justify-between border-b border-[#1B2A40]">
           <div>
             <CardTitle>Students Requiring Preparation Attention</CardTitle>
-            <p className="text-xs text-slate-500">Placement readiness indicator & preparation guidance</p>
+            <p className="text-xs text-[#CBD5E1]">Placement readiness indicator &amp; preparation guidance</p>
           </div>
-          <span className="text-[10px] font-semibold text-slate-400 bg-slate-100 px-2.5 py-1 rounded">
+          <span className="text-[10px] font-bold text-[#CBD5E1] bg-[#14243B] border border-[#243650] px-2.5 py-1 rounded">
             Non-binding Guidance
           </span>
         </CardHeader>
         <CardContent className="p-0 overflow-x-auto">
-          <table className="w-full text-left text-xs text-slate-700 border-collapse">
-            <thead className="bg-slate-50 text-[11px] font-semibold uppercase tracking-wider text-slate-500 border-b border-slate-200">
+          <table className="w-full text-left text-xs text-[#F8FAFC] border-collapse">
+            <thead className="bg-[#14243B] text-[11px] font-bold uppercase tracking-wider text-[#CBD5E1] border-b border-[#243650]">
               <tr>
                 <th className="px-4 py-3">Student</th>
                 <th className="px-4 py-3">Branch</th>
@@ -382,16 +382,16 @@ export const SkillAnalytics: React.FC = () => {
                 <th className="px-4 py-3">Status</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-[#243650]">
               {filteredStudents.map((s) => (
-                <tr key={s.id} className="hover:bg-slate-50/70">
-                  <td className="px-4 py-3 font-bold text-slate-900">{s.name}</td>
-                  <td className="px-4 py-3 font-medium text-slate-700">{s.branch}</td>
-                  <td className="px-4 py-3 font-bold text-brand-600">{s.readinessScore}%</td>
-                  <td className="px-4 py-3 font-semibold text-amber-700">{s.topSkillGap}</td>
-                  <td className="px-4 py-3 font-medium text-slate-800">{s.recommendedAction}</td>
+                <tr key={s.id} className="hover:bg-[#14243B] text-[#F8FAFC]">
+                  <td className="px-4 py-3 font-bold text-[#F8FAFC]">{s.name}</td>
+                  <td className="px-4 py-3 font-medium text-[#CBD5E1]">{s.branch}</td>
+                  <td className="px-4 py-3 font-bold text-[#60A5FA]">{s.readinessScore}%</td>
+                  <td className="px-4 py-3 font-semibold text-[#FCD34D]">{s.topSkillGap}</td>
+                  <td className="px-4 py-3 font-medium text-[#CBD5E1]">{s.recommendedAction}</td>
                   <td className="px-4 py-3">
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-50 text-amber-800 border border-amber-200">
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-[rgba(245,158,11,0.10)] text-[#FCD34D] border border-[rgba(245,158,11,0.25)]">
                       {s.status}
                     </span>
                   </td>
@@ -402,66 +402,66 @@ export const SkillAnalytics: React.FC = () => {
         </CardContent>
       </Card>
 
-      {/* AI PLACEMENT INSIGHTS PANEL (SECTION 11 REQUIREMENT) */}
-      <Card className="p-5 border-brand-200 bg-gradient-to-br from-slate-900 to-slate-850 text-white space-y-4">
-        <div className="flex items-center justify-between border-b border-slate-700 pb-3">
+      {/* AI PLACEMENT INSIGHTS PANEL */}
+      <Card className="p-5 border-[#243650] bg-[#0B1628] text-[#F8FAFC] space-y-4">
+        <div className="flex items-center justify-between border-b border-[#1B2A40] pb-3">
           <div className="flex items-center gap-2">
-            <Sparkles className="w-4 h-4 text-brand-400" />
-            <h3 className="text-sm font-bold uppercase tracking-wider text-white">AI Placement Insights & Synthesis</h3>
+            <Sparkles className="w-4 h-4 text-[#06B6D4]" />
+            <h3 className="text-sm font-bold uppercase tracking-wider text-[#F8FAFC]">AI Placement Insights &amp; Synthesis</h3>
           </div>
-          <span className="text-[10px] font-bold px-2.5 py-0.5 rounded bg-brand-600 text-white uppercase">
+          <span className="text-[10px] font-bold px-2.5 py-0.5 rounded bg-[#3B82F6] text-white uppercase">
             AI-generated insight
           </span>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
           {mockAIPlacementInsights.map((ins) => (
-            <div key={ins.id} className="p-3.5 rounded-xl bg-slate-800/80 border border-slate-700/80 space-y-1">
-              <p className="text-slate-200 font-medium leading-relaxed">"{ins.text}"</p>
+            <div key={ins.id} className="p-3.5 rounded-xl bg-[#101D31] border border-[#243650] space-y-1">
+              <p className="text-[#CBD5E1] font-medium leading-relaxed">"{ins.text}"</p>
             </div>
           ))}
         </div>
 
-        <p className="text-[11px] text-slate-400 italic pt-1 border-t border-slate-800">
+        <p className="text-[11px] text-[#94A3B8] italic pt-1 border-t border-[#1B2A40]">
           * Recommendations support placement preparation and do not determine hiring outcomes.
         </p>
       </Card>
 
-      {/* RECOMMENDED PLACEMENT ACTIONS (SECTION 12 REQUIREMENT) */}
-      <Card className="p-5 space-y-4">
-        <h3 className="text-base font-bold text-slate-900">Recommended Placement Actions</h3>
+      {/* RECOMMENDED PLACEMENT ACTIONS */}
+      <Card className="p-5 space-y-4 bg-[#101D31] border-[#243650] text-[#F8FAFC]">
+        <h3 className="text-base font-bold text-[#F8FAFC]">Recommended Placement Actions</h3>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
-          <div className="p-4 rounded-xl border border-rose-200 bg-rose-50/40 space-y-2">
-            <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-rose-100 text-rose-800">
+          <div className="p-4 rounded-xl border border-[rgba(239,68,68,0.25)] bg-[rgba(239,68,68,0.06)] space-y-2">
+            <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-[rgba(239,68,68,0.15)] text-[#FCA5A5] border border-[rgba(239,68,68,0.30)]">
               High Priority
             </span>
-            <h4 className="font-bold text-slate-900 text-sm">Organize SQL Workshop</h4>
-            <p className="text-slate-600 font-medium">Affected Students: 126</p>
-            <p className="text-[11px] text-slate-500">Reason: High company demand + low proficiency deficit.</p>
+            <h4 className="font-bold text-[#F8FAFC] text-sm">Organize SQL Workshop</h4>
+            <p className="text-[#CBD5E1] font-medium">Affected Students: 126</p>
+            <p className="text-[11px] text-[#94A3B8]">Reason: High company demand + low proficiency deficit.</p>
             <Button variant="primary" size="sm" className="w-full mt-2" onClick={() => navigate('/candidates')}>
               View Students
             </Button>
           </div>
 
-          <div className="p-4 rounded-xl border border-amber-200 bg-amber-50/40 space-y-2">
-            <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-amber-100 text-amber-800">
+          <div className="p-4 rounded-xl border border-[rgba(245,158,11,0.25)] bg-[rgba(245,158,11,0.06)] space-y-2">
+            <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-[rgba(245,158,11,0.15)] text-[#FCD34D] border border-[rgba(245,158,11,0.30)]">
               Medium Priority
             </span>
-            <h4 className="font-bold text-slate-900 text-sm">Conduct Docker Session</h4>
-            <p className="text-slate-600 font-medium">Affected Students: 82</p>
-            <p className="text-[11px] text-slate-500">Reason: Required by TechNova & CloudPeak drives.</p>
+            <h4 className="font-bold text-[#F8FAFC] text-sm">Conduct Docker Session</h4>
+            <p className="text-[#CBD5E1] font-medium">Affected Students: 82</p>
+            <p className="text-[11px] text-[#94A3B8]">Reason: Required by TechNova &amp; CloudPeak drives.</p>
             <Button variant="secondary" size="sm" className="w-full mt-2" onClick={() => setSelectedSkillGap(mockCampusSkillGaps[1])}>
               View Skill Gap
             </Button>
           </div>
 
-          <div className="p-4 rounded-xl border border-blue-200 bg-blue-50/40 space-y-2">
-            <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-blue-100 text-blue-800">
+          <div className="p-4 rounded-xl border border-[rgba(59,130,246,0.25)] bg-[rgba(59,130,246,0.06)] space-y-2">
+            <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-[rgba(59,130,246,0.15)] text-[#60A5FA] border border-[rgba(59,130,246,0.30)]">
               Medium Priority
             </span>
-            <h4 className="font-bold text-slate-900 text-sm">Mock Technical Interviews</h4>
-            <p className="text-slate-600 font-medium">Affected Students: 64</p>
-            <p className="text-[11px] text-slate-500">Reason: Improve interview confidence before Round 1.</p>
+            <h4 className="font-bold text-[#F8FAFC] text-sm">Mock Technical Interviews</h4>
+            <p className="text-[#CBD5E1] font-medium">Affected Students: 64</p>
+            <p className="text-[11px] text-[#94A3B8]">Reason: Improve interview confidence before Round 1.</p>
             <Button variant="outline" size="sm" className="w-full mt-2" onClick={() => navigate('/interviews')}>
               Schedule Interviews
             </Button>

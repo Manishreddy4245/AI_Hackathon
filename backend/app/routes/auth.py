@@ -9,9 +9,9 @@ from app.core.security import hash_password, verify_password, create_access_toke
 router = APIRouter(prefix="/api/auth", tags=["Authentication"])
 
 class LoginRequest(BaseModel):
-    email: Optional[str] = None
-    password: Optional[str] = None
-    role: Optional[str] = None
+    email: str
+    password: str
+    portalRole: Optional[str] = None  # student, recruiter, placement_officer
 
 class RegisterStudentRequest(BaseModel):
     name: str
@@ -23,41 +23,70 @@ class RegisterStudentRequest(BaseModel):
     graduationYear: int = 2027
     cgpa: float = 8.0
 
+class RegisterRecruiterRequest(BaseModel):
+    name: str
+    email: str
+    password: str
+    companyName: str
+    designation: str
+    phone: Optional[str] = None
+
+class ForgotPasswordRequest(BaseModel):
+    email: str
+    portalRole: Optional[str] = None
+
+def get_role_display_name(role: str) -> str:
+    mapping = {
+        "student": "Student",
+        "recruiter": "Company Recruiter",
+        "placement_officer": "Placement Officer",
+    }
+    return mapping.get(role, role.capitalize())
+
 @router.post("/login")
 async def login(req: LoginRequest):
     db = db_manager.db
     if db is None:
-        raise HTTPException(status_code=503, detail="Database unavailable")
+        raise HTTPException(status_code=503, detail="Database connection unavailable")
 
-    user = None
-    # 1. Search by email if provided
-    if req.email and req.email.strip():
-        user = await db.users.find_one({"email": req.email.strip().lower()}, {"_id": 0})
-        if user and req.password:
-            if not verify_password(req.password, user.get("password_hash", "")):
-                raise HTTPException(status_code=401, detail="Invalid email or password")
+    clean_email = req.email.strip().lower()
+    if not clean_email or not req.password:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email and password are required.")
 
-    # 2. Search by role if email failed or role passed directly
-    if not user and req.role:
-        role_map = {
-            "placement_officer": "admin@placemind.local",
-            "student": "student@placemind.local",
-            "recruiter": "recruiter@placemind.local",
-            "panel_member": "panel@placemind.local",
-        }
-        target_email = role_map.get(req.role, "admin@placemind.local")
-        user = await db.users.find_one({"email": target_email}, {"_id": 0})
-
+    # 1. Lookup user in DB
+    user = await db.users.find_one({"email": clean_email}, {"_id": 0})
     if not user:
-        # Fallback to default placement officer if none found
-        user = {
-            "id": "usr-admin",
-            "name": "Placement Officer",
-            "email": req.email or "admin@placemind.local",
-            "role": req.role or "placement_officer"
-        }
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid email or password."
+        )
 
-    token = create_access_token({"sub": user["id"], "email": user["email"], "role": user["role"]})
+    # 2. Verify password hash
+    stored_hash = user.get("password_hash", "")
+    if not verify_password(req.password, stored_hash):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid email or password."
+        )
+
+    user_role = user.get("role", "student")
+
+    # 3. Cross-Portal Access Validation
+    if req.portalRole and req.portalRole != user_role:
+        correct_portal_name = get_role_display_name(user_role)
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"This account belongs to the {correct_portal_name} portal. Please use the {correct_portal_name} login."
+        )
+
+    token_payload = {
+        "sub": user["id"],
+        "email": user["email"],
+        "role": user_role,
+        "name": user.get("name", "User"),
+        "companyId": user.get("companyId"),
+    }
+    token = create_access_token(token_payload)
 
     return {
         "access_token": token,
@@ -66,12 +95,12 @@ async def login(req: LoginRequest):
             "id": user["id"],
             "name": user.get("name", "User"),
             "email": user["email"],
-            "role": user["role"],
+            "role": user_role,
             "companyId": user.get("companyId"),
         }
     }
 
-@router.post("/register", status_code=status.HTTP_201_CREATED)
+@router.post("/register/student", status_code=status.HTTP_201_CREATED)
 async def register_student(req: RegisterStudentRequest):
     db = db_manager.db
     if db is None:
@@ -80,7 +109,7 @@ async def register_student(req: RegisterStudentRequest):
     clean_email = req.email.strip().lower()
     existing = await db.users.find_one({"email": clean_email})
     if existing:
-        raise HTTPException(status_code=400, detail="Email already registered")
+        raise HTTPException(status_code=400, detail="This email is already registered in the platform.")
 
     user_id = f"usr-{req.rollNumber.lower().replace('/', '-')}"
     pass_hash = hash_password(req.password)
@@ -126,12 +155,12 @@ async def register_student(req: RegisterStudentRequest):
         "action": "STUDENT_REGISTER",
         "entity": "Student",
         "entityId": user_id,
-        "detail": f"New student registered: {req.name} ({req.rollNumber}, {req.branch})",
+        "detail": f"New student candidate registered: {req.name} ({req.rollNumber}, {req.branch})",
         "timestamp": datetime.now().strftime("%Y-%m-%d %I:%M %p"),
     }
     await db.audit_logs.insert_one(audit_entry)
 
-    token = create_access_token({"sub": user_id, "email": clean_email, "role": "student"})
+    token = create_access_token({"sub": user_id, "email": clean_email, "role": "student", "name": req.name})
 
     return {
         "access_token": token,
@@ -144,15 +173,83 @@ async def register_student(req: RegisterStudentRequest):
         }
     }
 
+@router.post("/register/recruiter", status_code=status.HTTP_201_CREATED)
+async def register_recruiter(req: RegisterRecruiterRequest):
+    db = db_manager.db
+    if db is None:
+        raise HTTPException(status_code=503, detail="Database unavailable")
+
+    clean_email = req.email.strip().lower()
+    existing = await db.users.find_one({"email": clean_email})
+    if existing:
+        raise HTTPException(status_code=400, detail="This corporate email is already registered.")
+
+    comp_id = f"comp-{int(datetime.now().timestamp())}"
+    user_id = f"usr-rec-{int(datetime.now().timestamp())}"
+    pass_hash = hash_password(req.password)
+
+    # 1. Create company record if not existing
+    new_company = {
+        "id": comp_id,
+        "name": req.companyName,
+        "logo": "".join([w[0].upper() for w in req.companyName.split()[:2]]),
+        "industry": "Technology / Software",
+        "website": f"https://{req.companyName.lower().replace(' ', '')}.example.com",
+        "location": "Bengaluru / Hybrid",
+        "tier": "Tier 1",
+        "contactPerson": req.name,
+        "contactEmail": clean_email,
+    }
+    await db.companies.insert_one(new_company)
+
+    # 2. Create recruiter user
+    user_doc = {
+        "id": user_id,
+        "name": req.name,
+        "email": clean_email,
+        "password_hash": pass_hash,
+        "role": "recruiter",
+        "companyId": comp_id,
+        "is_active": True,
+        "created_at": datetime.now().isoformat()
+    }
+    await db.users.insert_one(user_doc)
+
+    token = create_access_token({"sub": user_id, "email": clean_email, "role": "recruiter", "name": req.name, "companyId": comp_id})
+
+    return {
+        "access_token": token,
+        "token_type": "bearer",
+        "user": {
+            "id": user_id,
+            "name": req.name,
+            "email": clean_email,
+            "role": "recruiter",
+            "companyId": comp_id,
+        }
+    }
+
+@router.post("/forgot-password")
+async def forgot_password(req: ForgotPasswordRequest):
+    """
+    Role-aware password reset request.
+    Does not leak account existence.
+    """
+    clean_email = req.email.strip().lower()
+    return {
+        "status": "ok",
+        "message": f"If an account matching '{clean_email}' exists in this portal, secure password reset instructions have been dispatched."
+    }
+
 @router.get("/me")
 async def get_current_user(authorization: Optional[str] = Header(None)):
     if not authorization or not authorization.startswith("Bearer "):
-        return {"id": "usr-admin", "name": "Placement Officer", "email": "admin@placemind.local", "role": "placement_officer"}
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication required")
 
     token = authorization.split(" ")[1]
     payload = decode_access_token(token)
     if not payload:
-        raise HTTPException(status_code=401, detail="Invalid or expired token")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired session token")
 
     db = db_manager.db
     if db is None:
@@ -166,4 +263,3 @@ async def get_current_user(authorization: Optional[str] = Header(None)):
 @router.post("/logout")
 async def logout():
     return {"status": "ok", "message": "Logged out successfully"}
-

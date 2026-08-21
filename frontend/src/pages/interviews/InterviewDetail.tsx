@@ -70,26 +70,26 @@ export const InterviewDetail: React.FC = () => {
       />
 
       {/* OVERVIEW HERO BANNER */}
-      <Card className="p-6 bg-gradient-to-r from-white via-slate-50 to-brand-50/20 border-brand-200/80">
+      <Card className="p-6 bg-[#101D31] border-[#243650] text-[#F8FAFC]">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
           <div className="flex items-start gap-4">
-            <div className="w-14 h-14 rounded-2xl bg-slate-900 text-white font-bold text-xl flex items-center justify-center shrink-0 shadow-md">
+            <div className="w-14 h-14 rounded-2xl bg-[#0B1628] border border-[#243650] text-[#3B82F6] font-black text-xl flex items-center justify-center shrink-0 shadow-md">
               {interview.companyName.substring(0, 2).toUpperCase()}
             </div>
             <div>
               <div className="flex items-center gap-2 flex-wrap">
-                <h2 className="text-xl font-bold text-slate-900">{interview.companyName}</h2>
+                <h2 className="text-xl font-black text-[#F8FAFC]">{interview.companyName}</h2>
                 <StatusBadge status={interview.status} />
               </div>
-              <p className="text-sm font-semibold text-slate-700 mt-1">
-                {interview.round} &bull; <span className="text-slate-500">{interview.roleTitle}</span>
+              <p className="text-sm font-bold text-[#CBD5E1] mt-1">
+                {interview.round} &bull; <span className="text-[#94A3B8]">{interview.roleTitle}</span>
               </p>
-              <div className="flex items-center gap-4 text-xs text-slate-600 mt-3 flex-wrap font-medium">
-                <span className="flex items-center gap-1 text-amber-700 bg-amber-50 px-2.5 py-1 rounded border border-amber-200 font-bold">
-                  <Clock className="w-3.5 h-3.5" /> {interview.date} at {interview.timeSlot}
+              <div className="flex items-center gap-4 text-xs text-[#CBD5E1] mt-3 flex-wrap font-medium">
+                <span className="flex items-center gap-1 text-[#FCD34D] bg-[rgba(245,158,11,0.10)] px-2.5 py-1 rounded border border-[rgba(245,158,11,0.25)] font-bold">
+                  <Clock className="w-3.5 h-3.5 text-[#F59E0B]" /> {interview.date} at {interview.timeSlot}
                 </span>
-                <span className="flex items-center gap-1 text-slate-800 bg-slate-100 px-2.5 py-1 rounded border border-slate-200 font-semibold">
-                  <MapPin className="w-3.5 h-3.5" /> {interview.panelName} ({interview.roomName})
+                <span className="flex items-center gap-1 text-[#F8FAFC] bg-[#14243B] px-2.5 py-1 rounded border border-[#243650] font-semibold">
+                  <MapPin className="w-3.5 h-3.5 text-[#06B6D4]" /> {interview.panelName} ({interview.roomName})
                 </span>
               </div>
             </div>
@@ -129,10 +129,10 @@ export const InterviewDetail: React.FC = () => {
       {/* GRID: CANDIDATE SUMMARY & PANEL DETAILS */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Candidate Profile Summary */}
-        <Card className="p-5 space-y-4">
-          <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-            <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-              <Users className="w-4 h-4 text-brand-600" /> Candidate Summary
+        <Card className="p-5 space-y-4 bg-[#101D31] border-[#243650] text-[#F8FAFC]">
+          <div className="flex items-center justify-between border-b border-[#1B2A40] pb-3">
+            <h3 className="text-sm font-bold text-[#F8FAFC] flex items-center gap-2">
+              <Users className="w-4 h-4 text-[#3B82F6]" /> Candidate Summary
             </h3>
             <Button variant="ghost" size="sm" onClick={() => navigate(`/candidates/${student.id}`)}>
               Full Profile
@@ -140,22 +140,22 @@ export const InterviewDetail: React.FC = () => {
           </div>
 
           <div className="flex items-start gap-4">
-            <img src={student.avatar} alt={student.name} className="w-12 h-12 rounded-full object-cover border border-slate-200" />
+            <img src={student.avatar} alt={student.name} className="w-12 h-12 rounded-full object-cover border border-[#243650]" />
             <div>
-              <h4 className="text-base font-bold text-slate-900">{student.name}</h4>
-              <p className="text-xs text-slate-500 font-semibold">Roll: {student.rollNumber} &bull; {student.branch}</p>
+              <h4 className="text-base font-bold text-[#F8FAFC]">{student.name}</h4>
+              <p className="text-xs text-[#CBD5E1] font-semibold">Roll: {student.rollNumber} &bull; {student.branch}</p>
               <div className="flex items-center gap-2 mt-2">
-                <span className="text-xs font-bold text-slate-900 bg-slate-100 px-2 py-0.5 rounded">CGPA: {student.cgpa}</span>
+                <span className="text-xs font-bold text-[#F8FAFC] bg-[#14243B] border border-[#243650] px-2 py-0.5 rounded">CGPA: {student.cgpa}</span>
                 <MatchScore score={student.readinessScore || 85} />
               </div>
             </div>
           </div>
 
           <div className="space-y-1 pt-2">
-            <span className="text-[10px] font-bold text-slate-400 uppercase">Technical Skills</span>
+            <span className="text-[10px] font-bold text-[#94A3B8] uppercase">Technical Skills</span>
             <div className="flex flex-wrap gap-1">
               {student.skills.map((s) => (
-                <span key={s} className="text-xs font-semibold px-2 py-0.5 rounded bg-slate-900 text-white">
+                <span key={s} className="text-xs font-semibold px-2.5 py-1 rounded bg-[#0B1628] border border-[#243650] text-[#60A5FA]">
                   {s}
                 </span>
               ))}
@@ -164,13 +164,13 @@ export const InterviewDetail: React.FC = () => {
         </Card>
 
         {/* Panel Members & Confirmation Status */}
-        <Card className="p-5 space-y-4">
-          <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-            <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-              <Building2 className="w-4 h-4 text-brand-600" /> Assigned Panel & Venue
+        <Card className="p-5 space-y-4 bg-[#101D31] border-[#243650] text-[#F8FAFC]">
+          <div className="flex items-center justify-between border-b border-[#1B2A40] pb-3">
+            <h3 className="text-sm font-bold text-[#F8FAFC] flex items-center gap-2">
+              <Building2 className="w-4 h-4 text-[#3B82F6]" /> Assigned Panel &amp; Venue
             </h3>
             {interview.panelConfirmed ? (
-              <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded border border-emerald-200">
+              <span className="text-xs font-bold text-[#86EFAC] bg-[rgba(34,197,94,0.10)] px-2.5 py-1 rounded border border-[rgba(34,197,94,0.25)]">
                 Confirmed ✓
               </span>
             ) : (
@@ -181,20 +181,20 @@ export const InterviewDetail: React.FC = () => {
           </div>
 
           <div className="space-y-2">
-            <h4 className="text-xs font-bold text-slate-900">{interview.panelName}</h4>
-            <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-1 text-xs font-medium text-slate-700">
-              <span className="text-[10px] font-bold text-slate-400 uppercase block">Roster Members</span>
+            <h4 className="text-xs font-bold text-[#F8FAFC]">{interview.panelName}</h4>
+            <div className="p-3 bg-[#0B1628] rounded-xl border border-[#243650] space-y-1 text-xs font-medium text-[#CBD5E1]">
+              <span className="text-[10px] font-bold text-[#94A3B8] uppercase block">Roster Members</span>
               <ul className="list-disc list-inside space-y-0.5">
                 {(panel ? panel.members : ['Dr. Suresh (Lead)', 'Prof. Mehta']).map((m) => (
-                  <li key={m}>{m}</li>
+                  <li key={m} className="text-[#F8FAFC]">{m}</li>
                 ))}
               </ul>
             </div>
           </div>
 
           <div className="space-y-1">
-            <span className="text-[10px] font-bold text-slate-400 uppercase">Venue Room</span>
-            <p className="text-xs font-bold text-slate-900 bg-slate-100 p-2.5 rounded-lg border border-slate-200">
+            <span className="text-[10px] font-bold text-[#94A3B8] uppercase">Venue Room</span>
+            <p className="text-xs font-bold text-[#F8FAFC] bg-[#0B1628] p-2.5 rounded-lg border border-[#243650]">
               {interview.roomName} (Capacity: 30 seats &bull; Video Conf Enabled)
             </p>
           </div>
@@ -203,42 +203,42 @@ export const InterviewDetail: React.FC = () => {
 
       {/* RESCHEDULE MODAL DIALOG */}
       {isRescheduling && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
-          <div className="bg-white rounded-2xl p-6 shadow-xl w-full max-w-md space-y-4 border border-slate-200 animate-in fade-in">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <h3 className="text-base font-bold text-slate-900">Reschedule Interview Session</h3>
-              <button onClick={() => setIsRescheduling(false)} className="text-slate-400 hover:text-slate-900">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/65 backdrop-blur-md">
+          <div className="bg-[#0B1628] text-[#F8FAFC] rounded-2xl p-6 shadow-[0_12px_35px_rgba(0,0,0,0.5)] w-full max-w-md space-y-4 border border-[#243650] animate-in fade-in">
+            <div className="flex items-center justify-between pb-3 border-b border-[#243650]">
+              <h3 className="text-base font-bold text-[#F8FAFC]">Reschedule Interview Session</h3>
+              <button onClick={() => setIsRescheduling(false)} className="text-[#94A3B8] hover:text-white transition-colors cursor-pointer">
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             <div className="space-y-3 text-xs">
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">New Date</label>
+                <label className="block font-bold text-[#E2E8F0] mb-1">New Date</label>
                 <input
                   type="text"
                   value={reschedDate}
                   onChange={(e) => setReschedDate(e.target.value)}
-                  className="w-full p-2 border rounded-lg bg-slate-50 font-semibold"
+                  className="w-full p-2.5 border border-[#243650] rounded-lg bg-[#101D31] text-[#F8FAFC] font-semibold focus:outline-none focus:border-[#3B82F6]"
                 />
               </div>
 
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">New Time Slot</label>
+                <label className="block font-bold text-[#E2E8F0] mb-1">New Time Slot</label>
                 <input
                   type="text"
                   value={reschedTime}
                   onChange={(e) => setReschedTime(e.target.value)}
-                  className="w-full p-2 border rounded-lg bg-slate-50 font-semibold"
+                  className="w-full p-2.5 border border-[#243650] rounded-lg bg-[#101D31] text-[#F8FAFC] font-semibold focus:outline-none focus:border-[#3B82F6]"
                 />
               </div>
 
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">Change Panel</label>
+                <label className="block font-bold text-[#E2E8F0] mb-1">Change Panel</label>
                 <select
                   value={reschedPanel}
                   onChange={(e) => setReschedPanel(e.target.value)}
-                  className="w-full p-2 border rounded-lg bg-slate-50"
+                  className="w-full p-2.5 border border-[#243650] rounded-lg bg-[#101D31] text-[#F8FAFC] font-semibold focus:outline-none cursor-pointer"
                 >
                   {panelsList.map((p) => (
                     <option key={p.id} value={p.name}>
@@ -249,11 +249,11 @@ export const InterviewDetail: React.FC = () => {
               </div>
 
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">Change Room</label>
+                <label className="block font-bold text-[#E2E8F0] mb-1">Change Room</label>
                 <select
                   value={reschedRoom}
                   onChange={(e) => setReschedRoom(e.target.value)}
-                  className="w-full p-2 border rounded-lg bg-slate-50"
+                  className="w-full p-2.5 border border-[#243650] rounded-lg bg-[#101D31] text-[#F8FAFC] font-semibold focus:outline-none cursor-pointer"
                 >
                   {roomsList.map((r) => (
                     <option key={r.id} value={r.name}>
@@ -264,7 +264,7 @@ export const InterviewDetail: React.FC = () => {
               </div>
             </div>
 
-            <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
+            <div className="pt-3 border-t border-[#243650] flex items-center justify-between">
               <Button variant="outline" size="sm" onClick={() => setIsRescheduling(false)}>
                 Cancel
               </Button>

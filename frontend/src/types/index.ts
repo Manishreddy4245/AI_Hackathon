@@ -1,5 +1,12 @@
-export type UserRole = 'placement_officer' | 'student' | 'recruiter' | 'panel_member';
+export type UserRole = 'placement_officer' | 'student' | 'recruiter';
 
+export interface AuthUser {
+  id: string;
+  name: string;
+  email: string;
+  role: UserRole;
+  companyId?: string;
+}
 
 export type DriveStatus = 'draft' | 'open' | 'shortlisting' | 'interview' | 'closed' | 'completed' | 'ongoing' | 'upcoming';
 

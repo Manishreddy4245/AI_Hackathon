@@ -122,7 +122,7 @@ apiClient.interceptors.request.use((config) => {
 
 export const apiService = {
   // Authentication
-  async login(payload: { email?: string; password?: string; role?: string }) {
+  async login(payload: { email: string; password: string; portalRole?: string }) {
     const res = await apiClient.post('/auth/login', payload);
     return res.data;
   },
@@ -137,10 +137,26 @@ export const apiService = {
     graduationYear?: number;
     cgpa?: number;
   }) {
-    const res = await apiClient.post('/auth/register', payload);
+    const res = await apiClient.post('/auth/register/student', payload);
     return res.data;
   },
 
+  async registerRecruiter(payload: {
+    name: string;
+    email: string;
+    password: string;
+    companyName: string;
+    designation: string;
+    phone?: string;
+  }) {
+    const res = await apiClient.post('/auth/register/recruiter', payload);
+    return res.data;
+  },
+
+  async forgotPassword(payload: { email: string; portalRole?: string }) {
+    const res = await apiClient.post('/auth/forgot-password', payload);
+    return res.data;
+  },
 
   async getCurrentUser() {
     const res = await apiClient.get('/auth/me');

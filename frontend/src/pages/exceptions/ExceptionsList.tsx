@@ -69,33 +69,33 @@ export const ExceptionsList: React.FC = () => {
 
       {/* COMMAND CENTER EXCEPTION SUMMARY CARDS */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <div className="p-4 bg-rose-50/70 rounded-xl border border-rose-200/80 shadow-2xs">
-          <span className="text-xs font-semibold text-rose-700">Critical Exceptions</span>
-          <div className="text-2xl font-bold text-rose-900 mt-1">{criticalCount}</div>
+        <div className="p-4 bg-[#101D31] rounded-xl border border-[rgba(239,68,68,0.25)] shadow-sm">
+          <span className="text-xs font-bold text-[#FCA5A5] uppercase tracking-wider">Critical Exceptions</span>
+          <div className="text-2xl font-black text-[#EF4444] mt-1">{criticalCount}</div>
         </div>
-        <div className="p-4 bg-amber-50/70 rounded-xl border border-amber-200/80 shadow-2xs">
-          <span className="text-xs font-semibold text-amber-700">Warnings</span>
-          <div className="text-2xl font-bold text-amber-900 mt-1">{warningCount}</div>
+        <div className="p-4 bg-[#101D31] rounded-xl border border-[rgba(245,158,11,0.25)] shadow-sm">
+          <span className="text-xs font-bold text-[#FCD34D] uppercase tracking-wider">Warnings</span>
+          <div className="text-2xl font-black text-[#F59E0B] mt-1">{warningCount}</div>
         </div>
-        <div className="p-4 bg-emerald-50/70 rounded-xl border border-emerald-200/80 shadow-2xs">
-          <span className="text-xs font-semibold text-emerald-700">Resolved</span>
-          <div className="text-2xl font-bold text-emerald-900 mt-1">{resolvedCount}</div>
+        <div className="p-4 bg-[#101D31] rounded-xl border border-[rgba(34,197,94,0.25)] shadow-sm">
+          <span className="text-xs font-bold text-[#86EFAC] uppercase tracking-wider">Resolved</span>
+          <div className="text-2xl font-black text-[#22C55E] mt-1">{resolvedCount}</div>
         </div>
-        <div className="p-4 bg-white rounded-xl border border-slate-200 shadow-2xs">
-          <span className="text-xs font-semibold text-slate-500">Pending Review</span>
-          <div className="text-2xl font-bold text-slate-900 mt-1">6</div>
+        <div className="p-4 bg-[#101D31] rounded-xl border border-[#243650] shadow-sm">
+          <span className="text-xs font-bold text-[#94A3B8] uppercase tracking-wider">Pending Review</span>
+          <div className="text-2xl font-black text-[#F8FAFC] mt-1">6</div>
         </div>
       </div>
 
       {/* EXCEPTION FILTER CONTROLS BAR */}
-      <Card className="p-4 bg-white">
+      <Card className="p-4 bg-[#101D31] border-[#243650]">
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <div>
-            <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">Severity</label>
+            <label className="block text-[10px] font-bold uppercase text-[#94A3B8] mb-1">Severity</label>
             <select
               value={severityFilter}
               onChange={(e) => setSeverityFilter(e.target.value)}
-              className="w-full text-xs p-2 bg-slate-100/80 border border-slate-200 rounded-lg focus:outline-none cursor-pointer font-medium"
+              className="w-full text-xs p-2 bg-[#0B1628] border border-[#243650] text-[#F8FAFC] rounded-lg focus:outline-none cursor-pointer font-medium"
             >
               <option value="all">All Severities</option>
               <option value="critical">Critical</option>
@@ -105,11 +105,11 @@ export const ExceptionsList: React.FC = () => {
           </div>
 
           <div>
-            <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">Status</label>
+            <label className="block text-[10px] font-bold uppercase text-[#94A3B8] mb-1">Status</label>
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
-              className="w-full text-xs p-2 bg-slate-100/80 border border-slate-200 rounded-lg focus:outline-none cursor-pointer font-medium"
+              className="w-full text-xs p-2 bg-[#0B1628] border border-[#243650] text-[#F8FAFC] rounded-lg focus:outline-none cursor-pointer font-medium"
             >
               <option value="all">All Statuses</option>
               <option value="open">Open</option>
@@ -120,11 +120,11 @@ export const ExceptionsList: React.FC = () => {
           </div>
 
           <div>
-            <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">Category</label>
+            <label className="block text-[10px] font-bold uppercase text-[#94A3B8] mb-1">Category</label>
             <select
               value={categoryFilter}
               onChange={(e) => setCategoryFilter(e.target.value)}
-              className="w-full text-xs p-2 bg-slate-100/80 border border-slate-200 rounded-lg focus:outline-none cursor-pointer font-medium"
+              className="w-full text-xs p-2 bg-[#0B1628] border border-[#243650] text-[#F8FAFC] rounded-lg focus:outline-none cursor-pointer font-medium"
             >
               <option value="all">All Categories</option>
               <option value="scheduling">Scheduling</option>
@@ -142,8 +142,8 @@ export const ExceptionsList: React.FC = () => {
         {/* EXCEPTION CARDS LIST (2 COLS) */}
         <div className="lg:col-span-2 space-y-4">
           <div className="flex items-center justify-between">
-            <h3 className="text-base font-bold text-slate-900">Detected Operational Exceptions</h3>
-            <span className="text-xs text-slate-500 font-medium">Showing {filteredExceptions.length} items</span>
+            <h3 className="text-base font-bold text-[#F8FAFC]">Detected Operational Exceptions</h3>
+            <span className="text-xs text-[#94A3B8] font-medium">Showing {filteredExceptions.length} items</span>
           </div>
 
           {filteredExceptions.map((item) => {
@@ -152,11 +152,11 @@ export const ExceptionsList: React.FC = () => {
             return (
               <Card
                 key={item.id}
-                className={`p-5 transition-all ${
+                className={`p-5 transition-all bg-[#101D31] border-[#243650] ${
                   item.severity === 'critical' && !isResolved
-                    ? 'border-rose-300 bg-rose-50/10'
+                    ? 'border-[rgba(239,68,68,0.4)] bg-[#101D31]'
                     : isResolved
-                    ? 'border-emerald-200 bg-emerald-50/10'
+                    ? 'border-[rgba(34,197,94,0.35)] bg-[#101D31]'
                     : ''
                 }`}
               >
@@ -165,48 +165,48 @@ export const ExceptionsList: React.FC = () => {
                     <span
                       className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full uppercase border ${
                         item.severity === 'critical'
-                          ? 'bg-rose-100 text-rose-800 border-rose-200'
+                          ? 'bg-[rgba(239,68,68,0.15)] text-[#FCA5A5] border-[rgba(239,68,68,0.30)]'
                           : item.severity === 'warning'
-                          ? 'bg-amber-100 text-amber-800 border-amber-200'
-                          : 'bg-blue-100 text-blue-800 border-blue-200'
+                          ? 'bg-[rgba(245,158,11,0.15)] text-[#FCD34D] border-[rgba(245,158,11,0.30)]'
+                          : 'bg-[rgba(59,130,246,0.15)] text-[#60A5FA] border-[rgba(59,130,246,0.30)]'
                       }`}
                     >
                       {item.severity}
                     </span>
-                    <span className="text-xs font-semibold px-2 py-0.5 rounded bg-slate-100 text-slate-700">
+                    <span className="text-xs font-bold px-2 py-0.5 rounded bg-[#14243B] text-[#CBD5E1] border border-[#243650]">
                       {item.category}
                     </span>
                   </div>
 
-                  <span className="text-xs text-slate-500 font-medium">{item.timestamp}</span>
+                  <span className="text-xs text-[#94A3B8] font-medium">{item.timestamp}</span>
                 </div>
 
                 <div className="mt-3 space-y-1">
-                  <h4 className="text-base font-bold text-slate-900">{item.title}</h4>
-                  <p className="text-xs text-slate-600 leading-relaxed font-medium">{item.description}</p>
+                  <h4 className="text-base font-bold text-[#F8FAFC]">{item.title}</h4>
+                  <p className="text-xs text-[#CBD5E1] leading-relaxed font-medium">{item.description}</p>
                 </div>
 
                 {/* AI RECOMMENDATION BOX */}
-                <div className="mt-4 p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-2 text-xs">
-                  <span className="font-bold text-brand-900 uppercase flex items-center gap-1.5">
-                    <Sparkles className="w-3.5 h-3.5 text-brand-600" /> AI Recommendation
+                <div className="mt-4 p-3.5 rounded-xl bg-[#0B1628] border border-[rgba(59,130,246,0.30)] space-y-2 text-xs">
+                  <span className="font-bold text-[#60A5FA] uppercase flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5 text-[#06B6D4]" /> AI Recommendation
                   </span>
-                  <p className="text-slate-800 font-medium leading-relaxed">{item.aiRecommendation}</p>
-                  <div className="p-2 rounded bg-white border border-slate-200 font-semibold text-slate-900 text-[11px]">
-                    Proposed Action: {item.suggestedActionText}
+                  <p className="text-[#CBD5E1] font-medium leading-relaxed">{item.aiRecommendation}</p>
+                  <div className="p-2.5 rounded-lg bg-[#14243B] border border-[#243650] font-bold text-[#F8FAFC] text-[11px]">
+                    Proposed Action: <span className="text-[#60A5FA]">{item.suggestedActionText}</span>
                   </div>
                 </div>
 
                 {/* HUMAN-IN-THE-LOOP CONTROL ACTION BAR */}
-                <div className="mt-4 pt-3 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
-                  <span className="text-[11px] font-semibold text-amber-900 bg-amber-50 px-2 py-0.5 rounded border border-amber-200/60">
+                <div className="mt-4 pt-3 border-t border-[#1B2A40] flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                  <span className="text-[11px] font-bold text-[#FCD34D] bg-[rgba(245,158,11,0.10)] px-2.5 py-1 rounded-lg border border-[rgba(245,158,11,0.25)]">
                     Requires Placement Officer Approval
                   </span>
 
                   <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
                     {isResolved ? (
-                      <span className="text-emerald-700 font-bold flex items-center gap-1">
-                        <CheckCircle2 className="w-4 h-4" /> Resolved ✓
+                      <span className="text-[#86EFAC] font-bold flex items-center gap-1 bg-[rgba(34,197,94,0.10)] px-3 py-1.5 rounded-lg border border-[rgba(34,197,94,0.25)]">
+                        <CheckCircle2 className="w-4 h-4 text-[#22C55E]" /> Resolved ✓
                       </span>
                     ) : (
                       <>
@@ -243,7 +243,7 @@ export const ExceptionsList: React.FC = () => {
 
         {/* AGENT ACTIVITY TIMELINE (1 COL) */}
         <div className="space-y-6">
-          <Card className="p-5">
+          <Card className="p-5 bg-[#101D31] border-[#243650]">
             <AgentActivityTimeline />
           </Card>
         </div>

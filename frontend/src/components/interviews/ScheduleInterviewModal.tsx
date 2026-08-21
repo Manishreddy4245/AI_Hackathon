@@ -88,20 +88,20 @@ export const ScheduleInterviewModal: React.FC<ScheduleInterviewModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs overflow-y-auto">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden border border-slate-200 my-6 animate-in fade-in zoom-in-95 duration-150">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/65 backdrop-blur-md overflow-y-auto">
+      <div className="bg-[#0B1628] rounded-2xl shadow-[0_12px_35px_rgba(0,0,0,0.5)] w-full max-w-2xl overflow-hidden border border-[#243650] my-6 animate-in fade-in zoom-in-95 duration-150 text-[#F8FAFC]">
         {/* Header */}
-        <div className="px-6 py-4 bg-slate-900 text-white flex items-center justify-between">
+        <div className="px-6 py-4 bg-[#101D31] border-b border-[#243650] text-[#F8FAFC] flex items-center justify-between">
           <div className="flex items-center gap-2.5">
-            <div className="p-2 rounded-lg bg-brand-600 text-white font-bold text-xs shadow-xs">
+            <div className="p-2 rounded-lg bg-gradient-to-tr from-[#3B82F6] to-[#06B6D4] text-white font-bold text-xs shadow-glow-brand">
               <Calendar className="w-4 h-4" />
             </div>
             <div>
-              <h3 className="text-base font-bold tracking-tight">Schedule Interview Slot</h3>
-              <p className="text-xs text-slate-400">Automated venue, candidate & panel availability verification</p>
+              <h3 className="text-base font-bold text-[#F8FAFC] tracking-tight">Schedule Interview Slot</h3>
+              <p className="text-xs text-[#CBD5E1]">Automated venue, candidate &amp; panel availability verification</p>
             </div>
           </div>
-          <button onClick={onClose} className="p-1 rounded-lg text-slate-400 hover:text-white">
+          <button onClick={onClose} className="p-1 rounded-lg text-[#94A3B8] hover:text-white transition-colors cursor-pointer">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -110,11 +110,11 @@ export const ScheduleInterviewModal: React.FC<ScheduleInterviewModalProps> = ({
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">Recruiter Company</label>
+              <label className="block text-xs font-bold text-[#E2E8F0] mb-1">Recruiter Company</label>
               <select
                 value={companyName}
                 onChange={(e) => setCompanyName(e.target.value)}
-                className="w-full text-xs p-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:bg-white cursor-pointer font-medium"
+                className="w-full text-xs p-2.5 bg-[#101D31] border border-[#243650] text-[#F8FAFC] rounded-lg focus:outline-none focus:border-[#3B82F6] cursor-pointer font-medium"
               >
                 {drives.map((d) => (
                   <option key={d.id} value={d.companyName}>
@@ -125,14 +125,14 @@ export const ScheduleInterviewModal: React.FC<ScheduleInterviewModalProps> = ({
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">Candidate</label>
+              <label className="block text-xs font-bold text-[#E2E8F0] mb-1">Candidate</label>
               <select
                 value={candidateName}
                 onChange={(e) => {
                   setCandidateName(e.target.value);
                   setHasCheckedAvailability(false);
                 }}
-                className="w-full text-xs p-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:bg-white cursor-pointer font-medium"
+                className="w-full text-xs p-2.5 bg-[#101D31] border border-[#243650] text-[#F8FAFC] rounded-lg focus:outline-none focus:border-[#3B82F6] cursor-pointer font-medium"
               >
                 {students.map((s) => (
                   <option key={s.id} value={s.name}>
@@ -145,11 +145,11 @@ export const ScheduleInterviewModal: React.FC<ScheduleInterviewModalProps> = ({
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">Interview Round</label>
+              <label className="block text-xs font-bold text-[#E2E8F0] mb-1">Interview Round</label>
               <select
                 value={round}
                 onChange={(e) => setRound(e.target.value as InterviewRound)}
-                className="w-full text-xs p-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none cursor-pointer font-medium"
+                className="w-full text-xs p-2.5 bg-[#101D31] border border-[#243650] text-[#F8FAFC] rounded-lg focus:outline-none focus:border-[#3B82F6] cursor-pointer font-medium"
               >
                 <option value="Online Assessment">Online Assessment</option>
                 <option value="Technical Interview">Technical Interview</option>
@@ -159,11 +159,11 @@ export const ScheduleInterviewModal: React.FC<ScheduleInterviewModalProps> = ({
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">Date</label>
+              <label className="block text-xs font-bold text-[#E2E8F0] mb-1">Date</label>
               <select
                 value={date}
                 onChange={(e) => setDate(e.target.value)}
-                className="w-full text-xs p-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none cursor-pointer font-medium"
+                className="w-full text-xs p-2.5 bg-[#101D31] border border-[#243650] text-[#F8FAFC] rounded-lg focus:outline-none focus:border-[#3B82F6] cursor-pointer font-medium"
               >
                 <option value="Today">Today</option>
                 <option value="Tomorrow">Tomorrow</option>
@@ -172,7 +172,7 @@ export const ScheduleInterviewModal: React.FC<ScheduleInterviewModalProps> = ({
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">Start Time</label>
+              <label className="block text-xs font-bold text-[#E2E8F0] mb-1">Start Time</label>
               <input
                 type="text"
                 value={startTime}
@@ -180,7 +180,7 @@ export const ScheduleInterviewModal: React.FC<ScheduleInterviewModalProps> = ({
                   setStartTime(e.target.value);
                   setHasCheckedAvailability(false);
                 }}
-                className="w-full text-xs p-2.5 bg-slate-50 border border-slate-200 rounded-lg font-semibold text-slate-900"
+                className="w-full text-xs p-2.5 bg-[#101D31] border border-[#243650] text-[#F8FAFC] placeholder-[#64748B] rounded-lg font-bold focus:outline-none focus:border-[#3B82F6]"
                 placeholder="10:30 AM"
               />
             </div>
@@ -188,14 +188,14 @@ export const ScheduleInterviewModal: React.FC<ScheduleInterviewModalProps> = ({
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">Assigned Panel</label>
+              <label className="block text-xs font-bold text-[#E2E8F0] mb-1">Assigned Panel</label>
               <select
                 value={panelName}
                 onChange={(e) => {
                   setPanelName(e.target.value);
                   setHasCheckedAvailability(false);
                 }}
-                className="w-full text-xs p-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none cursor-pointer font-medium"
+                className="w-full text-xs p-2.5 bg-[#101D31] border border-[#243650] text-[#F8FAFC] rounded-lg focus:outline-none focus:border-[#3B82F6] cursor-pointer font-medium"
               >
                 {panelsList.map((p) => (
                   <option key={p.id} value={p.name}>
@@ -206,14 +206,14 @@ export const ScheduleInterviewModal: React.FC<ScheduleInterviewModalProps> = ({
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">Assigned Venue Room</label>
+              <label className="block text-xs font-bold text-[#E2E8F0] mb-1">Assigned Venue Room</label>
               <select
                 value={roomName}
                 onChange={(e) => {
                   setRoomName(e.target.value);
                   setHasCheckedAvailability(false);
                 }}
-                className="w-full text-xs p-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none cursor-pointer font-medium"
+                className="w-full text-xs p-2.5 bg-[#101D31] border border-[#243650] text-[#F8FAFC] rounded-lg focus:outline-none focus:border-[#3B82F6] cursor-pointer font-medium"
               >
                 {roomsList.map((r) => (
                   <option key={r.id} value={r.name}>
@@ -226,29 +226,29 @@ export const ScheduleInterviewModal: React.FC<ScheduleInterviewModalProps> = ({
 
           {/* CONFLICT WARNING & SMART RECOMMENDATIONS PANEL */}
           {hasCheckedAvailability && conflictData.hasConflict && (
-            <div className="p-4 rounded-xl border border-rose-200 bg-rose-50/70 space-y-3 animate-in fade-in">
+            <div className="p-4 rounded-xl border border-[rgba(239,68,68,0.25)] bg-[rgba(239,68,68,0.10)] space-y-3 animate-in fade-in">
               <div className="flex items-start gap-2.5 text-xs">
-                <AlertTriangle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
+                <AlertTriangle className="w-5 h-5 text-[#EF4444] shrink-0 mt-0.5" />
                 <div>
-                  <h4 className="font-bold text-rose-900">⚠ Scheduling Conflict Detected</h4>
-                  <p className="text-rose-800 mt-0.5 leading-relaxed">{conflictData.reason}</p>
+                  <h4 className="font-bold text-[#FCA5A5]">⚠ Scheduling Conflict Detected</h4>
+                  <p className="text-[#CBD5E1] mt-0.5 leading-relaxed font-medium">{conflictData.reason}</p>
                 </div>
               </div>
 
               {/* SMART RECOMMENDATIONS SECTION */}
-              <div className="p-3 bg-white rounded-lg border border-rose-200 space-y-2 text-xs">
-                <span className="font-bold text-slate-900 flex items-center gap-1.5">
-                  <Sparkles className="w-3.5 h-3.5 text-brand-600" /> Recommended Alternative Available Slots
+              <div className="p-3 bg-[#101D31] rounded-lg border border-[#243650] space-y-2 text-xs">
+                <span className="font-bold text-[#F8FAFC] flex items-center gap-1.5">
+                  <Sparkles className="w-3.5 h-3.5 text-[#3B82F6]" /> Recommended Alternative Available Slots
                 </span>
                 <div className="space-y-1.5">
                   {(conflictData.suggestedSlots || ['11:30 AM – 12:15 PM', '02:00 PM – 02:45 PM']).map((slot) => (
                     <div
                       key={slot}
-                      className="p-2 rounded bg-slate-50 border border-slate-200 flex items-center justify-between gap-2"
+                      className="p-2 rounded bg-[#0B1628] border border-[#243650] flex items-center justify-between gap-2 text-[#F8FAFC]"
                     >
                       <div>
-                        <span className="font-bold text-slate-900">{slot}</span>
-                        <div className="flex items-center gap-2 text-[10px] text-emerald-700 font-semibold mt-0.5">
+                        <span className="font-bold text-[#F8FAFC]">{slot}</span>
+                        <div className="flex items-center gap-2 text-[10px] text-[#86EFAC] font-semibold mt-0.5">
                           <span>✓ Candidate available</span>
                           <span>✓ Panel available</span>
                           <span>✓ Room available</span>
@@ -257,7 +257,7 @@ export const ScheduleInterviewModal: React.FC<ScheduleInterviewModalProps> = ({
                       <button
                         type="button"
                         onClick={() => handleUseRecommendedSlot(slot)}
-                        className="px-2.5 py-1 text-[11px] font-bold bg-brand-600 text-white rounded hover:bg-brand-500 transition-colors"
+                        className="px-2.5 py-1 text-[11px] font-bold bg-[#3B82F6] text-white rounded hover:bg-[#60A5FA] transition-colors cursor-pointer"
                       >
                         Use this slot
                       </button>
@@ -269,14 +269,14 @@ export const ScheduleInterviewModal: React.FC<ScheduleInterviewModalProps> = ({
           )}
 
           {hasCheckedAvailability && !conflictData.hasConflict && (
-            <div className="p-3 rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-800 text-xs font-semibold flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+            <div className="p-3 rounded-xl border border-[rgba(34,197,94,0.25)] bg-[rgba(34,197,94,0.10)] text-[#86EFAC] text-xs font-semibold flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-[#22C55E]" />
               <span>✓ All schedules verified. Candidate, Panel, and Room are available at {startTime}.</span>
             </div>
           )}
 
           {/* Action Buttons */}
-          <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
+          <div className="pt-3 border-t border-[#243650] flex items-center justify-between">
             <Button variant="outline" size="sm" type="button" onClick={onClose}>
               Cancel
             </Button>

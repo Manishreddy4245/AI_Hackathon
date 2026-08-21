@@ -11,20 +11,20 @@ interface EmptyStateProps {
 }
 
 export const EmptyState: React.FC<EmptyStateProps> = ({
-  icon = <Layers className="w-8 h-8 text-slate-400" />,
+  icon = <Layers className="w-8 h-8 text-[#94A3B8]" />,
   title,
   description,
   actionLabel,
   onAction,
 }) => {
   return (
-    <div className="p-8 text-center rounded-2xl border border-dashed border-slate-300 bg-slate-50/50 space-y-3 my-4 animate-in fade-in">
-      <div className="w-12 h-12 rounded-2xl bg-white border border-slate-200 shadow-2xs flex items-center justify-center mx-auto text-slate-400">
+    <div className="p-8 text-center rounded-2xl border border-dashed border-[#243650] bg-[#101D31] space-y-3 my-4 animate-in fade-in">
+      <div className="w-12 h-12 rounded-2xl bg-[#14243B] border border-[#243650] shadow-sm flex items-center justify-center mx-auto text-[#94A3B8]">
         {icon}
       </div>
       <div>
-        <h4 className="text-sm font-bold text-slate-900">{title}</h4>
-        <p className="text-xs text-slate-500 max-w-sm mx-auto mt-0.5 leading-relaxed">{description}</p>
+        <h4 className="text-sm font-bold text-[#F8FAFC]">{title}</h4>
+        <p className="text-xs text-[#CBD5E1] max-w-sm mx-auto mt-0.5 leading-relaxed">{description}</p>
       </div>
       {actionLabel && onAction && (
         <div className="pt-2">

@@ -18,31 +18,31 @@ export const StatCard: React.FC<StatCardProps> = ({
   trend,
   trendType = 'neutral',
   subtitle,
-  accent = 'indigo',
+  accent = 'blue',
 }) => {
   const trendColors = {
-    neutral: 'bg-slate-800 text-slate-300 border-slate-700',
-    positive: 'bg-emerald-950/90 text-emerald-300 border-emerald-800',
-    warning: 'bg-amber-950/90 text-amber-300 border-amber-800',
-    negative: 'bg-rose-950/90 text-rose-300 border-rose-800',
+    neutral: 'bg-[#14243B] text-[#CBD5E1] border-[#243650]',
+    positive: 'bg-[rgba(34,197,94,0.10)] text-[#86EFAC] border-[rgba(34,197,94,0.25)]',
+    warning: 'bg-[rgba(245,158,11,0.10)] text-[#FCD34D] border-[rgba(245,158,11,0.25)]',
+    negative: 'bg-[rgba(239,68,68,0.10)] text-[#FCA5A5] border-[rgba(239,68,68,0.25)]',
   };
 
   const accentBadges = {
-    blue: 'bg-blue-600 text-white shadow-glow-brand',
-    cyan: 'bg-cyan-600 text-white shadow-glow-cyan',
-    violet: 'bg-violet-600 text-white shadow-glow-violet',
-    emerald: 'bg-emerald-600 text-white shadow-glow-emerald',
-    amber: 'bg-amber-600 text-white',
-    indigo: 'bg-indigo-600 text-white shadow-glow-indigo',
+    blue: 'bg-gradient-to-tr from-[#3B82F6] to-[#2563EB] text-white shadow-glow-brand',
+    cyan: 'bg-gradient-to-tr from-[#06B6D4] to-[#0891B2] text-white shadow-glow-cyan',
+    violet: 'bg-gradient-to-tr from-violet-600 to-indigo-600 text-white shadow-glow-violet',
+    emerald: 'bg-gradient-to-tr from-[#22C55E] to-emerald-600 text-white shadow-glow-emerald',
+    amber: 'bg-gradient-to-tr from-[#F59E0B] to-amber-600 text-white',
+    indigo: 'bg-gradient-to-tr from-[#3B82F6] to-[#06B6D4] text-white shadow-glow-indigo',
   };
 
   return (
-    <Card className="p-5 relative overflow-hidden bg-slate-900/90 border-slate-800/90 shadow-3d-sm text-slate-100 hover:border-indigo-500/50">
+    <Card className="p-5 relative overflow-hidden bg-[#101D31] border-[#243650] shadow-[0_12px_35px_rgba(0,0,0,0.22)] text-[#F8FAFC] hover:bg-[#14243B] hover:border-[#31527A]">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block">{label}</span>
+          <span className="text-xs font-bold text-[#94A3B8] uppercase tracking-wider block">{label}</span>
           <div className="mt-2 flex items-baseline gap-2">
-            <span className="text-3xl font-black tracking-tight text-white drop-shadow-xs">{value}</span>
+            <span className="text-3xl font-black tracking-tight text-[#F8FAFC] drop-shadow-xs">{value}</span>
             {trend && (
               <span className={`text-[11px] px-2 py-0.5 rounded-full font-bold border ${trendColors[trendType]}`}>
                 {trend}
@@ -50,7 +50,7 @@ export const StatCard: React.FC<StatCardProps> = ({
             )}
           </div>
           {subtitle && (
-            <span className="text-[11px] text-slate-300 font-semibold block mt-1">{subtitle}</span>
+            <span className="text-[11px] text-[#CBD5E1] font-semibold block mt-1">{subtitle}</span>
           )}
         </div>
 

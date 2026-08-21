@@ -15,24 +15,24 @@ export const AlertCard: React.FC<AlertCardProps> = ({ alert }) => {
   const getIcon = () => {
     switch (alert.severity) {
       case 'critical':
-        return <ShieldAlert className="w-5 h-5 text-rose-600" />;
+        return <ShieldAlert className="w-5 h-5 text-[#EF4444]" />;
       case 'warning':
-        return <AlertTriangle className="w-5 h-5 text-amber-600" />;
+        return <AlertTriangle className="w-5 h-5 text-[#F59E0B]" />;
       case 'info':
       default:
-        return <AlertCircle className="w-5 h-5 text-sky-600" />;
+        return <AlertCircle className="w-5 h-5 text-[#38BDF8]" />;
     }
   };
 
   const getBorderColor = () => {
     switch (alert.severity) {
       case 'critical':
-        return 'border-l-4 border-l-rose-500 bg-rose-50/20';
+        return 'border-l-4 border-l-[#EF4444] bg-[rgba(239,68,68,0.06)] border-[#243650]';
       case 'warning':
-        return 'border-l-4 border-l-amber-500 bg-amber-50/20';
+        return 'border-l-4 border-l-[#F59E0B] bg-[rgba(245,158,11,0.06)] border-[#243650]';
       case 'info':
       default:
-        return 'border-l-4 border-l-sky-500 bg-sky-50/20';
+        return 'border-l-4 border-l-[#38BDF8] bg-[rgba(56,189,248,0.06)] border-[#243650]';
     }
   };
 
@@ -40,28 +40,28 @@ export const AlertCard: React.FC<AlertCardProps> = ({ alert }) => {
   const actionText = alert.actionText || 'Review Exception';
 
   return (
-    <div className={`p-4 rounded-xl border border-slate-200 bg-white ${getBorderColor()} transition-all hover:shadow-xs`}>
+    <div className={`p-4 rounded-xl border ${getBorderColor()} transition-all hover:bg-[#14243B]`}>
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-start gap-3">
-          <div className="p-2 rounded-lg bg-white border border-slate-100 shadow-2xs shrink-0 mt-0.5">
+          <div className="p-2 rounded-lg bg-[#101D31] border border-[#243650] shrink-0 mt-0.5">
             {getIcon()}
           </div>
           <div>
             <div className="flex items-center gap-2 flex-wrap">
-              <h4 className="text-sm font-semibold text-slate-900">{alert.title}</h4>
+              <h4 className="text-sm font-bold text-[#F8FAFC]">{alert.title}</h4>
               <SeverityBadge severity={alert.severity} />
             </div>
-            <p className="text-xs text-slate-600 mt-1 leading-relaxed">{alert.description}</p>
+            <p className="text-xs text-[#CBD5E1] mt-1 leading-relaxed">{alert.description}</p>
             {recommendation && (
-              <div className="mt-2 text-xs font-medium text-slate-700 bg-white/80 p-2 rounded-lg border border-slate-100">
-                <span className="text-slate-900 font-semibold">AI Recommendation:</span> {recommendation}
+              <div className="mt-2 text-xs font-medium text-[#CBD5E1] bg-[#101D31] p-2.5 rounded-lg border border-[#243650]">
+                <span className="text-[#3B82F6] font-bold">AI Recommendation:</span> {recommendation}
               </div>
             )}
           </div>
         </div>
-        <span className="text-xs font-medium text-slate-400 shrink-0">{alert.timestamp}</span>
+        <span className="text-xs font-medium text-[#94A3B8] shrink-0">{alert.timestamp}</span>
       </div>
-      <div className="mt-3 pt-3 border-t border-slate-100 flex items-center justify-end">
+      <div className="mt-3 pt-3 border-t border-[#1B2A40] flex items-center justify-end">
         <Button
           variant={alert.severity === 'critical' ? 'danger' : alert.severity === 'warning' ? 'secondary' : 'outline'}
           size="sm"

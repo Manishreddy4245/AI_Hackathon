@@ -198,25 +198,24 @@ export const ResumeAnalyzer: React.FC = () => {
         icon={<BrainCircuit className="w-5 h-5 text-brand-600" />}
       />
 
-      {/* HUMAN CONTROL NOTICE (PART 16 REQUIREMENT) */}
-      <div className="p-4 bg-amber-50/80 border border-amber-200 rounded-xl flex items-start gap-3">
-        <Info className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
-        <div className="text-xs text-amber-900 leading-relaxed font-medium">
+      {/* HUMAN CONTROL NOTICE */}
+      <div className="p-4 bg-[rgba(245,158,11,0.10)] border border-[rgba(245,158,11,0.25)] rounded-xl flex items-start gap-3">
+        <Info className="w-5 h-5 text-[#F59E0B] shrink-0 mt-0.5" />
+        <div className="text-xs text-[#FCD34D] leading-relaxed font-medium">
           <strong>Human Control Advisory:</strong> AI recommendations are advisory. Final placement drive eligibility and selection decisions remain under the control of campus placement officers and corporate recruiters.
         </div>
       </div>
 
-
-      {/* ERROR MESSAGE DISPLAY (PART 17 & 19 REQUIREMENT) */}
+      {/* ERROR MESSAGE DISPLAY */}
       {serviceError && (
-        <div className="p-4 bg-rose-50 border border-rose-200 rounded-xl flex items-center justify-between text-rose-800 text-xs font-semibold">
+        <div className="p-4 bg-[rgba(239,68,68,0.10)] border border-[rgba(239,68,68,0.25)] rounded-xl flex items-center justify-between text-[#FCA5A5] text-xs font-semibold">
           <div className="flex items-center gap-2">
-            <AlertCircle className="w-4 h-4 text-rose-600" />
+            <AlertCircle className="w-4 h-4 text-[#EF4444]" />
             <span>{serviceError}</span>
           </div>
           <button
             onClick={() => setServiceError(null)}
-            className="text-rose-600 hover:text-rose-800"
+            className="text-[#FCA5A5] hover:text-white"
           >
             <X className="w-4 h-4" />
           </button>

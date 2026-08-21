@@ -369,8 +369,17 @@ from app.core.security import hash_password
 mock_users = [
     {
         "id": "usr-admin",
-        "name": "Placement Officer",
+        "name": "Prof. Rajesh Sharma (Placement Head)",
         "email": "admin@placemind.local",
+        "password_hash": hash_password("password123"),
+        "role": "placement_officer",
+        "is_active": True,
+        "created_at": "2026-08-01T10:00:00"
+    },
+    {
+        "id": "usr-admin-demo",
+        "name": "Placement Officer",
+        "email": "placement@demo.com",
         "password_hash": hash_password("password123"),
         "role": "placement_officer",
         "is_active": True,
@@ -386,8 +395,17 @@ mock_users = [
         "created_at": "2026-08-01T10:00:00"
     },
     {
+        "id": "student-demo",
+        "name": "Rahul Verma",
+        "email": "student@demo.com",
+        "password_hash": hash_password("password123"),
+        "role": "student",
+        "is_active": True,
+        "created_at": "2026-08-01T10:00:00"
+    },
+    {
         "id": "usr-recruiter",
-        "name": "Vikram Mehta (Recruiter)",
+        "name": "Vikram Mehta (Campus Lead)",
         "email": "recruiter@placemind.local",
         "password_hash": hash_password("password123"),
         "role": "recruiter",
@@ -396,12 +414,13 @@ mock_users = [
         "created_at": "2026-08-01T10:00:00"
     },
     {
-        "id": "usr-panel",
-        "name": "Dr. Suresh (Panel Lead)",
-        "email": "panel@placemind.local",
+        "id": "recruiter-demo",
+        "name": "Vikram Mehta",
+        "email": "recruiter@demo.com",
         "password_hash": hash_password("password123"),
-        "role": "panel_member",
+        "role": "recruiter",
         "is_active": True,
+        "companyId": "comp-1",
         "created_at": "2026-08-01T10:00:00"
     }
 ]
@@ -439,9 +458,10 @@ async def seed_database() -> None:
         return
 
     try:
-        if await db.users.count_documents({}) == 0:
-            await db.users.insert_many(mock_users)
-            logger.info("Seeded %d user accounts into MongoDB", len(mock_users))
+        # Upsert all mock users to ensure credentials and roles are always up to date
+        for u in mock_users:
+            await db.users.update_one({"email": u["email"]}, {"$set": u}, upsert=True)
+        logger.info("Synchronized %d user accounts into MongoDB", len(mock_users))
 
         if await db.companies.count_documents({}) == 0:
             await db.companies.insert_many(mock_companies)

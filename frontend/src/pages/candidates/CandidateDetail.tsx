@@ -51,43 +51,43 @@ export const CandidateDetail: React.FC = () => {
       />
 
       {/* PROFILE SUMMARY HERO CARD */}
-      <Card className="p-6 bg-gradient-to-r from-white via-slate-50/60 to-brand-50/20">
+      <Card className="p-6 bg-[#101D31] border-[#243650] text-[#F8FAFC]">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
           <div className="flex items-start gap-4">
             <img
               src={student.avatar}
               alt={student.name}
-              className="w-16 h-16 rounded-full object-cover border-2 border-white shadow-md shrink-0"
+              className="w-16 h-16 rounded-full object-cover border-2 border-[#243650] shadow-md shrink-0"
             />
             <div>
               <div className="flex items-center gap-2 flex-wrap">
-                <h2 className="text-xl font-bold text-slate-900">{student.name}</h2>
+                <h2 className="text-xl font-black text-[#F8FAFC]">{student.name}</h2>
                 <StatusBadge status={shortlisted ? 'shortlisted' : student.placementStatus} />
               </div>
-              <p className="text-xs font-semibold text-slate-600 mt-1">
-                Roll No: <span className="font-mono text-slate-900">{student.rollNumber}</span> &bull; {student.branch} ({student.batch})
+              <p className="text-xs font-bold text-[#CBD5E1] mt-1">
+                Roll No: <span className="font-mono text-[#F8FAFC]">{student.rollNumber}</span> &bull; {student.branch} ({student.batch})
               </p>
-              <div className="flex items-center gap-4 text-xs text-slate-600 mt-3 flex-wrap">
+              <div className="flex items-center gap-4 text-xs text-[#CBD5E1] mt-3 flex-wrap">
                 <span className="flex items-center gap-1 font-medium">
-                  <Mail className="w-3.5 h-3.5 text-slate-400" /> {student.email}
+                  <Mail className="w-3.5 h-3.5 text-[#3B82F6]" /> {student.email}
                 </span>
-                <span className="flex items-center gap-1 font-bold text-slate-900">
-                  <GraduationCap className="w-3.5 h-3.5 text-brand-600" /> CGPA: {student.cgpa}
+                <span className="flex items-center gap-1 font-bold text-[#F8FAFC]">
+                  <GraduationCap className="w-3.5 h-3.5 text-[#3B82F6]" /> CGPA: {student.cgpa}
                 </span>
               </div>
             </div>
           </div>
 
           {/* PLACEMENT READINESS SCORE GAUGE */}
-          <div className="p-4 bg-white rounded-xl border border-slate-200 shadow-2xs flex items-center gap-4 shrink-0">
+          <div className="p-4 bg-[#0B1628] rounded-xl border border-[#243650] shadow-sm flex items-center gap-4 shrink-0">
             <div className="relative w-16 h-16 flex items-center justify-center">
               <svg className="w-16 h-16 transform -rotate-90">
-                <circle cx="32" cy="32" r="26" stroke="#e2e8f0" strokeWidth="5" fill="transparent" />
+                <circle cx="32" cy="32" r="26" stroke="#17253A" strokeWidth="5" fill="transparent" />
                 <circle
                   cx="32"
                   cy="32"
                   r="26"
-                  stroke="#0284c7"
+                  stroke="#3B82F6"
                   strokeWidth="5"
                   fill="transparent"
                   strokeDasharray="163"
@@ -95,12 +95,12 @@ export const CandidateDetail: React.FC = () => {
                   strokeLinecap="round"
                 />
               </svg>
-              <span className="absolute text-sm font-bold text-slate-900">{student.readinessScore || 82}</span>
+              <span className="absolute text-sm font-black text-[#FFFFFF]">{student.readinessScore || 82}</span>
             </div>
             <div>
-              <span className="text-xs font-bold text-slate-900 block">Placement Readiness</span>
-              <span className="text-[11px] text-slate-500 block">Score: {student.readinessScore || 82} / 100</span>
-              <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 mt-1 inline-block">
+              <span className="text-xs font-bold text-[#F8FAFC] block">Placement Readiness</span>
+              <span className="text-[11px] text-[#CBD5E1] block">Score: {student.readinessScore || 82} / 100</span>
+              <span className="text-[10px] font-bold text-[#86EFAC] bg-[rgba(34,197,94,0.10)] px-2 py-0.5 rounded border border-[rgba(34,197,94,0.25)] mt-1 inline-block">
                 High Qualification
               </span>
             </div>
@@ -109,32 +109,32 @@ export const CandidateDetail: React.FC = () => {
       </Card>
 
       {/* APPLICATION PIPELINE STAGE BREAKDOWN */}
-      <Card>
-        <CardHeader>
+      <Card className="bg-[#101D31] border-[#243650] text-[#F8FAFC]">
+        <CardHeader className="border-b border-[#1B2A40]">
           <CardTitle>Placement Activity Breakdown</CardTitle>
-          <p className="text-xs text-slate-500">Student participation history across campus drives</p>
+          <p className="text-xs text-[#CBD5E1]">Student participation history across campus drives</p>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-            <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
-              <span className="text-[10px] font-bold text-slate-400 uppercase">Registered</span>
-              <div className="text-xl font-bold text-slate-900 mt-0.5">Yes ✓</div>
+            <div className="p-3 bg-[#0B1628] rounded-xl border border-[#243650]">
+              <span className="text-[10px] font-bold text-[#94A3B8] uppercase">Registered</span>
+              <div className="text-xl font-bold text-[#F8FAFC] mt-0.5">Yes ✓</div>
             </div>
-            <div className="p-3 bg-blue-50/50 rounded-xl border border-blue-200/80">
-              <span className="text-[10px] font-bold text-blue-600 uppercase">Applied Drives</span>
-              <div className="text-xl font-bold text-blue-800 mt-0.5">{student.applicationsCount} Drives</div>
+            <div className="p-3 bg-[rgba(59,130,246,0.10)] rounded-xl border border-[rgba(59,130,246,0.25)]">
+              <span className="text-[10px] font-bold text-[#60A5FA] uppercase">Applied Drives</span>
+              <div className="text-xl font-bold text-[#60A5FA] mt-0.5">{student.applicationsCount} Drives</div>
             </div>
-            <div className="p-3 bg-purple-50/50 rounded-xl border border-purple-200/80">
-              <span className="text-[10px] font-bold text-purple-600 uppercase">Shortlisted</span>
-              <div className="text-xl font-bold text-purple-800 mt-0.5">{student.shortlistsCount} Drives</div>
+            <div className="p-3 bg-[rgba(168,85,247,0.10)] rounded-xl border border-[rgba(168,85,247,0.25)]">
+              <span className="text-[10px] font-bold text-[#C084FC] uppercase">Shortlisted</span>
+              <div className="text-xl font-bold text-[#C084FC] mt-0.5">{student.shortlistsCount} Drives</div>
             </div>
-            <div className="p-3 bg-amber-50/50 rounded-xl border border-amber-200/80">
-              <span className="text-[10px] font-bold text-amber-600 uppercase">Interviews</span>
-              <div className="text-xl font-bold text-amber-800 mt-0.5">{student.interviewsCount} Rounds</div>
+            <div className="p-3 bg-[rgba(245,158,11,0.10)] rounded-xl border border-[rgba(245,158,11,0.25)]">
+              <span className="text-[10px] font-bold text-[#FCD34D] uppercase">Interviews</span>
+              <div className="text-xl font-bold text-[#FCD34D] mt-0.5">{student.interviewsCount} Rounds</div>
             </div>
-            <div className="p-3 bg-emerald-50/50 rounded-xl border border-emerald-200/80">
-              <span className="text-[10px] font-bold text-emerald-600 uppercase">Selected</span>
-              <div className="text-xl font-bold text-emerald-800 mt-0.5">
+            <div className="p-3 bg-[rgba(34,197,94,0.10)] rounded-xl border border-[rgba(34,197,94,0.25)]">
+              <span className="text-[10px] font-bold text-[#86EFAC] uppercase">Selected</span>
+              <div className="text-xl font-bold text-[#86EFAC] mt-0.5">
                 {student.placementStatus === 'placed' ? `Placed (${student.placedPackage} LPA)` : 'Pending'}
               </div>
             </div>
@@ -147,15 +147,15 @@ export const CandidateDetail: React.FC = () => {
         {/* SKILLS & PROJECTS (2 cols) */}
         <div className="lg:col-span-2 space-y-6">
           {/* Skills Badges */}
-          <Card className="p-5">
-            <h3 className="text-sm font-bold text-slate-900 mb-3 flex items-center gap-2">
-              <Code className="w-4 h-4 text-brand-600" /> Technical Skills Portfolio
+          <Card className="p-5 bg-[#101D31] border-[#243650] text-[#F8FAFC]">
+            <h3 className="text-sm font-bold text-[#F8FAFC] mb-3 flex items-center gap-2">
+              <Code className="w-4 h-4 text-[#3B82F6]" /> Technical Skills Portfolio
             </h3>
             <div className="flex flex-wrap gap-2">
               {student.skills.map((skill) => (
                 <span
                   key={skill}
-                  className="px-3 py-1 rounded-lg bg-slate-900 text-white text-xs font-semibold shadow-2xs"
+                  className="px-3 py-1 rounded-lg bg-[#0B1628] border border-[#243650] text-[#60A5FA] text-xs font-bold"
                 >
                   {skill}
                 </span>
@@ -164,19 +164,19 @@ export const CandidateDetail: React.FC = () => {
           </Card>
 
           {/* Technical Projects */}
-          <Card className="p-5">
-            <h3 className="text-sm font-bold text-slate-900 mb-3 flex items-center gap-2">
-              <FolderGit2 className="w-4 h-4 text-brand-600" /> Notable Software Projects
+          <Card className="p-5 bg-[#101D31] border-[#243650] text-[#F8FAFC]">
+            <h3 className="text-sm font-bold text-[#F8FAFC] mb-3 flex items-center gap-2">
+              <FolderGit2 className="w-4 h-4 text-[#3B82F6]" /> Notable Software Projects
             </h3>
             <div className="space-y-3">
               {student.projects && student.projects.length > 0 ? (
                 student.projects.map((proj) => (
-                  <div key={proj.name} className="p-4 rounded-xl border border-slate-200 bg-slate-50/60 space-y-2">
-                    <h4 className="text-sm font-bold text-slate-900">{proj.name}</h4>
-                    <p className="text-xs text-slate-600 leading-relaxed">{proj.description}</p>
+                  <div key={proj.name} className="p-4 rounded-xl border border-[#243650] bg-[#0B1628] space-y-2">
+                    <h4 className="text-sm font-bold text-[#F8FAFC]">{proj.name}</h4>
+                    <p className="text-xs text-[#CBD5E1] leading-relaxed font-medium">{proj.description}</p>
                     <div className="flex flex-wrap gap-1 pt-1">
                       {proj.techStack.map((tech) => (
-                        <span key={tech} className="text-[10px] font-semibold px-2 py-0.5 rounded bg-white text-slate-700 border border-slate-200">
+                        <span key={tech} className="text-[10px] font-semibold px-2 py-0.5 rounded bg-[#14243B] text-[#CBD5E1] border border-[#243650]">
                           {tech}
                         </span>
                       ))}
@@ -184,7 +184,7 @@ export const CandidateDetail: React.FC = () => {
                   </div>
                 ))
               ) : (
-                <p className="text-xs text-slate-400">No project details uploaded yet.</p>
+                <p className="text-xs text-[#94A3B8]">No project details uploaded yet.</p>
               )}
             </div>
           </Card>
@@ -192,33 +192,33 @@ export const CandidateDetail: React.FC = () => {
 
         {/* CERTIFICATIONS & QUICK ACTIONS (1 col) */}
         <div className="space-y-6">
-          <Card className="p-5">
-            <h3 className="text-sm font-bold text-slate-900 mb-3 flex items-center gap-2">
-              <Award className="w-4 h-4 text-emerald-600" /> Verified Certifications
+          <Card className="p-5 bg-[#101D31] border-[#243650] text-[#F8FAFC]">
+            <h3 className="text-sm font-bold text-[#F8FAFC] mb-3 flex items-center gap-2">
+              <Award className="w-4 h-4 text-[#22C55E]" /> Verified Certifications
             </h3>
             <div className="space-y-3">
               {student.certifications && student.certifications.length > 0 ? (
                 student.certifications.map((cert) => (
-                  <div key={cert.name} className="p-3 rounded-lg border border-slate-200 bg-white space-y-1">
-                    <span className="text-xs font-bold text-slate-900 block leading-snug">{cert.name}</span>
-                    <div className="flex items-center justify-between text-[10px] text-slate-500 font-medium">
+                  <div key={cert.name} className="p-3 rounded-lg border border-[#243650] bg-[#0B1628] space-y-1">
+                    <span className="text-xs font-bold text-[#F8FAFC] block leading-snug">{cert.name}</span>
+                    <div className="flex items-center justify-between text-[10px] text-[#94A3B8] font-medium">
                       <span>{cert.issuer}</span>
                       <span>Issued: {cert.date}</span>
                     </div>
                   </div>
                 ))
               ) : (
-                <p className="text-xs text-slate-400">No external certifications linked.</p>
+                <p className="text-xs text-[#94A3B8]">No external certifications linked.</p>
               )}
             </div>
           </Card>
 
           {/* Quick Match Action */}
-          <Card className="p-5 border-brand-200 bg-gradient-to-br from-brand-50 to-white space-y-3">
-            <span className="text-xs font-bold text-brand-900 flex items-center gap-1.5">
-              <Sparkles className="w-4 h-4 text-brand-600" /> AI Recommendation
+          <Card className="p-5 border-[#243650] bg-[#0B1628] text-[#F8FAFC] space-y-3">
+            <span className="text-xs font-bold text-[#60A5FA] flex items-center gap-1.5">
+              <Sparkles className="w-4 h-4 text-[#06B6D4]" /> AI Recommendation
             </span>
-            <p className="text-xs text-slate-700 leading-relaxed">
+            <p className="text-xs text-[#CBD5E1] leading-relaxed font-medium">
               "Strong technical readiness for backend development roles. Highly recommended for TechNova and DataSphere screening rounds."
             </p>
             <Button
