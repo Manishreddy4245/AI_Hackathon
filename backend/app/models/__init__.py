@@ -1,0 +1,3 @@
+"""
+PlaceMind Database Models Package
+"""

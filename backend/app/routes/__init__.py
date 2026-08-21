@@ -1,0 +1,3 @@
+"""
+PlaceMind API Routes Package
+"""

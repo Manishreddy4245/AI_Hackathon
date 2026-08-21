@@ -1,0 +1,3 @@
+"""
+PlaceMind Backend Application Package
+"""

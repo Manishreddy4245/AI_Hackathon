@@ -1,0 +1,62 @@
+from typing import List, Optional
+from fastapi import APIRouter, HTTPException, status
+from pydantic import BaseModel
+from app.db.mongodb import db_manager
+
+router = APIRouter(prefix="/api/companies", tags=["Companies"])
+
+class CompanyCreate(BaseModel):
+    name: str
+    logo: Optional[str] = "TN"
+    industry: str
+    website: Optional[str] = ""
+    location: str
+    tier: Optional[str] = "Tier 1"
+    contactPerson: Optional[str] = ""
+    contactEmail: Optional[str] = ""
+
+class CompanySchema(CompanyCreate):
+    id: str
+
+@router.get("", response_model=List[CompanySchema])
+async def list_companies():
+    db = db_manager.db
+    if db is None:
+        raise HTTPException(status_code=503, detail="Database unavailable")
+    companies = await db.companies.find({}, {"_id": 0}).to_list(length=100)
+    return companies
+
+@router.get("/{company_id}", response_model=CompanySchema)
+async def get_company(company_id: str):
+    db = db_manager.db
+    if db is None:
+        raise HTTPException(status_code=503, detail="Database unavailable")
+    company = await db.companies.find_one({"id": company_id}, {"_id": 0})
+    if not company:
+        raise HTTPException(status_code=404, detail="Company not found")
+    return company
+
+@router.post("", response_model=CompanySchema, status_code=status.HTTP_201_CREATED)
+async def create_company(comp_in: CompanyCreate):
+    db = db_manager.db
+    if db is None:
+        raise HTTPException(status_code=503, detail="Database unavailable")
+
+    count = await db.companies.count_documents({})
+    new_id = f"comp-{count + 1}"
+    comp_dict = comp_in.model_dump()
+    comp_dict["id"] = new_id
+
+    await db.companies.insert_one(comp_dict)
+    created = await db.companies.find_one({"id": new_id}, {"_id": 0})
+    return created
+
+@router.delete("/{company_id}")
+async def delete_company(company_id: str):
+    db = db_manager.db
+    if db is None:
+        raise HTTPException(status_code=503, detail="Database unavailable")
+    res = await db.companies.delete_one({"id": company_id})
+    if res.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Company not found")
+    return {"status": "ok", "message": f"Company {company_id} deleted successfully"}

@@ -1,0 +1,164 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --txt-primary: #F8FAFC;
+  --txt-secondary: #CBD5E1;
+  --txt-muted: #94A3B8;
+  --txt-disabled: #64748B;
+  --txt-heading: #FFFFFF;
+}
+
+@layer base {
+  body {
+    background-color: #0B1020;
+    @apply text-slate-200 font-sans antialiased selection:bg-brand-500 selection:text-white;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    color: #FFFFFF;
+  }
+}
+
+/* GLOBAL SEMANTIC TYPOGRAPHY UTILITIES */
+.txt-primary {
+  color: #F8FAFC !important;
+}
+
+.txt-secondary {
+  color: #CBD5E1 !important;
+}
+
+.txt-muted {
+  color: #94A3B8 !important;
+}
+
+.txt-disabled {
+  color: #64748B !important;
+}
+
+.txt-heading {
+  color: #FFFFFF !important;
+}
+
+/* SECTION SPECIFIC BACKGROUND GRADIENTS */
+.bg-sec-dashboard {
+  background: linear-gradient(135deg, #0B1020 0%, #111A35 100%);
+}
+
+.bg-sec-drives {
+  background: linear-gradient(135deg, #071827 0%, #0B2239 100%);
+}
+
+.bg-sec-resume {
+  background: linear-gradient(135deg, #100B24 0%, #17113A 100%);
+}
+
+.bg-sec-skills {
+  background: linear-gradient(135deg, #061D20 0%, #092B30 100%);
+}
+
+.bg-sec-companies {
+  background: linear-gradient(135deg, #0B1220 0%, #121C2E 100%);
+}
+
+.bg-sec-matching {
+  background: linear-gradient(135deg, #0A1026 0%, #111A3D 100%);
+}
+
+.bg-sec-interviews {
+  background: linear-gradient(135deg, #0B1020 0%, #101935 100%);
+}
+
+.bg-sec-panels {
+  background: linear-gradient(135deg, #0B132B 0%, #141E3A 100%);
+}
+
+.bg-sec-notifications {
+  background: linear-gradient(135deg, #0B1020 0%, #121B33 100%);
+}
+
+.bg-sec-analytics {
+  background: linear-gradient(135deg, #0B1020 0%, #141738 100%);
+}
+
+.bg-sec-exceptions {
+  background: linear-gradient(135deg, #140B10 0%, #1A0F17 100%);
+}
+
+.bg-sec-copilot {
+  background: linear-gradient(135deg, #120B24 0%, #1A113B 100%);
+}
+
+/* 3D PERSPECTIVE & CARD HOVER UTILITIES */
+.perspective-1000 {
+  perspective: 1000px;
+}
+
+.preserve-3d {
+  transform-style: preserve-3d;
+}
+
+.translate-z-10 {
+  transform: translateZ(10px);
+}
+
+.translate-z-20 {
+  transform: translateZ(20px);
+}
+
+/* 3D ENTERPRISE SURFACE CLASSES */
+.card-3d-surface {
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.25s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.25s ease;
+  will-change: transform, box-shadow;
+}
+
+.card-3d-surface:hover {
+  transform: translateY(-4px);
+  border-color: rgba(99, 102, 241, 0.5) !important;
+  box-shadow: 0 20px 35px -10px rgba(79, 70, 229, 0.25), 0 10px 15px -5px rgba(0, 0, 0, 0.1), inset 0 1px 1px rgba(255, 255, 255, 0.2);
+}
+
+.glass-surface-dark {
+  background: rgba(17, 24, 39, 0.85);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(148, 163, 184, 0.2);
+}
+
+.glowing-border-indigo {
+  box-shadow: 0 0 20px rgba(79, 70, 229, 0.25);
+}
+
+.glowing-border-indigo:hover {
+  box-shadow: 0 0 30px rgba(79, 70, 229, 0.4);
+}
+
+/* CUSTOM SCROLLBARS */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-slate-700 rounded-full hover:bg-slate-600 transition-colors;
+}
+
+/* RECHARTS STYLING OVERRIDES */
+.recharts-responsive-container {
+  font-family: 'Inter', sans-serif !important;
+}
+
+.recharts-default-tooltip {
+  border-radius: 0.75rem !important;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3) !important;
+  border: 1px solid rgba(148, 163, 184, 0.2) !important;
+  background-color: #0f172a !important;
+  color: #f8fafc !important;
+  backdrop-filter: blur(8px) !important;
+}

@@ -1,0 +1,3 @@
+"""
+PlaceMind Pydantic Schemas Package
+"""

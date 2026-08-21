@@ -1,0 +1,3 @@
+"""
+PlaceMind Core Package
+"""
