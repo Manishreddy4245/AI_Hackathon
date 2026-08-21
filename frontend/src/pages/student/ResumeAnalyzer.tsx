@@ -22,6 +22,7 @@ import {
 import { PageHeader } from '../../components/ui/PageHeader';
 import { Card, CardHeader, CardTitle, CardContent } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
+import { useAuth } from '../../context/AuthContext';
 import {
   apiService,
   ResumeUploadResponse,
@@ -41,6 +42,8 @@ const ANALYSIS_STEPS = [
 
 export const ResumeAnalyzer: React.FC = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const currentStudentId = user?.id || 'student-demo';
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -56,15 +59,15 @@ export const ResumeAnalyzer: React.FC = () => {
   // Load existing analysis if available on mount
   useEffect(() => {
     loadExistingData();
-  }, []);
+  }, [currentStudentId]);
 
   const loadExistingData = async () => {
     try {
       setServiceError(null);
       const [latestRes, recsRes, gapsRes] = await Promise.allSettled([
-        apiService.getLatestResume('rahul-verma'),
-        apiService.getPlacementRecommendations('rahul-verma'),
-        apiService.getSkillGaps('rahul-verma'),
+        apiService.getLatestResume(currentStudentId),
+        apiService.getPlacementRecommendations(currentStudentId),
+        apiService.getSkillGaps(currentStudentId),
       ]);
 
       if (latestRes.status === 'fulfilled' && latestRes.value) {
@@ -150,15 +153,15 @@ export const ResumeAnalyzer: React.FC = () => {
     }, 600);
 
     try {
-      // API call to analyze resume
-      const uploadRes = await apiService.uploadResume(selectedFile, 'rahul-verma');
+      // API call to analyze resume for authenticated student
+      const uploadRes = await apiService.uploadResume(selectedFile, currentStudentId);
       setAnalysisResult(uploadRes);
 
       // Fetch dynamic placement recommendations & skill gaps
-      const recs = await apiService.getPlacementRecommendations('rahul-verma');
+      const recs = await apiService.getPlacementRecommendations(currentStudentId);
       setRecommendations(recs);
 
-      const gaps = await apiService.getSkillGaps('rahul-verma');
+      const gaps = await apiService.getSkillGaps(currentStudentId);
       setSkillGapData(gaps);
 
       clearInterval(stepInterval);
@@ -345,6 +348,31 @@ export const ResumeAnalyzer: React.FC = () => {
       {/* RESULT DASHBOARD METRICS */}
       {analysisResult && !isAnalyzing && (
         <>
+          {/* PROFILE UPDATED CONFIRMATION BANNER */}
+          <div className="p-4 bg-[rgba(34,197,94,0.10)] border border-[rgba(34,197,94,0.30)] rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-[#86EFAC] shadow-lg">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-[rgba(34,197,94,0.15)] flex items-center justify-center shrink-0">
+                <CheckCircle2 className="w-6 h-6 text-[#22C55E]" />
+              </div>
+              <div>
+                <h4 className="text-sm font-bold text-[#F8FAFC]">Resume Analysis Complete &amp; Profile Updated</h4>
+                <p className="text-xs text-[#CBD5E1] font-medium mt-0.5">
+                  Your extracted technical skills, projects, and readiness score have been synchronized to your student profile. Placement drive applications are now unlocked!
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <Button
+                variant="primary"
+                size="sm"
+                className="text-xs py-2 px-3.5"
+                onClick={() => navigate('/student/drives')}
+              >
+                View Eligible Drives &rarr;
+              </Button>
+            </div>
+          </div>
+
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             {/* Readiness Score */}
             <Card className="p-5 flex items-center gap-4 text-white">

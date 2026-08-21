@@ -118,6 +118,14 @@ export const PortalLogin: React.FC = () => {
   const [forgotLoading, setForgotLoading] = useState(false);
   const [forgotSuccess, setForgotSuccess] = useState<string | null>(null);
 
+  // Clear errors and input state whenever portalType changes
+  useEffect(() => {
+    setError(null);
+    setSuccessNotice(null);
+    setEmail('');
+    setPassword('');
+  }, [portalType]);
+
   // If already authenticated in this role, redirect to dashboard
   useEffect(() => {
     if (isAuthenticated && user) {
@@ -131,6 +139,19 @@ export const PortalLogin: React.FC = () => {
     setEmail(config.demoEmail);
     setPassword(config.demoPass);
     setError(null);
+    setSuccessNotice(null);
+  };
+
+  const handleEmailChange = (val: string) => {
+    setEmail(val);
+    if (error) setError(null);
+    if (successNotice) setSuccessNotice(null);
+  };
+
+  const handlePasswordChange = (val: string) => {
+    setPassword(val);
+    if (error) setError(null);
+    if (successNotice) setSuccessNotice(null);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -253,7 +274,7 @@ export const PortalLogin: React.FC = () => {
                   required
                   placeholder={config.emailPlaceholder}
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  onChange={(e) => handleEmailChange(e.target.value)}
                   className="w-full pl-9 pr-3 py-2.5 bg-[#0B1628] border border-[#243650] rounded-xl text-xs text-[#F8FAFC] placeholder-[#64748B] focus:outline-none focus:border-[#3B82F6] focus:ring-1 focus:ring-[#3B82F6] font-medium"
                 />
               </div>
@@ -266,6 +287,8 @@ export const PortalLogin: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => {
+                    setError(null);
+                    setSuccessNotice(null);
                     setForgotModalOpen(true);
                     setForgotEmail(email);
                     setForgotSuccess(null);
@@ -282,7 +305,7 @@ export const PortalLogin: React.FC = () => {
                   required
                   placeholder="••••••••"
                   value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  onChange={(e) => handlePasswordChange(e.target.value)}
                   className="w-full pl-9 pr-10 py-2.5 bg-[#0B1628] border border-[#243650] rounded-xl text-xs text-[#F8FAFC] placeholder-[#64748B] focus:outline-none focus:border-[#3B82F6] focus:ring-1 focus:ring-[#3B82F6] font-medium"
                 />
                 <button
@@ -334,7 +357,11 @@ export const PortalLogin: React.FC = () => {
               <div>
                 <button
                   type="button"
-                  onClick={() => setStudentSignupOpen(true)}
+                  onClick={() => {
+                    setError(null);
+                    setSuccessNotice(null);
+                    setStudentSignupOpen(true);
+                  }}
                   className="text-xs font-bold text-[#60A5FA] hover:underline cursor-pointer"
                 >
                   {config.registerLabel}
@@ -410,12 +437,16 @@ export const PortalLogin: React.FC = () => {
       {/* Student Signup Modal */}
       <SignupModal
         isOpen={studentSignupOpen}
-        onClose={() => setStudentSignupOpen(false)}
+        onClose={() => {
+          setError(null);
+          setStudentSignupOpen(false);
+        }}
         onSuccess={(regEmail) => {
+          setError(null);
           setStudentSignupOpen(false);
           setEmail(regEmail);
-          setPassword('password123');
-          setSuccessNotice('Registration successful! Click Sign In to enter your portal.');
+          setPassword('');
+          setSuccessNotice('Account created successfully. Please sign in.');
         }}
       />
 

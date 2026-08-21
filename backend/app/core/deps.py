@@ -39,6 +39,30 @@ async def get_current_user(authorization: Optional[str] = Header(None)) -> Dict[
         "companyId": payload.get("companyId"),
     }
 
+async def get_optional_current_user(authorization: Optional[str] = Header(None)) -> Optional[Dict[str, Any]]:
+    """Extract user if Bearer token present, else return None."""
+    if not authorization or not authorization.startswith("Bearer "):
+        return None
+    try:
+        token = authorization.split(" ")[1]
+        payload = decode_access_token(token)
+        if not payload:
+            return None
+        db = db_manager.db
+        if db is not None:
+            user = await db.users.find_one({"id": payload.get("sub")}, {"_id": 0, "password_hash": 0})
+            if user:
+                return user
+        return {
+            "id": payload.get("sub"),
+            "email": payload.get("email"),
+            "role": payload.get("role"),
+            "name": payload.get("name", "User"),
+            "companyId": payload.get("companyId"),
+        }
+    except Exception:
+        return None
+
 def require_role(allowed_roles: List[str]):
     """
     FastAPI dependency factory enforcing strict role-based access control.

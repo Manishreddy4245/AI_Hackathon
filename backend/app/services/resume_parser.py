@@ -29,13 +29,19 @@ def parse_pdf_bytes(file_bytes: bytes) -> str:
                 extracted_pages.append(page_text)
     except Exception as e:
         logger.warning("pypdf extraction failed, attempting fallback text decoding: %s", str(e))
-        # Fallback string extraction for simple PDFs
-        raw_decoded = file_bytes.decode("latin-1", errors="ignore")
-        text_matches = re.findall(r'\((.*?)\)\s*TJ|\((.*?)\)\s*Tj', raw_decoded)
-        for match in text_matches:
-            found = match[0] or match[1]
-            if len(found) > 2:
-                extracted_pages.append(found)
+        try:
+            decoded = file_bytes.decode("utf-8", errors="ignore")
+            if len(decoded.strip()) > 15:
+                extracted_pages.append(decoded)
+        except Exception:
+            pass
+        if not extracted_pages:
+            raw_decoded = file_bytes.decode("latin-1", errors="ignore")
+            text_matches = re.findall(r'\((.*?)\)\s*TJ|\((.*?)\)\s*Tj', raw_decoded)
+            for match in text_matches:
+                found = match[0] or match[1]
+                if len(found) > 2:
+                    extracted_pages.append(found)
 
     full_text = "\n".join(extracted_pages)
     return clean_extracted_text(full_text)

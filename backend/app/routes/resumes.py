@@ -1,8 +1,9 @@
 import uuid
 from datetime import datetime
-from typing import Optional
-from fastapi import APIRouter, UploadFile, File, Form, HTTPException, status
+from typing import Optional, Dict, Any
+from fastapi import APIRouter, UploadFile, File, Form, HTTPException, status, Depends
 from app.db.mongodb import db_manager
+from app.core.deps import get_optional_current_user
 from app.services.resume_parser import parse_resume_document
 from app.services.resume_ai_service import extract_resume_profile_ai
 from app.schemas.resume import ResumeUploadResponse, ExtractedProfileSchema
@@ -39,12 +40,15 @@ def calculate_readiness_score(profile: ExtractedProfileSchema) -> int:
 @router.post("/analyze", response_model=ResumeUploadResponse)
 async def analyze_resume(
     file: UploadFile = File(...),
-    student_id: Optional[str] = Form("rahul-verma")
+    student_id: Optional[str] = Form(None),
+    current_user: Optional[Dict[str, Any]] = Depends(get_optional_current_user)
 ):
     """
     Accepts resume file (PDF/DOCX max 10MB), extracts plain text, parses structured profile with AI/heuristics,
     stores analysis in MongoDB, and updates student profile records.
     """
+    target_student_id = (current_user.get("id") if current_user else None) or student_id or "student-demo"
+    target_email = (current_user.get("email") if current_user else None)
     db = db_manager.db
     if db is None:
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Database unavailable")
@@ -68,7 +72,7 @@ async def analyze_resume(
     resume_doc = {
         "id": resume_id,
         "_id": resume_id,
-        "student_id": student_id,
+        "student_id": target_student_id,
         "filename": file.filename,
         "file_type": file_type,
         "uploaded_at": now_iso,
@@ -80,39 +84,53 @@ async def analyze_resume(
     }
 
     # Store in MongoDB 'resumes' collection
-    await db.resumes.delete_many({"student_id": student_id})
+    await db.resumes.delete_many({"student_id": target_student_id})
     await db.resumes.insert_one(resume_doc)
 
     # Update student record in MongoDB 'students' collection if exists
-    target_student = await db.students.find_one({"id": student_id})
+    target_filter = {"$or": [{"id": target_student_id}]}
+    if target_email:
+        target_filter["$or"].append({"email": target_email})
+    target_student = await db.students.find_one(target_filter)
     if target_student:
         update_data = {
             "readinessScore": readiness_score,
             "skills": extracted_profile.raw_skills if extracted_profile.raw_skills else target_student.get("skills", []),
+            "projects": [p.model_dump() if hasattr(p, "model_dump") else p for p in extracted_profile.projects],
+            "experience": [e.model_dump() if hasattr(e, "model_dump") else e for e in extracted_profile.experience],
+            "certifications": [c.model_dump() if hasattr(c, "model_dump") else c for c in extracted_profile.certifications],
+            "resumeUrl": file.filename,
+            "resumeId": resume_id,
+            "profileCompletion": 100 if extracted_profile.raw_skills else 75,
+            "isProfileComplete": bool(extracted_profile.raw_skills),
         }
         if extracted_profile.cgpa:
             update_data["cgpa"] = extracted_profile.cgpa
         if extracted_profile.branch:
             update_data["branch"] = extracted_profile.branch
 
-        await db.students.update_one({"id": student_id}, {"$set": update_data})
+        await db.students.update_one({"id": target_student.get("id")}, {"$set": update_data})
     
     # Store in MongoDB 'student_profiles' collection as specified in Part 11
     profile_doc = {
-        "student_id": student_id,
-        "name": extracted_profile.name,
-        "email": extracted_profile.email,
+        "student_id": target_student_id,
+        "name": extracted_profile.name or (target_student.get("name") if target_student else "Student"),
+        "email": extracted_profile.email or (target_student.get("email") if target_student else target_email),
         "branch": extracted_profile.branch,
         "cgpa": extracted_profile.cgpa,
         "skills": extracted_profile.raw_skills,
+        "projects": [p.model_dump() if hasattr(p, "model_dump") else p for p in extracted_profile.projects],
+        "experience": [e.model_dump() if hasattr(e, "model_dump") else e for e in extracted_profile.experience],
+        "certifications": [c.model_dump() if hasattr(c, "model_dump") else c for c in extracted_profile.certifications],
         "readiness_score": readiness_score,
+        "resume_id": resume_id,
         "updated_at": now_iso
     }
-    await db.student_profiles.update_one({"student_id": student_id}, {"$set": profile_doc}, upsert=True)
+    await db.student_profiles.update_one({"student_id": target_student_id}, {"$set": profile_doc}, upsert=True)
 
     return ResumeUploadResponse(
         resume_id=resume_id,
-        student_id=student_id,
+        student_id=target_student_id,
         profile=extracted_profile,
         readiness_score=readiness_score,
         filename=file.filename,

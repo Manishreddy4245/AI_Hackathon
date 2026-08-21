@@ -306,11 +306,24 @@ export const apiService = {
     return res.data;
   },
 
+  // Current Student Dashboard
+  async getMyStudentDashboard(): Promise<any> {
+    const res = await apiClient.get<any>('/students/me/dashboard');
+    return res.data;
+  },
+
+  async getMyStudentProfile(): Promise<any> {
+    const res = await apiClient.get<any>('/students/me');
+    return res.data;
+  },
+
   // AI Resume Analyzer & Matching
-  async uploadResume(file: File, studentId: string = 'rahul-verma'): Promise<ResumeUploadResponse> {
+  async uploadResume(file: File, studentId?: string): Promise<ResumeUploadResponse> {
     const formData = new FormData();
     formData.append('file', file);
-    formData.append('student_id', studentId);
+    if (studentId) {
+      formData.append('student_id', studentId);
+    }
     const res = await apiClient.post<ResumeUploadResponse>('/resumes/analyze', formData, {
       headers: {
         'Content-Type': 'multipart/form-data',
@@ -319,18 +332,21 @@ export const apiService = {
     return res.data;
   },
 
-  async getLatestResume(studentId: string = 'rahul-verma'): Promise<ResumeUploadResponse | null> {
+  async getLatestResume(studentId?: string): Promise<ResumeUploadResponse | null> {
+    if (!studentId) return null;
     const res = await apiClient.get<ResumeUploadResponse | null>(`/resumes/latest/${studentId}`);
     return res.data;
   },
 
-  async getPlacementRecommendations(studentId: string = 'rahul-verma'): Promise<PlacementRecommendation[]> {
-    const res = await apiClient.get<PlacementRecommendation[]>(`/students/${studentId}/placement-recommendations`);
+  async getPlacementRecommendations(studentId?: string): Promise<PlacementRecommendation[]> {
+    const target = studentId && studentId !== 'me' ? `/students/${studentId}/placement-recommendations` : '/students/me/placement-recommendations';
+    const res = await apiClient.get<PlacementRecommendation[]>(target);
     return res.data;
   },
 
-  async getSkillGaps(studentId: string = 'rahul-verma'): Promise<SkillGapResponse> {
-    const res = await apiClient.get<SkillGapResponse>(`/students/${studentId}/skill-gaps`);
+  async getSkillGaps(studentId?: string): Promise<SkillGapResponse> {
+    const target = studentId && studentId !== 'me' ? `/students/${studentId}/skill-gaps` : '/students/me/skill-gaps';
+    const res = await apiClient.get<SkillGapResponse>(target);
     return res.data;
   },
 };

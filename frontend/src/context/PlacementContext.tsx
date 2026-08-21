@@ -68,7 +68,7 @@ interface PlacementContextType {
   dismissToast: (id: string) => void;
   toggleShortlist: (studentId: string, driveId?: string) => void;
   isShortlisted: (studentId: string, driveId?: string) => boolean;
-  applyToDrive: (driveId: string) => void;
+  applyToDrive: (driveId: string, studentId?: string) => void;
   hasAppliedToDrive: (driveId: string) => boolean;
   checkEligibility: (student: Student, drive: PlacementDrive) => EligibilityResult;
   getTotalShortlistedCount: () => number;
@@ -179,14 +179,15 @@ export const PlacementProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     apiService.toggleShortlist(studentId, driveId).catch(() => {});
   };
 
-  const applyToDrive = (driveId: string) => {
+  const applyToDrive = (driveId: string, studentId?: string) => {
     if (!appliedDriveIds.includes(driveId)) {
-      setAppliedDriveIds([...appliedDriveIds, driveId]);
+      setAppliedDriveIds((prev) => [...prev, driveId]);
       const drive = drives.find((d) => d.id === driveId);
       const company = drive ? drive.companyName : 'Placement Drive';
       triggerToast(`Application submitted successfully for ${company}!`, 'success');
       // Async background sync to FastAPI
-      apiService.applyToDrive('rahul-verma', driveId).catch(() => {});
+      const effectiveStudentId = studentId || 'student-demo';
+      apiService.applyToDrive(effectiveStudentId, driveId).catch(() => {});
     }
   };
 

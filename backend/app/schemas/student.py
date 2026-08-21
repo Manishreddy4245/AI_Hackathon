@@ -3,13 +3,13 @@ from pydantic import BaseModel
 
 class ProjectItem(BaseModel):
     name: str
-    description: str
-    techStack: List[str]
+    description: Optional[str] = None
+    techStack: List[str] = []
 
 class CertificationItem(BaseModel):
     name: str
-    issuer: str
-    date: str
+    issuer: Optional[str] = None
+    date: Optional[str] = None
 
 class StudentSchema(BaseModel):
     id: str
