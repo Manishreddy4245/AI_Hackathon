@@ -23,13 +23,23 @@ MAX_JSON_BODY_BYTES = 2 * 1024 * 1024  # 2 MB Limit for standard JSON requests
 
 # Endpoint limit rules: (limit_requests, window_seconds)
 ENDPOINT_LIMITS: Dict[str, Tuple[int, int]] = {
-    "/api/auth/login": (5, 60),            # 5 req / min per IP
-    "/api/auth/register": (5, 60),         # 5 req / min per IP
-    "/api/auth/forgot-password": (3, 60),  # 3 req / min per IP
-    "/api/auth/reset-password": (3, 60),   # 3 req / min per IP
-    "/api/copilot": (20, 60),              # 20 req / min per IP/User
-    "/api/resumes/analyze": (10, 60),      # 10 req / min per User
-    "/api/assessments/submit": (15, 60),   # 15 req / min per User
+    "/api/auth/login": (5, 60),               # 5 req / min per IP
+    "/api/auth/register": (5, 60),            # 5 req / min per IP
+    "/api/auth/forgot-password": (3, 60),     # 3 req / min per IP
+    "/api/auth/reset-password": (3, 60),      # 3 req / min per IP
+    "/api/ai": (20, 60),                      # 20 req / min per User/IP
+    "/api/copilot": (20, 60),                 # 20 req / min per User/IP
+    "/api/extractor": (20, 60),               # 20 req / min per User/IP
+    "/api/assessments/generate": (10, 60),    # 10 req / min per User
+    "/api/assessments/submit": (15, 60),      # 15 req / min per User
+    "/api/assessments/execute": (10, 60),     # 10 req / min per User (Sandbox)
+    "/api/interviews/mock": (10, 60),         # 10 req / min per User
+    "/api/interviews/video": (10, 60),        # 10 req / min per User
+    "/api/students/search": (30, 60),         # 30 req / min per User/IP
+    "/api/drives/search": (30, 60),            # 30 req / min per User/IP
+    "/api/companies/search": (30, 60),         # 30 req / min per User/IP
+    "/api/communities": (15, 60),             # 15 req / min per User (Posting)
+    "/api/resumes/analyze": (10, 60),         # 10 req / min per User (File Upload)
 }
 
 class SlidingWindowMemoryStore:
