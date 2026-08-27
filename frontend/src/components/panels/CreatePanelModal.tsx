@@ -12,15 +12,11 @@ interface CreatePanelModalProps {
 export const CreatePanelModal: React.FC<CreatePanelModalProps> = ({ isOpen, onClose }) => {
   const { createPanel, drives } = usePlacement();
 
-  const [panelName, setPanelName] = useState('Panel D — AI & Machine Learning');
-  const [companyName, setCompanyName] = useState('TechNova Solutions');
-  const [roomNumber, setRoomNumber] = useState('Lab 102');
-  const [members, setMembers] = useState<string[]>([
-    'Dr. Suresh (Lead)',
-    'Prof. Anjali Roy',
-    'Industry Expert (TechNova)',
-  ]);
-  const [expertise, setExpertise] = useState<string[]>(['Backend', 'Python', 'Machine Learning']);
+  const [panelName, setPanelName] = useState('');
+  const [companyName, setCompanyName] = useState(drives[0]?.companyName || '');
+  const [roomNumber, setRoomNumber] = useState('');
+  const [members, setMembers] = useState<string[]>([]);
+  const [expertise, setExpertise] = useState<string[]>([]);
   const [newMember, setNewMember] = useState('');
   const [newSkill, setNewSkill] = useState('');
 

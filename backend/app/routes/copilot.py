@@ -11,98 +11,135 @@ async def process_copilot_chat(req: CopilotQueryRequest):
     timestamp = datetime.now().strftime("%I:%M %p")
 
     db = db_manager.db
-
-    if "top candidates" in q or "technova" in q:
+    if db is None:
         return CopilotResponseSchema(
             id=f"copilot-{int(datetime.now().timestamp())}",
-            text="Based on MongoDB database records, these are the strongest candidates for TechNova Solutions:",
+            text="I don't have access to the database right now. Please check backend services.",
             timestamp=timestamp,
-            cards=[
-                {"title": "1. Rahul Verma", "subtitle": "CSE • CGPA: 8.9", "detail": "FastAPI, SQL, REST APIs (92% Match Score)", "badge": "Excellent Match"},
-                {"title": "2. Aarav Sharma", "subtitle": "CSE • CGPA: 8.7", "detail": "Python, SQL, React (87% Match Score)", "badge": "Strong Match"},
-                {"title": "3. Karthik Rao", "subtitle": "CSE • CGPA: 7.8", "detail": "Java, SQL, REST APIs (81% Match Score)", "badge": "Strong Match"},
-            ],
+        )
+
+    # Query MongoDB for dynamic metrics
+    drives_count = await db.drives.count_documents({})
+    students = await db.students.find({}, {"_id": 0}).to_list(length=100)
+    exceptions = await db.exceptions.find({"status": {"$ne": "resolved"}}, {"_id": 0}).to_list(length=10)
+    rooms = await db.rooms.find({}, {"_id": 0}).to_list(length=20)
+
+    if "top candidates" in q or "candidate" in q:
+        if not students:
+            return CopilotResponseSchema(
+                id=f"copilot-{int(datetime.now().timestamp())}",
+                text="No student candidates found in the database yet.",
+                timestamp=timestamp,
+                actionButton={"label": "View Candidates", "route": "/candidates"}
+            )
+        sorted_students = sorted(students, key=lambda s: float(s.get("cgpa", 0) or 0), reverse=True)[:3]
+        cards = []
+        for idx, s in enumerate(sorted_students, 1):
+            name = s.get("name", "Student")
+            branch = s.get("branch", "N/A")
+            cgpa = s.get("cgpa", 0)
+            skills = ", ".join(s.get("skills", [])[:3]) or "General skills"
+            score = s.get("readinessScore", 0)
+            cards.append({
+                "title": f"{idx}. {name}",
+                "subtitle": f"{branch} • CGPA: {cgpa}",
+                "detail": f"Skills: {skills} ({score}% Readiness)",
+                "badge": "Top Candidate"
+            })
+        return CopilotResponseSchema(
+            id=f"copilot-{int(datetime.now().timestamp())}",
+            text=f"Based on real MongoDB student records ({len(students)} total candidates), here are the top candidates:",
+            timestamp=timestamp,
+            cards=cards,
             actionButton={"label": "View Candidates", "route": "/candidates"}
         )
 
-    elif "conflict" in q:
+    elif "conflict" in q or "exception" in q:
+        if not exceptions:
+            return CopilotResponseSchema(
+                id=f"copilot-{int(datetime.now().timestamp())}",
+                text="No active scheduling conflicts or unresolved exceptions reported in the system right now.",
+                timestamp=timestamp,
+                actionButton={"label": "Open Operations Center", "route": "/exceptions"}
+            )
+        cards = []
+        for exc in exceptions[:3]:
+            cards.append({
+                "title": exc.get("title", "Scheduling Exception"),
+                "subtitle": exc.get("category", "Operations"),
+                "detail": exc.get("description", "Requires officer review."),
+                "badge": exc.get("severity", "Warning").capitalize()
+            })
         return CopilotResponseSchema(
             id=f"copilot-{int(datetime.now().timestamp())}",
-            text="3 interview scheduling conflicts require officer review today:",
+            text=f"{len(exceptions)} unresolved operations issues require officer review:",
             timestamp=timestamp,
-            cards=[
-                {"title": "Rahul Verma", "subtitle": "Candidate Overlap", "detail": "Double-booked at 10:30 AM across 2 evaluation sessions.", "badge": "Critical"},
-                {"title": "Panel B", "subtitle": "Panel Double Booking", "detail": "Assigned to TechNova and DataSphere at 11:30 AM.", "badge": "Critical"},
-                {"title": "Lab 101", "subtitle": "Room Conflict", "detail": "Capacity of 30 exceeded by concurrent booking.", "badge": "Warning"},
-            ],
+            cards=cards,
             actionButton={"label": "Open Operations Center", "route": "/exceptions"}
         )
 
-    elif "rooms" in q or "free" in q:
+    elif "room" in q or "free" in q or "venue" in q:
+        if not rooms:
+            return CopilotResponseSchema(
+                id=f"copilot-{int(datetime.now().timestamp())}",
+                text="No interview rooms registered in the database.",
+                timestamp=timestamp,
+                actionButton={"label": "Schedule Interview", "route": "/interviews"}
+            )
+        cards = []
+        for r in rooms[:3]:
+            cards.append({
+                "title": r.get("name", "Room"),
+                "subtitle": r.get("building", "Campus"),
+                "detail": f"Capacity: {r.get('capacity', 0)} Seats",
+                "badge": r.get("status", "available").capitalize()
+            })
         return CopilotResponseSchema(
             id=f"copilot-{int(datetime.now().timestamp())}",
-            text="Venue Availability Breakdown at 2:00 PM:\n\nAvailable Rooms:\n✓ Lab 102 (Capacity: 30)\n✓ Conference Room A (Capacity: 15)\n✓ Seminar Hall (Capacity: 120)\n\nOccupied Rooms:\n✕ Lab 101 (FinEdge Online Exam)",
+            text=f"Venue status based on live MongoDB room records ({len(rooms)} total rooms):",
             timestamp=timestamp,
-            cards=[
-                {"title": "Lab 102", "subtitle": "Tech Block A", "detail": "Available Now (30 Seats)", "badge": "Free"},
-                {"title": "Conference Room A", "subtitle": "Admin Block", "detail": "Available Now (15 Seats)", "badge": "Free"},
-            ],
+            cards=cards,
             actionButton={"label": "Schedule Interview", "route": "/interviews"}
         )
 
-    elif "which companies" in q or "should i apply" in q or "recommend" in q:
+    elif "drive" in q or "company" in q or "job" in q:
+        drives = await db.drives.find({}, {"_id": 0}).to_list(length=5)
+        if not drives:
+            return CopilotResponseSchema(
+                id=f"copilot-{int(datetime.now().timestamp())}",
+                text="No placement drives active in the database yet.",
+                timestamp=timestamp,
+                actionButton={"label": "View Drives", "route": "/companies"}
+            )
+        cards = []
+        for d in drives[:3]:
+            cards.append({
+                "title": f"{d.get('companyName', 'Company')} ({d.get('roleTitle', 'Role')})",
+                "subtitle": f"Package: ₹{d.get('packageLpa', 0)} LPA",
+                "detail": f"Required Skills: {', '.join(d.get('requiredSkills', [])[:3])}",
+                "badge": d.get("status", "open").upper()
+            })
         return CopilotResponseSchema(
             id=f"copilot-{int(datetime.now().timestamp())}",
-            text="Based on your extracted resume profile and hard drive eligibility, here are your top recommended placement drives:",
+            text=f"Database active placement drives ({drives_count} total placement drives):",
             timestamp=timestamp,
-            cards=[
-                {"title": "1. TechNova Solutions (91% Match)", "subtitle": "Backend Developer • ₹16.5 LPA", "detail": "Eligible! Matched: Python, SQL, REST APIs. Missing: Docker", "badge": "Strong Match"},
-                {"title": "2. DataSphere Analytics (84% Match)", "subtitle": "Data Analyst • ₹12.0 LPA", "detail": "Eligible! Matched: Python, SQL, Data Analysis. Missing: Power BI", "badge": "Good Match"},
-                {"title": "3. CloudPeak Systems (67% Match)", "subtitle": "Software Engineer • ₹14.0 LPA", "detail": "Eligible! Missing: AWS, Docker, Kubernetes", "badge": "Partial Match"},
-            ],
-            actionButton={"label": "View AI Resume Recommendations", "route": "/student/resume"}
-        )
-
-    elif "missing for technova" in q or "technova skills" in q:
-        return CopilotResponseSchema(
-            id=f"copilot-{int(datetime.now().timestamp())}",
-            text="TechNova Backend Developer Skill Gap Analysis:\n\n✓ Matched Mandatory Skills: Python, SQL, REST APIs\n✓ Matched Preferred Skills: FastAPI, Git\n✕ Missing Mandatory Skill: Docker\n✕ Missing Preferred Skill: System Design & Cloud\n\nRecommendation: Learn Docker containerization basics to reach a 98% match score for TechNova.",
-            timestamp=timestamp,
-            cards=[
-                {"title": "Docker Containerization", "subtitle": "High Priority Gap", "detail": "Required for TechNova microservice deployment", "badge": "Critical"}
-            ],
-            actionButton={"label": "Analyze Resume Gaps", "route": "/student/resume"}
-        )
-
-    elif "why am i not eligible" in q or "not eligible" in q:
-        return CopilotResponseSchema(
-            id=f"copilot-{int(datetime.now().timestamp())}",
-            text="Deterministic Eligibility Diagnostic Engine:\n\nAI matching does not determine hard eligibility. Eligibility is calculated from your student profile and drive requirements.\n\nExample Ineligibility Case (FinEdge Technologies):\n• Minimum CGPA Required: 8.5\n• Eligible Branches: CSE, IT\n• Graduation Year: 2027\n\nIf your CGPA is below 8.5, you will be flagged as 'Not Eligible' regardless of AI skill match percentage.",
-            timestamp=timestamp,
-            actionButton={"label": "Check Drive Eligibility", "route": "/student/resume"}
-        )
-
-    elif "what should i learn" in q or "improve placement" in q or "improve chances" in q:
-        return CopilotResponseSchema(
-            id=f"copilot-{int(datetime.now().timestamp())}",
-            text="High-Impact Skill Recommendations across Active Drives:\n\n1. Docker & Containerization (In demand by 8 active drives)\n2. AWS & Cloud Infrastructure (In demand by 6 active drives)\n3. Power BI & Data Visualization (In demand by 4 active drives)\n\nMastering Docker will increase your eligibility and match score for 3 Super Dream companies.",
-            timestamp=timestamp,
-            actionButton={"label": "View Skill Gap Breakdown", "route": "/student/resume"}
-        )
-
-    elif "skill gap" in q:
-        return CopilotResponseSchema(
-            id=f"copilot-{int(datetime.now().timestamp())}",
-            text="Campus Skill Deficit Analysis:\n• SQL — 21% deficit (126 students)\n• Docker — 18% deficit (82 students)\n• Cloud / AWS — 16% deficit (78 students)\n• System Design — 14% deficit (94 students)\n\nRecommendation:\nPrioritize SQL and backend preparation workshops because they are highly requested across active drives.",
-            timestamp=timestamp,
-            actionButton={"label": "View Skill Analytics", "route": "/analytics"}
+            cards=cards,
+            actionButton={"label": "View Drives", "route": "/companies"}
         )
 
     else:
+        if drives_count == 0 and len(students) == 0:
+            return CopilotResponseSchema(
+                id=f"copilot-{int(datetime.now().timestamp())}",
+                text=f"I don't have enough real data to answer that yet. The database currently has 0 active drives and 0 student candidates.",
+                timestamp=timestamp,
+                actionButton={"label": "Operations Dashboard", "route": "/dashboard"}
+            )
         return CopilotResponseSchema(
             id=f"copilot-{int(datetime.now().timestamp())}",
-            text=f"Processed query regarding '{req.query}'. Placement Copilot database confirms 12 active drives, 286 eligible candidates, and personalized resume recommendations.",
+            text=f"Processed query: '{req.query}'. Database confirms {drives_count} active placement drives and {len(students)} student candidate profiles.",
             timestamp=timestamp,
-            actionButton={"label": "AI Resume Analyzer", "route": "/student/resume"}
+            actionButton={"label": "Operations Dashboard", "route": "/dashboard"}
         )
+
 

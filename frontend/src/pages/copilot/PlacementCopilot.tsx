@@ -24,8 +24,14 @@ import { Card, CardHeader, CardTitle, CardContent } from '../../components/ui/Ca
 import { Button } from '../../components/ui/Button';
 import { usePlacement } from '../../context/PlacementContext';
 import { CopilotMessage, CopilotPrompt } from '../../types';
-import { mockSuggestedPrompts, mockCopilotHistory } from '../../data/mockData';
 import { apiService } from '../../services/api';
+
+const defaultSuggestedPrompts: CopilotPrompt[] = [
+  { id: 'p-1', text: 'What placement actions need attention?', category: 'Pending Exceptions' },
+  { id: 'p-2', text: 'Which rooms are free right now?', category: 'Venue Availability' },
+  { id: 'p-3', text: 'Show active placement drives.', category: 'Drives' },
+  { id: 'p-4', text: 'Who are the top candidate profiles?', category: 'Candidate Matching' },
+];
 
 export const PlacementCopilot: React.FC = () => {
   const navigate = useNavigate();
@@ -60,65 +66,17 @@ export const PlacementCopilot: React.FC = () => {
       setMessages((prev) => [...prev, response]);
     } catch (err) {
       setIsProcessing(false);
-      generateMockResponse(query);
+      const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: `bot-${Date.now()}`,
+          sender: 'assistant',
+          text: "I don't have enough real data to answer that right now.",
+          timestamp,
+        },
+      ]);
     }
-  };
-
-  const generateMockResponse = (query: string) => {
-    const q = query.toLowerCase();
-    const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-
-    let botMsg: CopilotMessage;
-
-    if (q.includes('top candidates') || q.includes('technova')) {
-      botMsg = {
-        id: `bot-${Date.now()}`,
-        sender: 'assistant',
-        text: 'Based on current eligibility rules and skill alignment, these are the top ranked candidates for TechNova Solutions:',
-        timestamp,
-        cards: [
-          { title: '1. Rahul Verma', subtitle: 'CSE • CGPA: 8.9', detail: 'FastAPI, SQL, REST APIs (92% Match Score)', badge: 'Excellent Match' },
-          { title: '2. Aarav Sharma', subtitle: 'CSE • CGPA: 8.7', detail: 'Python, SQL, React (87% Match Score)', badge: 'Strong Match' },
-          { title: '3. Karthik Rao', subtitle: 'CSE • CGPA: 7.8', detail: 'Java, SQL, REST APIs (81% Match Score)', badge: 'Strong Match' },
-        ],
-        actionButton: { label: 'View Candidates', route: '/candidates' },
-      };
-    } else if (q.includes('conflict')) {
-      botMsg = {
-        id: `bot-${Date.now()}`,
-        sender: 'assistant',
-        text: '3 interview scheduling conflicts require your attention today:',
-        timestamp,
-        cards: [
-          { title: 'Rahul Verma', subtitle: 'Candidate Overlap', detail: 'Double-booked at 10:30 AM across 2 evaluation sessions.', badge: 'Critical' },
-          { title: 'Panel B', subtitle: 'Panel Double Booking', detail: 'Assigned to TechNova and DataSphere at 11:30 AM.', badge: 'Critical' },
-          { title: 'Lab 101', subtitle: 'Room Conflict', detail: 'Capacity of 30 exceeded by concurrent booking.', badge: 'Warning' },
-        ],
-        actionButton: { label: 'Open Operations Center', route: '/exceptions' },
-      };
-    } else if (q.includes('skill gap') || q.includes('docker')) {
-      botMsg = {
-        id: `bot-${Date.now()}`,
-        sender: 'assistant',
-        text: 'Skill Gap Analysis across active drives shows Docker and Cloud Containerization is the highest demand gap:',
-        timestamp,
-        cards: [
-          { title: 'Docker & Containerization', subtitle: 'Missing in 42% eligible candidates', detail: 'Required by 4 active placement drives.', badge: 'High Demand' },
-          { title: 'System Architecture', subtitle: 'Missing in 35% candidates', detail: 'Evaluated in TechNova Round 2.', badge: 'Medium Demand' },
-        ],
-        actionButton: { label: 'View Analytics', route: '/analytics' },
-      };
-    } else {
-      botMsg = {
-        id: `bot-${Date.now()}`,
-        sender: 'assistant',
-        text: `I have processed your query regarding "${query}". Placement operations data shows 12 active drives, 286 eligible candidates, and 0 unhandled critical conflicts.`,
-        timestamp,
-        actionButton: { label: 'Go to Operations Dashboard', route: '/dashboard' },
-      };
-    }
-
-    setMessages((prev) => [...prev, botMsg]);
   };
 
   return (
@@ -185,7 +143,7 @@ export const PlacementCopilot: React.FC = () => {
 
               {/* SUGGESTED PROMPTS GRID */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-left max-w-xl mx-auto pt-2">
-                {mockSuggestedPrompts.map((p) => (
+                {defaultSuggestedPrompts.map((p) => (
                   <button
                     key={p.id}
                     onClick={() => handleSend(p.text)}

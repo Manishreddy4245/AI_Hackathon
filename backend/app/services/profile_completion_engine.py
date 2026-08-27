@@ -14,15 +14,6 @@ def calculate_profile_completion(
     2. AFTER RESUME UPLOAD:
        - Starts real profile completion calculation based on extracted data (Resume, Skills, Education, Projects).
     """
-    # Demo student account exception
-    if student.get("id") in ("student-demo", "rahul-verma") or student.get("email") == "student@demo.com":
-        checklist = [
-            {"key": "resume", "label": "Resume Upload & AI Analysis", "completed": True, "weight": 25},
-            {"key": "skills", "label": "Verified Technical Skills", "completed": True, "weight": 25},
-            {"key": "education", "label": "Education Details (College, CGPA)", "completed": True, "weight": 25},
-            {"key": "projects", "label": "Projects & Experience", "completed": True, "weight": 25},
-        ]
-        return 100, True, [], checklist
 
     # Check if resume document is actually uploaded
     resume_url = student.get("resumeUrl")

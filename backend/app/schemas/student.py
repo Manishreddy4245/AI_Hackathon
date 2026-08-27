@@ -16,7 +16,7 @@ class StudentSchema(BaseModel):
     rollNumber: str
     name: str
     email: str
-    avatar: str
+    avatar: Optional[str] = "https://api.dicebear.com/7.x/initials/svg?seed=Student"
     branch: str
     batch: str
     cgpa: float
@@ -24,7 +24,7 @@ class StudentSchema(BaseModel):
     projects: List[ProjectItem] = []
     certifications: List[CertificationItem] = []
     readinessScore: int
-    resumeUrl: str
+    resumeUrl: Optional[str] = None
     placementStatus: str
     placedCompany: Optional[str] = None
     placedPackage: Optional[float] = None
@@ -37,5 +37,27 @@ class ShortlistRequest(BaseModel):
     driveId: str = "technova-backend"
 
 class ApplyDriveRequest(BaseModel):
-    studentId: str = "rahul-verma"
+    studentId: Optional[str] = None
     driveId: str
+    name: Optional[str] = None
+    mobile: Optional[str] = None
+    college_name: Optional[str] = None
+    location: Optional[str] = None
+    company_name: Optional[str] = None
+    job_title: Optional[str] = None
+    company_id: Optional[str] = None
+    source: Optional[str] = None
+    application_url: Optional[str] = None
+
+class ExternalApplyStartRequest(BaseModel):
+    drive_id: str
+    company_name: Optional[str] = None
+    job_title: Optional[str] = None
+    company_id: Optional[str] = None
+    application_url: str
+
+class ExternalApplyConfirmRequest(BaseModel):
+    drive_id: str
+    token: Optional[str] = None
+    completed: bool = True
+

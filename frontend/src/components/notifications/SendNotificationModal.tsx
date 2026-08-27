@@ -13,12 +13,10 @@ export const SendNotificationModal: React.FC<SendNotificationModalProps> = ({ is
   const { sendNotification, students, panelsList } = usePlacement();
 
   const [recipientRole, setRecipientRole] = useState<RecipientRole>('students');
-  const [recipientName, setRecipientName] = useState('Rahul Verma');
+  const [recipientName, setRecipientName] = useState(students[0]?.name || '');
   const [notifType, setNotifType] = useState<NotificationType>('interview');
-  const [title, setTitle] = useState('Technical Interview Scheduled');
-  const [message, setMessage] = useState(
-    'Your Technical Interview for TechNova is scheduled for today at 10:30 AM in Lab 101.'
-  );
+  const [title, setTitle] = useState('Placement Announcement');
+  const [message, setMessage] = useState('');
 
   if (!isOpen) return null;
 
@@ -69,8 +67,8 @@ export const SendNotificationModal: React.FC<SendNotificationModalProps> = ({ is
                 onChange={(e) => {
                   const role = e.target.value as RecipientRole;
                   setRecipientRole(role);
-                  if (role === 'students') setRecipientName(students[0]?.name || 'Rahul Verma');
-                  else if (role === 'panel') setRecipientName(panelsList[0]?.name || 'Panel B');
+                  if (role === 'students') setRecipientName(students[0]?.name || '');
+                  else if (role === 'panel') setRecipientName(panelsList[0]?.name || '');
                   else setRecipientName('Placement Officer');
                 }}
                 className="w-full text-xs p-2.5 bg-[#101D31] border border-[#243650] text-[#F8FAFC] rounded-lg focus:outline-none focus:border-[#3B82F6] font-medium cursor-pointer"

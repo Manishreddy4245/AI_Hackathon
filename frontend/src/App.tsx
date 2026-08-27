@@ -33,8 +33,16 @@ import { RecruiterDashboard } from './pages/recruiter/RecruiterDashboard';
 import { StudentDashboard } from './pages/student/StudentDashboard';
 import { StudentDrives } from './pages/student/StudentDrives';
 import { StudentInterviews } from './pages/student/StudentInterviews';
-import { StudentSkills } from './pages/student/StudentSkills';
+import { StudentApplications } from './pages/student/StudentApplications';
+import { StudentProfile } from './pages/student/StudentProfile';
 import { ResumeAnalyzer } from './pages/student/ResumeAnalyzer';
+import { ApplicationReturn } from './pages/student/ApplicationReturn';
+import { AIAssessment } from './pages/student/AIAssessment';
+import { AptitudeTestView } from './pages/student/AptitudeTestView';
+import { StudentAssessmentsList } from './pages/student/StudentAssessmentsList';
+
+import { StudentCommunity } from './pages/student/StudentCommunity';
+import { StudentForms } from './pages/student/StudentForms';
 
 export function App() {
   return (
@@ -46,6 +54,7 @@ export function App() {
             {/* Public Authentication Routes - Exactly 3 Portals */}
             <Route path="/login" element={<PortalSelect />} />
             <Route path="/login/:portalType" element={<PortalLogin />} />
+            <Route path="/application-return" element={<ApplicationReturn />} />
 
             {/* ========================================================================= */}
             {/* 1. STUDENT PORTAL (Strictly for Student Role)                             */}
@@ -59,11 +68,25 @@ export function App() {
             >
               <Route path="/student" element={<Navigate to="/student/dashboard" replace />} />
               <Route path="/student/dashboard" element={<StudentDashboard />} />
-              <Route path="/student/drives" element={<StudentDrives />} />
               <Route path="/student/resume" element={<ResumeAnalyzer />} />
+              <Route path="/student/drives" element={<StudentDrives />} />
+              <Route path="/student/community/:driveId" element={<StudentCommunity />} />
+              <Route path="/student/community" element={<StudentCommunity />} />
+              <Route path="/student/forms/:formId" element={<StudentForms />} />
+              <Route path="/student/assessment" element={<AIAssessment />} />
+              <Route path="/student/assessments/:id" element={<AptitudeTestView />} />
+              <Route path="/student/assessments" element={<StudentAssessmentsList />} />
+
+
+              <Route path="/student/applications" element={<StudentApplications />} />
               <Route path="/student/interviews" element={<StudentInterviews />} />
-              <Route path="/student/skills" element={<StudentSkills />} />
+              <Route path="/student/notifications" element={<NotificationsList />} />
+              <Route path="/student/profile" element={<StudentProfile />} />
               <Route path="/student/copilot" element={<PlacementCopilot />} />
+              <Route path="/student/application-return" element={<ApplicationReturn />} />
+              {/* Backward compatibility redirection from removed standalone skill-gap */}
+              <Route path="/student/skills" element={<Navigate to="/student/drives" replace />} />
+              <Route path="/student/skill-gap" element={<Navigate to="/student/drives" replace />} />
             </Route>
 
             {/* ========================================================================= */}

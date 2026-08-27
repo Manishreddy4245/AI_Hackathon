@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   DoorOpen,
   Plus,
@@ -12,6 +12,9 @@ import {
   AlertTriangle,
   Layers,
   ChevronRight,
+  Edit2,
+  Trash2,
+  Calendar,
 } from 'lucide-react';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { Card, CardHeader, CardTitle, CardContent } from '../../components/ui/Card';
@@ -19,28 +22,92 @@ import { Button } from '../../components/ui/Button';
 import { StatusBadge } from '../../components/ui/StatusBadge';
 import { usePlacement } from '../../context/PlacementContext';
 import { CreatePanelModal } from '../../components/panels/CreatePanelModal';
+import { CreateEditAvailabilityModal } from '../../components/panels/CreateEditAvailabilityModal';
 import { RoomScheduleTimeline } from '../../components/rooms/RoomScheduleTimeline';
+import { apiService } from '../../services/api';
 import { Room, Panel } from '../../types';
 
 export const PanelsList: React.FC = () => {
-  const { panelsList, roomsList, interviewsList, exceptionsList, confirmPanel } = usePlacement();
-  const [activeTab, setActiveTab] = useState<'panels' | 'rooms' | 'assignments' | 'conflicts'>('panels');
+  const { panelsList, roomsList, interviewsList, exceptionsList, confirmPanel, triggerToast } = usePlacement();
+  const [activeTab, setActiveTab] = useState<'availability' | 'panels' | 'rooms' | 'assignments' | 'conflicts'>('availability');
+
+  const [availabilitySlots, setAvailabilitySlots] = useState<any[]>([]);
+  const [loadingSlots, setLoadingSlots] = useState(false);
+  const [isAvailabilityModalOpen, setIsAvailabilityModalOpen] = useState(false);
+  const [editingSlot, setEditingSlot] = useState<any | null>(null);
+
   const [isCreatePanelOpen, setIsCreatePanelOpen] = useState(false);
   const [selectedRoom, setSelectedRoom] = useState<Room | null>(roomsList[0] || null);
+
+  const fetchSlots = async () => {
+    setLoadingSlots(true);
+    try {
+      const data = await apiService.getInterviewAvailability();
+      setAvailabilitySlots(data || []);
+    } catch (err) {
+      console.error('Failed to fetch availability slots:', err);
+    } finally {
+      setLoadingSlots(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchSlots();
+  }, []);
+
+  const handleSaveSlot = async (slotData: any) => {
+    if (editingSlot) {
+      await apiService.updateInterviewAvailability(editingSlot.id, slotData);
+      triggerToast('Interview availability slot updated successfully.', 'success');
+    } else {
+      await apiService.createInterviewAvailability(slotData);
+      triggerToast('New interview availability slot saved.', 'success');
+    }
+    await fetchSlots();
+  };
+
+  const handleDeleteSlot = async (slot: any) => {
+    if (slot.status === 'ASSIGNED' || slot.assigned_student_id) {
+      alert('This interview slot is already assigned to a candidate. Reschedule or unassign the candidate before deleting.');
+      return;
+    }
+
+    if (window.confirm(`Are you sure you want to delete availability for ${slot.panel_name} on ${slot.date}?`)) {
+      try {
+        await apiService.deleteInterviewAvailability(slot.id);
+        triggerToast('Availability slot deleted.', 'info');
+        await fetchSlots();
+      } catch (err: any) {
+        const msg = err?.response?.data?.detail || err?.message || 'Failed to delete slot.';
+        alert(msg);
+      }
+    }
+  };
 
   const panelAndRoomConflicts = exceptionsList.filter(
     (e) => e.category === 'panel' || e.category === 'room' || e.category === 'scheduling'
   );
 
   return (
-    <div className="space-y-6 pb-12">
+    <div className="space-y-6 pb-12 text-[#F8FAFC]">
       {/* Page Header */}
       <PageHeader
         title="Panels & Rooms"
-        subtitle="Manage interview panels, room availability, assignments and scheduling conflicts."
+        subtitle="Manage manual interview availability, panel allocations, room capacity, and conflict resolution."
         icon={<DoorOpen className="w-5 h-5 text-white" />}
         action={
-          activeTab === 'panels' ? (
+          activeTab === 'availability' ? (
+            <Button
+              variant="primary"
+              icon={<Plus className="w-4 h-4" />}
+              onClick={() => {
+                setEditingSlot(null);
+                setIsAvailabilityModalOpen(true);
+              }}
+            >
+              + Add Interview Availability
+            </Button>
+          ) : activeTab === 'panels' ? (
             <Button
               variant="primary"
               icon={<Plus className="w-4 h-4" />}
@@ -54,6 +121,17 @@ export const PanelsList: React.FC = () => {
 
       {/* Tab Navigation */}
       <div className="flex items-center gap-2 border-b border-[#243650] pb-1 overflow-x-auto">
+        <button
+          onClick={() => setActiveTab('availability')}
+          className={`px-4 py-2 text-xs font-bold border-b-2 transition-all cursor-pointer whitespace-nowrap flex items-center gap-2 ${
+            activeTab === 'availability'
+              ? 'border-[#3B82F6] text-[#60A5FA]'
+              : 'border-transparent text-[#CBD5E1] hover:text-white'
+          }`}
+        >
+          <Calendar className="w-3.5 h-3.5" />
+          <span>Interview Availability ({availabilitySlots.length})</span>
+        </button>
         <button
           onClick={() => setActiveTab('panels')}
           className={`px-4 py-2 text-xs font-bold border-b-2 transition-all cursor-pointer whitespace-nowrap ${
@@ -101,70 +179,170 @@ export const PanelsList: React.FC = () => {
         </button>
       </div>
 
-      {/* TAB 1: PANELS GRID */}
+      {/* TAB 1: INTERVIEW AVAILABILITY SLOTS TABLE */}
+      {activeTab === 'availability' && (
+        <div className="space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <h3 className="text-base font-bold text-[#F8FAFC]">Manual Interview Availability Slots</h3>
+              <p className="text-xs text-[#94A3B8]">
+                Configured interview slots saved directly in MongoDB. Available slots are selected when shortlisting students.
+              </p>
+            </div>
+            <Button
+              variant="primary"
+              size="sm"
+              icon={<Plus className="w-4 h-4" />}
+              onClick={() => {
+                setEditingSlot(null);
+                setIsAvailabilityModalOpen(true);
+              }}
+            >
+              + Add Interview Availability
+            </Button>
+          </div>
+
+          <Card className="p-0 overflow-hidden bg-[#101D31] border-[#243650]">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs border-collapse">
+                <thead>
+                  <tr className="border-b border-[#243650] bg-[#0B1628] text-[#94A3B8] uppercase text-[10px] font-bold tracking-wider">
+                    <th className="p-3.5">Date</th>
+                    <th className="p-3.5">Time</th>
+                    <th className="p-3.5">Panel</th>
+                    <th className="p-3.5">Panel Members</th>
+                    <th className="p-3.5">Block</th>
+                    <th className="p-3.5">Room</th>
+                    <th className="p-3.5">Status</th>
+                    <th className="p-3.5 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#1B2A40]">
+                  {loadingSlots ? (
+                    <tr>
+                      <td colSpan={8} className="p-8 text-center text-[#94A3B8]">
+                        Loading availability slots...
+                      </td>
+                    </tr>
+                  ) : availabilitySlots.length === 0 ? (
+                    <tr>
+                      <td colSpan={8} className="p-8 text-center text-[#94A3B8]">
+                        <Calendar className="w-8 h-8 mx-auto text-[#64748B] mb-2 opacity-50" />
+                        <p className="font-bold text-sm text-[#F8FAFC]">No interview slots available.</p>
+                        <p className="text-xs text-[#64748B] mt-1">
+                          Click "+ Add Interview Availability" above to configure your first manual interview slot.
+                        </p>
+                      </td>
+                    </tr>
+                  ) : (
+                    availabilitySlots.map((slot) => {
+                      const isAvailable = slot.status === 'AVAILABLE';
+                      const isAssigned = slot.status === 'ASSIGNED';
+                      return (
+                        <tr key={slot.id} className="hover:bg-[#14243B]/60 transition-colors">
+                          <td className="p-3.5 font-bold text-[#F8FAFC] whitespace-nowrap">
+                            {slot.date}
+                          </td>
+                          <td className="p-3.5 font-mono text-[#CBD5E1] whitespace-nowrap">
+                            {slot.start_time} - {slot.end_time}
+                          </td>
+                          <td className="p-3.5 font-bold text-[#60A5FA] whitespace-nowrap">
+                            {slot.panel_name}
+                          </td>
+                          <td className="p-3.5 text-[#CBD5E1] max-w-xs truncate">
+                            {Array.isArray(slot.panel_members) && slot.panel_members.length > 0
+                              ? slot.panel_members.join(', ')
+                              : '—'}
+                          </td>
+                          <td className="p-3.5 text-[#CBD5E1] whitespace-nowrap">
+                            {slot.block}
+                          </td>
+                          <td className="p-3.5 font-semibold text-[#F8FAFC] whitespace-nowrap">
+                            {slot.room_number}
+                          </td>
+                          <td className="p-3.5 whitespace-nowrap">
+                            {isAvailable && (
+                              <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-[rgba(34,197,94,0.15)] text-[#4ADE80] border border-[rgba(34,197,94,0.30)]">
+                                🟢 AVAILABLE
+                              </span>
+                            )}
+                            {isAssigned && (
+                              <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-[rgba(59,130,246,0.15)] text-[#60A5FA] border border-[rgba(59,130,246,0.30)]">
+                                🔵 ASSIGNED
+                              </span>
+                            )}
+                            {!isAvailable && !isAssigned && (
+                              <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-[rgba(100,116,139,0.15)] text-[#94A3B8] border border-[rgba(100,116,139,0.30)]">
+                                ⚪ UNAVAILABLE
+                              </span>
+                            )}
+                          </td>
+                          <td className="p-3.5 text-right whitespace-nowrap">
+                            <div className="flex items-center justify-end gap-1">
+                              <button
+                                onClick={() => {
+                                  setEditingSlot(slot);
+                                  setIsAvailabilityModalOpen(true);
+                                }}
+                                className="p-1.5 text-[#94A3B8] hover:text-[#60A5FA] hover:bg-[#192B45] rounded-lg transition-colors cursor-pointer"
+                                title="Edit Availability"
+                              >
+                                <Edit2 className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                onClick={() => handleDeleteSlot(slot)}
+                                className="p-1.5 text-[#94A3B8] hover:text-[#F87171] hover:bg-[#192B45] rounded-lg transition-colors cursor-pointer"
+                                title="Delete Availability"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </Card>
+        </div>
+      )}
+
+      {/* TAB 2: PANELS LIST */}
       {activeTab === 'panels' && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {panelsList.map((panel) => (
-            <Card key={panel.id} className="p-5 flex flex-col justify-between space-y-4 bg-[#101D31] border-[#243650] text-[#F8FAFC]">
-              <div className="space-y-3">
-                <div className="flex items-start justify-between gap-2">
-                  <div>
-                    <h3 className="text-base font-bold text-[#F8FAFC]">{panel.name}</h3>
-                    <p className="text-xs text-[#CBD5E1] font-medium">{panel.companyName} &bull; Room: {panel.roomNumber}</p>
-                  </div>
-                  <span
-                    className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full uppercase border ${
-                      panel.availability === 'available'
-                        ? 'bg-[rgba(34,197,94,0.10)] text-[#86EFAC] border-[rgba(34,197,94,0.25)]'
-                        : panel.availability === 'busy'
-                        ? 'bg-[rgba(245,158,11,0.10)] text-[#FCD34D] border-[rgba(245,158,11,0.25)]'
-                        : 'bg-[rgba(239,68,68,0.10)] text-[#FCA5A5] border-[rgba(239,68,68,0.25)]'
-                    }`}
-                  >
-                    {panel.availability}
-                  </span>
+            <Card key={panel.id} className="p-5 space-y-4 bg-[#101D31] border-[#243650]">
+              <div className="flex items-start justify-between">
+                <div>
+                  <h4 className="font-bold text-sm text-[#F8FAFC]">{panel.name}</h4>
+                  <span className="text-xs text-[#94A3B8]">{panel.companyName || panel.expertise?.join(', ') || 'Core Engineering'}</span>
                 </div>
+                <StatusBadge
+                  status={panel.confirmed ? 'completed' : 'pending'}
+                />
+              </div>
 
-                {/* Panel Members List */}
-                <div className="p-3 bg-[#0B1628] rounded-xl border border-[#243650] space-y-1 text-xs">
-                  <span className="text-[10px] font-bold text-[#94A3B8] uppercase block">Assigned Members</span>
-                  <ul className="space-y-1 font-semibold text-[#CBD5E1]">
-                    {panel.members.map((m) => (
-                      <li key={m} className="flex items-center gap-1.5">
-                        <Users className="w-3.5 h-3.5 text-[#3B82F6]" />
-                        <span>{m}</span>
-                      </li>
-                    ))}
-                  </ul>
+              <div className="space-y-2 text-xs text-[#CBD5E1]">
+                <div className="flex items-center gap-2">
+                  <Users className="w-3.5 h-3.5 text-[#3B82F6]" />
+                  <span>Members: {panel.members?.join(', ') || 'Lead Interviewers'}</span>
                 </div>
-
-                {/* Expertise Badges */}
-                <div className="space-y-1">
-                  <span className="text-[10px] font-bold text-[#94A3B8] uppercase block">Expertise Tags</span>
-                  <div className="flex flex-wrap gap-1">
-                    {panel.expertise.map((exp) => (
-                      <span key={exp} className="text-[10px] font-bold px-2 py-0.5 rounded bg-[rgba(59,130,246,0.15)] text-[#60A5FA] border border-[rgba(59,130,246,0.30)]">
-                        {exp}
-                      </span>
-                    ))}
-                  </div>
+                <div className="flex items-center gap-2">
+                  <Clock className="w-3.5 h-3.5 text-[#3B82F6]" />
+                  <span>Assigned Slots: {panel.interviewsScheduled || 0} interviews</span>
                 </div>
               </div>
 
-              {/* Panel Action Footer */}
-              <div className="pt-3 border-t border-[#243650] flex items-center justify-between text-xs">
-                <span className="font-semibold text-[#CBD5E1]">
-                  {panel.interviewsScheduled} Interviews Scheduled
-                </span>
-                {panel.confirmed ? (
-                  <span className="text-[#86EFAC] font-bold flex items-center gap-1">
-                    <CheckCircle2 className="w-3.5 h-3.5 text-[#22C55E]" /> Confirmed ✓
-                  </span>
-                ) : (
+              <div className="pt-3 border-t border-[#1B2A40] flex items-center justify-between">
+                <span className="text-[11px] text-[#94A3B8]">Room: {panel.roomNumber || 'Main Block'}</span>
+                {!panel.confirmed && (
                   <Button
-                    variant="secondary"
                     size="sm"
+                    variant="outline"
                     onClick={() => confirmPanel(panel.id)}
+                    icon={<CheckCircle2 className="w-3.5 h-3.5" />}
                   >
                     Confirm Panel
                   </Button>
@@ -175,154 +353,119 @@ export const PanelsList: React.FC = () => {
         </div>
       )}
 
-      {/* TAB 2: ROOMS GRID & TIMELINE */}
+      {/* TAB 3: ROOMS */}
       {activeTab === 'rooms' && (
         <div className="space-y-6">
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-            {roomsList.map((room) => {
-              const isSelected = selectedRoom?.id === room.id;
-              return (
-                <Card
-                  key={room.id}
-                  onClick={() => setSelectedRoom(room)}
-                  className={`p-4 transition-all cursor-pointer bg-[#101D31] border-[#243650] text-[#F8FAFC] ${
-                    isSelected ? 'border-[#3B82F6] ring-2 ring-[#3B82F6]/30 bg-[#14243B]' : 'hover:border-[#31527A]'
-                  }`}
-                >
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <h4 className="text-base font-bold text-[#F8FAFC]">{room.name}</h4>
-                      <p className="text-xs text-[#CBD5E1] font-medium">{room.building}</p>
-                    </div>
-                    <span
-                      className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase border ${
-                        room.status === 'available'
-                          ? 'bg-[rgba(34,197,94,0.10)] text-[#86EFAC] border-[rgba(34,197,94,0.25)]'
-                          : room.status === 'occupied'
-                          ? 'bg-[rgba(245,158,11,0.10)] text-[#FCD34D] border-[rgba(245,158,11,0.25)]'
-                          : 'bg-[#0B1628] text-[#CBD5E1] border-[#243650]'
-                      }`}
-                    >
-                      {room.status}
-                    </span>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {roomsList.map((room) => (
+              <Card
+                key={room.id}
+                className={`p-5 cursor-pointer transition-all bg-[#101D31] border-[#243650] ${
+                  selectedRoom?.id === room.id ? 'border-[#3B82F6] ring-1 ring-[#3B82F6]' : ''
+                }`}
+                onClick={() => setSelectedRoom(room)}
+              >
+                <div className="flex items-start justify-between">
+                  <div>
+                    <h4 className="font-bold text-sm text-[#F8FAFC]">{room.name}</h4>
+                    <span className="text-xs text-[#94A3B8]">{room.building}</span>
                   </div>
-
-                  <div className="mt-3 pt-3 border-t border-[#243650] space-y-1 text-xs">
-                    <div className="flex items-center justify-between text-[#CBD5E1]">
-                      <span>Capacity:</span>
-                      <span className="font-bold text-[#F8FAFC]">{room.capacity} seats</span>
-                    </div>
-                    <div className="flex items-center justify-between text-[#CBD5E1]">
-                      <span>Location:</span>
-                      <span className="font-medium text-[#F8FAFC]">{room.building}</span>
-                    </div>
-                    <div className="flex items-center justify-between text-[#CBD5E1]">
-                      <span>Next Available:</span>
-                      <span className="font-semibold text-[#86EFAC]">{room.nextAvailable}</span>
-                    </div>
-                  </div>
-                </Card>
-              );
-            })}
+                  <span className="text-[10px] px-2 py-0.5 rounded font-bold bg-[#14243B] text-[#CBD5E1] border border-[#243650]">
+                    Cap: {room.capacity}
+                  </span>
+                </div>
+                <div className="mt-3 flex items-center justify-between text-xs text-[#94A3B8]">
+                  <span>Video Conf: {room.hasVideoConf ? 'Available ✓' : 'Standard'}</span>
+                </div>
+              </Card>
+            ))}
           </div>
 
-          {/* ROOM HOURLY TIMELINE VISUALIZER */}
           {selectedRoom && <RoomScheduleTimeline room={selectedRoom} />}
         </div>
       )}
 
-      {/* TAB 3: ASSIGNMENTS VIEW */}
+      {/* TAB 4: ASSIGNMENTS */}
       {activeTab === 'assignments' && (
-        <Card className="bg-[#101D31] border-[#243650] text-[#F8FAFC]">
-          <CardHeader className="border-b border-[#1B2A40]">
-            <CardTitle>Active Panel &amp; Room Interview Assignments</CardTitle>
-            <p className="text-xs text-[#CBD5E1]">Live coordination of candidate rounds across operational rooms and panel leads.</p>
-          </CardHeader>
-          <CardContent className="p-0 overflow-x-auto">
-            <table className="w-full text-left text-xs text-[#F8FAFC] border-collapse">
-              <thead className="bg-[#14243B] text-[11px] font-bold uppercase tracking-wider text-[#CBD5E1] border-b border-[#243650]">
+        <Card className="p-0 overflow-hidden bg-[#101D31] border-[#243650]">
+          <table className="w-full text-left text-xs border-collapse">
+            <thead>
+              <tr className="border-b border-[#243650] bg-[#0B1628] text-[#94A3B8] uppercase text-[10px] font-bold">
+                <th className="p-3.5">Candidate</th>
+                <th className="p-3.5">Company & Role</th>
+                <th className="p-3.5">Panel</th>
+                <th className="p-3.5">Venue</th>
+                <th className="p-3.5">Date & Time</th>
+                <th className="p-3.5">Status</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-[#1B2A40]">
+              {interviewsList.length === 0 ? (
                 <tr>
-                  <th className="px-4 py-3">Candidate</th>
-                  <th className="px-4 py-3">Company &amp; Round</th>
-                  <th className="px-4 py-3">Assigned Panel</th>
-                  <th className="px-4 py-3">Assigned Room</th>
-                  <th className="px-4 py-3">Time Slot</th>
-                  <th className="px-4 py-3 text-right">Status</th>
+                  <td colSpan={6} className="p-8 text-center text-[#94A3B8]">
+                    No interviews assigned yet.
+                  </td>
                 </tr>
-              </thead>
-              <tbody className="divide-y divide-[#243650]">
-                {interviewsList.map((item) => (
-                  <tr key={item.id} className="hover:bg-[#14243B] transition-colors">
-                    <td className="px-4 py-3.5">
-                      <span className="font-bold text-[#F8FAFC] block">{item.candidateName}</span>
-                      <span className="text-[11px] font-mono text-[#94A3B8]">{item.candidateRoll}</span>
+              ) : (
+                interviewsList.map((intv) => (
+                  <tr key={intv.id} className="hover:bg-[#14243B]/60">
+                    <td className="p-3.5 font-bold text-[#F8FAFC]">{intv.candidateName}</td>
+                    <td className="p-3.5 text-[#CBD5E1]">
+                      {intv.companyName} &bull; {intv.roleTitle}
                     </td>
-                    <td className="px-4 py-3.5">
-                      <span className="font-semibold text-[#CBD5E1] block">{item.companyName}</span>
-                      <span className="text-[11px] text-[#94A3B8]">{item.round}</span>
+                    <td className="p-3.5 text-[#60A5FA]">{intv.panelName}</td>
+                    <td className="p-3.5 text-[#CBD5E1]">{intv.roomName}</td>
+                    <td className="p-3.5 font-mono text-[#F8FAFC]">
+                      {intv.date} &bull; {intv.timeSlot}
                     </td>
-                    <td className="px-4 py-3.5 text-[#60A5FA] font-bold">{item.panelName}</td>
-                    <td className="px-4 py-3.5 text-[#22C55E] font-medium">{item.roomName}</td>
-                    <td className="px-4 py-3.5 text-[#CBD5E1] font-mono">{item.timeSlot}</td>
-                    <td className="px-4 py-3.5 text-right">
-                      <StatusBadge status={item.status} />
+                    <td className="p-3.5">
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-[rgba(34,197,94,0.15)] text-[#4ADE80] border border-[rgba(34,197,94,0.30)]">
+                        {intv.status.toUpperCase()}
+                      </span>
                     </td>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </CardContent>
+                ))
+              )}
+            </tbody>
+          </table>
         </Card>
       )}
 
-      {/* TAB 4: CONFLICTS VIEW */}
+      {/* TAB 5: CONFLICTS */}
       {activeTab === 'conflicts' && (
-        <Card className="bg-[#101D31] border-[#243650] text-[#F8FAFC]">
-          <CardHeader className="border-b border-[#1B2A40]">
-            <CardTitle className="text-[#F87171] flex items-center gap-2">
-              <AlertTriangle className="w-5 h-5 text-[#EF4444]" />
-              <span>Panel &amp; Room Scheduling Conflicts</span>
-            </CardTitle>
-            <p className="text-xs text-[#CBD5E1]">
-              Autonomous detection of overlapping rooms, unavailable panel members, and back-to-back overruns.
-            </p>
-          </CardHeader>
-          <CardContent className="p-4 space-y-3">
-            {panelAndRoomConflicts.length === 0 ? (
-              <div className="p-6 bg-[#0B1628] rounded-xl border border-[#243650] text-center space-y-2">
-                <CheckCircle2 className="w-8 h-8 text-[#22C55E] mx-auto" />
-                <h4 className="text-sm font-bold text-[#86EFAC]">Zero Scheduling Conflicts Detected</h4>
-                <p className="text-xs text-[#94A3B8]">All interview panels and venue rooms are optimally synchronized without overlap.</p>
-              </div>
-            ) : (
-              panelAndRoomConflicts.map((conf) => (
-                <div
-                  key={conf.id}
-                  className="p-4 bg-[rgba(239,68,68,0.08)] border border-[rgba(239,68,68,0.25)] rounded-xl flex items-start justify-between gap-4"
-                >
-                  <div className="flex items-start gap-3">
-                    <AlertCircle className="w-4 h-4 text-[#EF4444] mt-0.5 shrink-0" />
-                    <div>
-                      <h4 className="text-xs font-black text-[#FCA5A5]">{conf.title}</h4>
-                      <p className="text-xs text-[#CBD5E1] mt-1 font-medium leading-relaxed">{conf.description}</p>
-                      <div className="flex items-center gap-3 mt-2 text-[11px] text-[#94A3B8]">
-                        <span>Category: <strong className="text-[#F8FAFC]">{conf.category}</strong></span>
-                        <span>&bull;</span>
-                        <span>Severity: <strong className="text-[#EF4444]">{conf.severity}</strong></span>
-                      </div>
-                    </div>
-                  </div>
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded uppercase bg-[rgba(239,68,68,0.20)] text-[#F87171] border border-[rgba(239,68,68,0.30)] shrink-0">
-                    {conf.status}
-                  </span>
+        <div className="space-y-3">
+          {panelAndRoomConflicts.length === 0 ? (
+            <Card className="p-8 text-center text-[#94A3B8] bg-[#101D31] border-[#243650]">
+              <CheckCircle2 className="w-8 h-8 mx-auto text-[#22C55E] mb-2" />
+              <p className="font-bold text-sm text-[#F8FAFC]">No scheduling or room conflicts detected.</p>
+              <p className="text-xs text-[#64748B]">All panel allocations and room schedules are currently harmonious.</p>
+            </Card>
+          ) : (
+            panelAndRoomConflicts.map((conf) => (
+              <Card key={conf.id} className="p-4 bg-[rgba(239,68,68,0.08)] border-[rgba(239,68,68,0.30)] space-y-2">
+                <div className="flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4 text-[#EF4444]" />
+                  <h4 className="font-bold text-xs text-[#F87171]">{conf.title}</h4>
                 </div>
-              ))
-            )}
-          </CardContent>
-        </Card>
+                <p className="text-xs text-[#CBD5E1]">{conf.description}</p>
+              </Card>
+            ))
+          )}
+        </div>
       )}
 
-      {/* CREATE PANEL MODAL */}
+      {/* Create / Edit Availability Modal */}
+      <CreateEditAvailabilityModal
+        isOpen={isAvailabilityModalOpen}
+        onClose={() => {
+          setIsAvailabilityModalOpen(false);
+          setEditingSlot(null);
+        }}
+        slot={editingSlot}
+        onSave={handleSaveSlot}
+      />
+
+      {/* Create Panel Modal */}
       <CreatePanelModal
         isOpen={isCreatePanelOpen}
         onClose={() => setIsCreatePanelOpen(false)}

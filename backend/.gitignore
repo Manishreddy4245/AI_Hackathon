@@ -3,6 +3,16 @@ venv/
 ENV/
 env/
 .env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.env.staging.local
+*.env
+!*.env.example
+!*.env.development.example
+!*.env.test.example
+!*.env.production.example
 __pycache__/
 *.py[cod]
 *$py.class
@@ -10,3 +20,4 @@ __pycache__/
 .coverage
 htmlcov/
 .DS_Store
+

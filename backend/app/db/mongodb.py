@@ -14,6 +14,16 @@ class AsyncMockCursor:
         self._cursor = self._cursor.sort(*args, **kwargs)
         return self
 
+    def skip(self, *args, **kwargs):
+        if hasattr(self._cursor, "skip"):
+            self._cursor = self._cursor.skip(*args, **kwargs)
+        return self
+
+    def limit(self, *args, **kwargs):
+        if hasattr(self._cursor, "limit"):
+            self._cursor = self._cursor.limit(*args, **kwargs)
+        return self
+
     async def to_list(self, length: Optional[int] = 100) -> List[Dict[str, Any]]:
         items = list(self._cursor)
         if length is not None:
@@ -55,8 +65,42 @@ class AsyncMockCollection:
     async def delete_one(self, *args, **kwargs):
         return self._coll.delete_one(*args, **kwargs)
 
+    async def delete_many(self, *args, **kwargs):
+        return self._coll.delete_many(*args, **kwargs)
+
     async def count_documents(self, *args, **kwargs) -> int:
         return self._coll.count_documents(*args, **kwargs)
+
+    async def distinct(self, *args, **kwargs) -> List[Any]:
+        return self._coll.distinct(*args, **kwargs)
+
+    def aggregate(self, *args, **kwargs) -> AsyncMockCursor:
+        return AsyncMockCursor(self._coll.aggregate(*args, **kwargs))
+
+    async def create_index(self, *args, **kwargs):
+        if hasattr(self._coll, "create_index"):
+            return self._coll.create_index(*args, **kwargs)
+        return None
+
+    async def drop(self, *args, **kwargs):
+        if hasattr(self._coll, "drop"):
+            return self._coll.drop(*args, **kwargs)
+        return None
+
+    async def find_one_and_update(self, *args, **kwargs):
+        if hasattr(self._coll, "find_one_and_update"):
+            return self._coll.find_one_and_update(*args, **kwargs)
+        return None
+
+    async def find_one_and_delete(self, *args, **kwargs):
+        if hasattr(self._coll, "find_one_and_delete"):
+            return self._coll.find_one_and_delete(*args, **kwargs)
+        return None
+
+    async def replace_one(self, *args, **kwargs):
+        if hasattr(self._coll, "replace_one"):
+            return self._coll.replace_one(*args, **kwargs)
+        return None
 
 class AsyncMockDatabase:
     def __init__(self, db_name: str = "placemind"):
@@ -77,25 +121,38 @@ class MongoDBManager:
 db_manager = MongoDBManager()
 
 async def connect_to_mongo() -> None:
-    """Initialize PyMongo AsyncMongoClient or fallback to AsyncMockDatabase."""
+    """Initialize PyMongo AsyncMongoClient connection to live MongoDB Atlas."""
     logger.info("Initializing PyMongo AsyncMongoClient connection to %s", settings.MONGODB_URI)
     try:
         real_client = AsyncMongoClient(
             settings.MONGODB_URI,
-            serverSelectionTimeoutMS=2000
+            serverSelectionTimeoutMS=5000
         )
         # Test ping to confirm server is up
         await real_client.admin.command("ping")
         db_manager.client = real_client
         db_manager.db = real_client[settings.MONGODB_DATABASE]
         db_manager.is_mock = False
-        logger.info("PyMongo AsyncMongoClient connected to live MongoDB '%s'", settings.MONGODB_DATABASE)
+        logger.info("=========================================================================")
+        logger.info("  LIVE DATABASE CONFIRMED: Connected to MongoDB Atlas '%s'", settings.MONGODB_DATABASE)
+        logger.info("=========================================================================")
     except Exception as e:
-        logger.warning("Live MongoDB connection failed (%s). Activating in-memory Mongo database engine.", str(e))
-        db_manager.client = None
-        db_manager.db = AsyncMockDatabase(settings.MONGODB_DATABASE)
-        db_manager.is_mock = True
-        logger.info("In-memory Mongo database initialized successfully for database '%s'", settings.MONGODB_DATABASE)
+        allow_mock = getattr(settings, "TESTING", False) or getattr(settings, "ALLOW_MOCK_DB", False)
+        if allow_mock:
+            logger.warning("Test mode active: Live MongoDB connection failed (%s). Fallback to in-memory test DB.", str(e))
+            db_manager.client = None
+            db_manager.db = AsyncMockDatabase(settings.MONGODB_DATABASE)
+            db_manager.is_mock = True
+        else:
+            db_manager.client = None
+            db_manager.db = None
+            db_manager.is_mock = False
+            logger.critical("=========================================================================")
+            logger.critical("  CRITICAL ERROR: LIVE MONGODB ATLAS CONNECTION FAILED!")
+            logger.critical("  Reason: %s", str(e))
+            logger.critical("  Silent fallback to in-memory mock DB is DISABLED in production mode.")
+            logger.critical("=========================================================================")
+            raise ConnectionError(f"CRITICAL: Failed to connect to live MongoDB Atlas database '{settings.MONGODB_DATABASE}': {str(e)}")
 
 async def close_mongo_connection() -> None:
     """Close MongoDB connection."""

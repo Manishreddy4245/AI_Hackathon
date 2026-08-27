@@ -125,11 +125,21 @@ def regex_fallback_profile_extractor(resume_text: str) -> ExtractedProfileSchema
     # 9. Projects extraction heuristic
     projects = []
     if "project" in text_lower:
-        project_matches = re.findall(r'(?:project|title|name)\s*:?\s*([A-Za-z0-9\s\-]{4,30})', resume_text, re.IGNORECASE)
-        for pm in project_matches[:3]:
-            cleaned_p = pm.strip()
-            if len(cleaned_p) > 3 and not any(k in cleaned_p.lower() for k in ["experience", "education", "skills"]):
-                projects.append(ProjectSchema(name=cleaned_p, techStack=raw_skills[:3]))
+        # Pattern 1: Section with items
+        section_match = re.search(r'(?:projects?|key projects?)\s*[:\-\n]+([^\n\r]+(?:\n[^\n\r]+)?)', resume_text, re.IGNORECASE)
+        if section_match:
+            sec_text = section_match.group(1).strip()
+            for item in re.split(r'[,;\n•\-\*]', sec_text):
+                cleaned_item = item.strip()
+                if len(cleaned_item) > 3 and not any(k in cleaned_item.lower() for k in ["experience", "education", "skills", "technical", "certified"]):
+                    projects.append(ProjectSchema(title=cleaned_item, name=cleaned_item, technologies=raw_skills[:3], techStack=raw_skills[:3]))
+
+        if not projects:
+            project_matches = re.findall(r'(?:project|title|name)\s*:?\s*([A-Za-z0-9\s\-]{4,30})', resume_text, re.IGNORECASE)
+            for pm in project_matches[:3]:
+                cleaned_p = pm.strip()
+                if len(cleaned_p) > 3 and not any(k in cleaned_p.lower() for k in ["experience", "education", "skills"]):
+                    projects.append(ProjectSchema(title=cleaned_p, name=cleaned_p, technologies=raw_skills[:3], techStack=raw_skills[:3]))
 
     # 10. Certifications
     certifications = []
@@ -199,7 +209,7 @@ Resume Text:
 {resume_text[:4000]}
 """
 
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key={api_key}"
     payload = {
         "contents": [{"parts": [{"text": prompt}]}],
         "generationConfig": {"temperature": 0.1, "responseMimeType": "application/json"}

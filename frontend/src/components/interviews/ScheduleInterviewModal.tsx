@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Calendar,
   Clock,
@@ -11,31 +11,38 @@ import {
   Users,
   MapPin,
   HelpCircle,
+  Loader2,
 } from 'lucide-react';
 import { Interview, InterviewRound } from '../../types';
 import { usePlacement } from '../../context/PlacementContext';
+import { apiService } from '../../services/api';
 import { Button } from '../ui/Button';
 
 interface ScheduleInterviewModalProps {
   isOpen: boolean;
   onClose: () => void;
+  initialDriveId?: string;
 }
 
 export const ScheduleInterviewModal: React.FC<ScheduleInterviewModalProps> = ({
   isOpen,
   onClose,
+  initialDriveId,
 }) => {
-  const { drives, students, panelsList, roomsList, scheduleInterview, checkScheduleAvailability } =
+  const { drives, panelsList, roomsList, scheduleInterview, checkScheduleAvailability, triggerToast } =
     usePlacement();
 
-  const [companyName, setCompanyName] = useState('TechNova Solutions');
-  const [candidateName, setCandidateName] = useState('Rahul Verma');
-  const [round, setRound] = useState<InterviewRound>('Technical Interview');
+  const [selectedDriveId, setSelectedDriveId] = useState<string>('');
+  const [eligibleCandidates, setEligibleCandidates] = useState<any[]>([]);
+  const [selectedCandidateId, setSelectedCandidateId] = useState<string>('');
+  const [loadingCandidates, setLoadingCandidates] = useState<boolean>(false);
+
+  const [round, setRound] = useState<string>('HR Interview');
   const [date, setDate] = useState('Today');
   const [startTime, setStartTime] = useState('10:30 AM');
   const [duration, setDuration] = useState('45 mins');
-  const [panelName, setPanelName] = useState('Panel A');
-  const [roomName, setRoomName] = useState('Lab 101');
+  const [panelName, setPanelName] = useState('');
+  const [roomName, setRoomName] = useState('');
 
   // Conflict Checking State
   const [hasCheckedAvailability, setHasCheckedAvailability] = useState(false);
@@ -46,10 +53,65 @@ export const ScheduleInterviewModal: React.FC<ScheduleInterviewModalProps> = ({
     suggestedSlots?: string[];
   }>({ hasConflict: false });
 
+  // Initialize selectedDriveId, panel, room when modal opens
+  useEffect(() => {
+    if (isOpen) {
+      const defaultDriveId = initialDriveId || (drives.length > 0 ? drives[0].id : '');
+      setSelectedDriveId(defaultDriveId);
+      if (panelsList.length > 0) setPanelName(panelsList[0].name);
+      if (roomsList.length > 0) setRoomName(roomsList[0].name);
+      setHasCheckedAvailability(false);
+    }
+  }, [isOpen, initialDriveId, drives, panelsList, roomsList]);
+
+  // Fetch HR-interview-eligible candidates whenever selectedDriveId changes
+  useEffect(() => {
+    if (!isOpen || !selectedDriveId) {
+      setEligibleCandidates([]);
+      setSelectedCandidateId('');
+      return;
+    }
+
+    let isMounted = true;
+    const fetchEligibleCandidates = async () => {
+      setLoadingCandidates(true);
+      try {
+        const list = await apiService.getInterviewEligibleCandidates(selectedDriveId);
+        if (isMounted) {
+          setEligibleCandidates(list || []);
+          if (list && list.length > 0) {
+            setSelectedCandidateId(list[0].student_id || list[0].id || list[0].application_id);
+          } else {
+            setSelectedCandidateId('');
+          }
+        }
+      } catch (err) {
+        console.error('Failed to load interview-eligible candidates:', err);
+        if (isMounted) {
+          setEligibleCandidates([]);
+          setSelectedCandidateId('');
+        }
+      } finally {
+        if (isMounted) setLoadingCandidates(false);
+      }
+    };
+
+    fetchEligibleCandidates();
+    return () => {
+      isMounted = false;
+    };
+  }, [isOpen, selectedDriveId]);
+
   if (!isOpen) return null;
 
+  const selectedCandidate = eligibleCandidates.find(
+    (c) => (c.student_id || c.id) === selectedCandidateId
+  );
+  const selectedDrive = drives.find((d) => d.id === selectedDriveId) || drives[0];
+
   const handleCheckAvailability = () => {
-    const res = checkScheduleAvailability(candidateName, panelName, roomName, startTime);
+    const candName = selectedCandidate?.name || selectedCandidate?.student_name || '';
+    const res = checkScheduleAvailability(candName, panelName, roomName, startTime);
     setConflictData(res);
     setHasCheckedAvailability(true);
   };
@@ -60,31 +122,46 @@ export const ScheduleInterviewModal: React.FC<ScheduleInterviewModalProps> = ({
     setHasCheckedAvailability(true);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    const selectedStudent = students.find((s) => s.name === candidateName) || students[0];
+    if (!selectedDriveId || !selectedDrive) {
+      triggerToast('Please select a valid recruiter company / drive.', 'error');
+      return;
+    }
+
+    if (!selectedCandidateId || !selectedCandidate) {
+      triggerToast('Please select an eligible candidate for HR / Interview scheduling.', 'error');
+      return;
+    }
 
     const newInt: Interview = {
       id: `int-${Date.now()}`,
-      candidateId: selectedStudent.id,
-      candidateName: selectedStudent.name,
-      candidateRoll: selectedStudent.rollNumber,
-      companyName,
-      roleTitle: 'Backend Developer',
-      round,
+      candidateId: selectedCandidate.student_id || selectedCandidate.id,
+      candidateName: selectedCandidate.name || selectedCandidate.student_name || 'Candidate',
+      candidateRoll: selectedCandidate.rollNumber || selectedCandidate.roll_number || 'N/A',
+      companyName: selectedDrive.companyName || 'Company',
+      roleTitle: selectedDrive.roleTitle || 'Software Engineer',
+
+      driveId: selectedDrive.id,
+      applicationId: selectedCandidate.application_id,
+      round: 'HR' as InterviewRound,
       timeSlot: `${startTime} – ${duration}`,
       startTime,
       endTime: '11:15 AM',
       date,
-      panelName,
-      roomName,
+      panelName: panelName || (panelsList[0]?.name || 'HR Panel'),
+      roomName: roomName || (roomsList[0]?.name || 'Main Venue'),
       status: 'scheduled',
-      panelConfirmed: false,
+      panelConfirmed: true,
     };
 
-    scheduleInterview(newInt);
-    onClose();
+    try {
+      await scheduleInterview(newInt);
+      onClose();
+    } catch (err: any) {
+      console.error('Interview scheduling error:', err);
+    }
   };
 
   return (
@@ -110,14 +187,19 @@ export const ScheduleInterviewModal: React.FC<ScheduleInterviewModalProps> = ({
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-bold text-[#E2E8F0] mb-1">Recruiter Company</label>
+              <label className="block text-xs font-bold text-[#E2E8F0] mb-1">Recruiter Company / Job Drive</label>
               <select
-                value={companyName}
-                onChange={(e) => setCompanyName(e.target.value)}
+                value={selectedDriveId}
+                onChange={(e) => {
+                  setSelectedDriveId(e.target.value);
+                  setSelectedCandidateId('');
+                  setHasCheckedAvailability(false);
+                }}
                 className="w-full text-xs p-2.5 bg-[#101D31] border border-[#243650] text-[#F8FAFC] rounded-lg focus:outline-none focus:border-[#3B82F6] cursor-pointer font-medium"
               >
+                {drives.length === 0 && <option value="">No Drives Available</option>}
                 {drives.map((d) => (
-                  <option key={d.id} value={d.companyName}>
+                  <option key={d.id} value={d.id}>
                     {d.companyName} ({d.roleTitle})
                   </option>
                 ))}
@@ -125,20 +207,29 @@ export const ScheduleInterviewModal: React.FC<ScheduleInterviewModalProps> = ({
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-[#E2E8F0] mb-1">Candidate</label>
+              <label className="block text-xs font-bold text-[#E2E8F0] mb-1">Candidate (Technical Qualified)</label>
               <select
-                value={candidateName}
+                value={selectedCandidateId}
+                disabled={!selectedDriveId || loadingCandidates || eligibleCandidates.length === 0}
                 onChange={(e) => {
-                  setCandidateName(e.target.value);
+                  setSelectedCandidateId(e.target.value);
                   setHasCheckedAvailability(false);
                 }}
-                className="w-full text-xs p-2.5 bg-[#101D31] border border-[#243650] text-[#F8FAFC] rounded-lg focus:outline-none focus:border-[#3B82F6] cursor-pointer font-medium"
+                className="w-full text-xs p-2.5 bg-[#101D31] border border-[#243650] text-[#F8FAFC] rounded-lg focus:outline-none focus:border-[#3B82F6] cursor-pointer font-medium disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {students.map((s) => (
-                  <option key={s.id} value={s.name}>
-                    {s.name} ({s.rollNumber} &bull; {s.branch})
-                  </option>
-                ))}
+                {loadingCandidates ? (
+                  <option value="">Loading HR-eligible candidates...</option>
+                ) : !selectedDriveId ? (
+                  <option value="">Select Recruiter Company first</option>
+                ) : eligibleCandidates.length === 0 ? (
+                  <option value="">No candidates eligible for HR / Interview</option>
+                ) : (
+                  eligibleCandidates.map((c: any) => (
+                    <option key={c.application_id || c.student_id || c.id} value={c.student_id || c.id}>
+                      {c.name || c.student_name} ({c.rollNumber || c.roll_number || 'N/A'} &bull; {c.branch || 'CSE'})
+                    </option>
+                  ))
+                )}
               </select>
             </div>
           </div>
@@ -148,13 +239,10 @@ export const ScheduleInterviewModal: React.FC<ScheduleInterviewModalProps> = ({
               <label className="block text-xs font-bold text-[#E2E8F0] mb-1">Interview Round</label>
               <select
                 value={round}
-                onChange={(e) => setRound(e.target.value as InterviewRound)}
+                onChange={(e) => setRound(e.target.value)}
                 className="w-full text-xs p-2.5 bg-[#101D31] border border-[#243650] text-[#F8FAFC] rounded-lg focus:outline-none focus:border-[#3B82F6] cursor-pointer font-medium"
               >
-                <option value="Online Assessment">Online Assessment</option>
-                <option value="Technical Interview">Technical Interview</option>
-                <option value="HR Interview">HR Interview</option>
-                <option value="Final Interview">Final Interview</option>
+                <option value="HR Interview">HR / Interview Round</option>
               </select>
             </div>
 
@@ -199,7 +287,7 @@ export const ScheduleInterviewModal: React.FC<ScheduleInterviewModalProps> = ({
               >
                 {panelsList.map((p) => (
                   <option key={p.id} value={p.name}>
-                    {p.name} ({p.companyName})
+                    {p.name} ({p.companyName || 'General Panel'})
                   </option>
                 ))}
               </select>
@@ -217,12 +305,13 @@ export const ScheduleInterviewModal: React.FC<ScheduleInterviewModalProps> = ({
               >
                 {roomsList.map((r) => (
                   <option key={r.id} value={r.name}>
-                    {r.name} ({r.building})
+                    {r.name} ({r.building || (r as any).block || 'Main Building'})
                   </option>
                 ))}
               </select>
             </div>
           </div>
+
 
           {/* CONFLICT WARNING & SMART RECOMMENDATIONS PANEL */}
           {hasCheckedAvailability && conflictData.hasConflict && (
@@ -290,7 +379,13 @@ export const ScheduleInterviewModal: React.FC<ScheduleInterviewModalProps> = ({
               >
                 Check Availability
               </Button>
-              <Button variant="primary" size="sm" type="submit" icon={<Check className="w-3.5 h-3.5" />}>
+              <Button
+                variant="primary"
+                size="sm"
+                type="submit"
+                disabled={!selectedDriveId || !selectedCandidateId || loadingCandidates || eligibleCandidates.length === 0}
+                icon={<Check className="w-3.5 h-3.5" />}
+              >
                 Schedule Interview
               </Button>
             </div>
@@ -300,3 +395,4 @@ export const ScheduleInterviewModal: React.FC<ScheduleInterviewModalProps> = ({
     </div>
   );
 };
+

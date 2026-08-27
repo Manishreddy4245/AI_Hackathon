@@ -10,6 +10,8 @@ import {
   ExceptionItem,
   CopilotMessage,
   Company,
+  RecruitmentRound,
+  DriveRecruiterDashboardData,
 } from '../types';
 
 export interface AuditLogItem {
@@ -25,17 +27,27 @@ export interface AuditLogItem {
 }
 
 export interface JDExtractResult {
-  roleTitle: string;
-  eligibleBranches: string[];
-  minCgpa: number;
-  maxBacklogs: number;
+  roleTitle?: string;
+  companyName?: string;
+  eligibleBranches?: string[];
+  minCgpa?: number | null;
+  maxBacklogs?: number;
+  graduationYear?: number;
+  graduationYears?: number[];
   requiredSkills: string[];
   preferredSkills: string[];
-  rounds: string[];
-  location: string;
-  packageLpa: number;
-  summary: string;
+  responsibilities?: string[];
+  qualifications?: string[];
+  experience?: string;
+  rounds?: string[];
+  location?: string;
+  packageLpa?: number;
+  openings?: number | null;
+  summary?: string;
+  aiExplanation?: string;
+  rawText?: string;
 }
+
 
 export interface CategorizedSkill {
   name: string;
@@ -74,7 +86,20 @@ export interface PlacementRecommendation {
   role: string;
   company_logo?: string;
   package_lpa?: number;
+  salary_text?: string;
   location?: string;
+  employment_type?: string;
+  source: string;
+  source_type: 'college' | 'external';
+  source_label: string;
+  application_url?: string;
+  source_url?: string;
+  posted_at?: string;
+  description?: string;
+  min_cgpa?: number;
+  eligible_branches?: string[];
+  graduation_year?: number;
+  deadline?: string;
   match_score: number;
   eligible: boolean;
   eligibility_reasons: string[];
@@ -82,8 +107,33 @@ export interface PlacementRecommendation {
   matched_skills: string[];
   skill_gaps: string[];
   matched_preferred_skills: string[];
-  missing_preferred_skills: string[];
   recommendation: string;
+}
+
+export interface CompanyOpportunityGroup {
+  company: string;
+  company_logo?: string;
+  source: string;
+  source_type: 'college' | 'external';
+  source_label: string;
+  total_jobs: number;
+  eligible_jobs: number;
+  ineligible_jobs: number;
+  best_match_score: number;
+  location?: string;
+  opportunities: PlacementRecommendation[];
+}
+
+export interface UnifiedOpportunitiesResponse {
+  total_opportunities: number;
+  eligible_count: number;
+  ineligible_count: number;
+  total_companies: number;
+  page: number;
+  page_size: number;
+  total_pages: number;
+  opportunities: PlacementRecommendation[];
+  company_groups: CompanyOpportunityGroup[];
 }
 
 export interface SkillGapItem {
@@ -98,6 +148,41 @@ export interface SkillGapResponse {
   student_id: string;
   total_drives_analyzed: number;
   skill_gaps: SkillGapItem[];
+}
+
+export interface PlacementFormField {
+  name: string;
+  label: string;
+  field_type: string;
+  required: boolean;
+  placeholder?: string;
+  options?: string[];
+}
+
+export interface PlacementForm {
+  id: string;
+  title: string;
+  description?: string;
+  drive_id?: string;
+  created_by: string;
+  created_by_name: string;
+  fields: PlacementFormField[];
+  is_published: boolean;
+  created_at: string;
+  submission_count: number;
+  community_post_id?: string;
+}
+
+export interface FormSubmission {
+  id: string;
+  form_id: string;
+  drive_id?: string;
+  student_id: string;
+  student_name: string;
+  student_email: string;
+  answers: Record<string, any>;
+  submitted_at: string;
+  status: string;
 }
 
 const API_BASE_URL = (import.meta as any).env?.VITE_API_URL || 'http://localhost:8000/api';
@@ -174,6 +259,11 @@ export const apiService = {
     return res.data;
   },
 
+  async searchCompanies(query: string): Promise<Company[]> {
+    const res = await apiClient.get<Company[]>(`/companies/search?query=${encodeURIComponent(query)}`);
+    return res.data;
+  },
+
   async createCompany(data: Partial<Company>): Promise<Company> {
     const res = await apiClient.post<Company>('/companies', data);
     return res.data;
@@ -195,15 +285,74 @@ export const apiService = {
     return res.data;
   },
 
+  async updateDrive(id: string, data: Partial<PlacementDrive>): Promise<PlacementDrive> {
+    const res = await apiClient.put<PlacementDrive>(`/drives/${id}`, data);
+    return res.data;
+  },
+
+  async approveDrive(driveId: string): Promise<PlacementDrive> {
+    const res = await apiClient.post<PlacementDrive>(`/drives/${driveId}/announce`);
+    return res.data;
+  },
+
+  async announceDrive(driveId: string): Promise<PlacementDrive> {
+    const res = await apiClient.post<PlacementDrive>(`/drives/${driveId}/announce`);
+    return res.data;
+  },
+
+  async rejectDrive(driveId: string, reason?: string): Promise<PlacementDrive> {
+    const res = await apiClient.post<PlacementDrive>(`/drives/${driveId}/reject`, { reason });
+    return res.data;
+  },
+
+  async requestDriveChanges(driveId: string, feedback?: string): Promise<PlacementDrive> {
+    const res = await apiClient.post<PlacementDrive>(`/drives/${driveId}/request-changes`, { feedback });
+    return res.data;
+  },
+
   async confirmDriveRequirements(id: string): Promise<void> {
     await apiClient.patch(`/drives/${id}/confirm-requirements`);
   },
 
-  // AI JD Extraction
-  async extractJd(rawText: string, companyName: string = 'Company'): Promise<JDExtractResult> {
-    const res = await apiClient.post<JDExtractResult>('/ai/extract-jd', { rawText, companyName });
+  async getMyRecruiterDrives(): Promise<PlacementDrive[]> {
+    const res = await apiClient.get<PlacementDrive[]>('/drives/recruiter/my');
     return res.data;
   },
+
+  async getDriveRounds(driveId: string): Promise<RecruitmentRound[]> {
+    const res = await apiClient.get<RecruitmentRound[]>(`/drives/${driveId}/rounds`);
+    return res.data;
+  },
+
+  async createDriveRound(driveId: string, data: Partial<RecruitmentRound>): Promise<RecruitmentRound> {
+    const res = await apiClient.post<RecruitmentRound>(`/drives/${driveId}/rounds`, data);
+    return res.data;
+  },
+
+  async updateDriveRound(driveId: string, roundId: string, data: Partial<RecruitmentRound>): Promise<RecruitmentRound> {
+    const res = await apiClient.put<RecruitmentRound>(`/drives/${driveId}/rounds/${roundId}`, data);
+    return res.data;
+  },
+
+  async deleteDriveRound(driveId: string, roundId: string): Promise<void> {
+    await apiClient.delete(`/drives/${driveId}/rounds/${roundId}`);
+  },
+
+  async getDriveRecruiterMetrics(driveId: string): Promise<DriveRecruiterDashboardData> {
+    const res = await apiClient.get<DriveRecruiterDashboardData>(`/drives/${driveId}/recruiter-metrics`);
+    return res.data;
+  },
+
+  async executeRoundAction(applicationId: string, action: string, roundId?: string, notes?: string): Promise<any> {
+    const res = await apiClient.post(`/applications/${applicationId}/round-action`, { action, round_id: roundId, notes });
+    return res.data;
+  },
+
+  async extractJd(rawText: string, companyName: string = 'Company', signal?: AbortSignal): Promise<JDExtractResult> {
+    const res = await apiClient.post<JDExtractResult>('/ai/extract-jd', { rawText, companyName }, { signal, timeout: 30000 });
+    return res.data;
+  },
+
 
   // Students & Shortlisting
   async getStudents(): Promise<Student[]> {
@@ -211,12 +360,22 @@ export const apiService = {
     return res.data;
   },
 
-  async toggleShortlist(studentId: string, driveId: string = 'technova-backend'): Promise<void> {
+  async toggleShortlist(studentId: string, driveId: string = ''): Promise<void> {
     await apiClient.post('/students/shortlist', { studentId, driveId });
   },
 
-  async applyToDrive(studentId: string, driveId: string): Promise<void> {
-    await apiClient.post('/students/apply', { studentId, driveId });
+  async applyToDrive(studentId: string, driveId: string, details?: { name?: string; mobile?: string; college_name?: string; location?: string }): Promise<any> {
+    const res = await apiClient.post('/students/apply', { studentId, driveId, ...details });
+    return res.data;
+  },
+
+  async submitApplicationForm(formData: FormData): Promise<any> {
+    const res = await apiClient.post('/students/apply-form', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+    return res.data;
   },
 
   // AI Matching
@@ -278,6 +437,147 @@ export const apiService = {
   async markNotificationRead(id: string): Promise<void> {
     await apiClient.patch(`/notifications/${id}/read`);
   },
+
+  async markAllNotificationsRead(): Promise<void> {
+    await apiClient.patch('/notifications/read-all');
+  },
+
+  async toggleNotificationImportant(id: string): Promise<{ status: string; important: boolean }> {
+    const res = await apiClient.patch<{ status: string; important: boolean }>(`/notifications/${id}/important`);
+    return res.data;
+  },
+
+  async deleteNotification(id: string): Promise<void> {
+    await apiClient.delete(`/notifications/${id}`);
+  },
+
+  async getNotificationStats(): Promise<{ unread: number; today: number; scheduled: number; important: number }> {
+    const res = await apiClient.get<{ unread: number; today: number; scheduled: number; important: number }>('/notifications/stats');
+    return res.data;
+  },
+
+  // Applications & Candidate Pool
+  async getMyApplications(): Promise<any[]> {
+    const res = await apiClient.get<any[]>('/applications/me');
+    return res.data;
+  },
+
+  async getCandidatePool(driveId?: string): Promise<any[]> {
+    const url = driveId ? `/applications/pool?drive_id=${encodeURIComponent(driveId)}` : '/applications/pool';
+    const res = await apiClient.get<any[]>(url);
+    return res.data;
+  },
+
+  async getCandidatePoolStats(driveId?: string): Promise<{ all: number; applied: number; shortlisted: number; not_shortlisted: number; interview_scheduled: number }> {
+    const url = driveId ? `/applications/stats?drive_id=${encodeURIComponent(driveId)}` : '/applications/stats';
+    const res = await apiClient.get<{ all: number; applied: number; shortlisted: number; not_shortlisted: number; interview_scheduled: number }>(url);
+    return res.data;
+  },
+
+  async getApplicationDetail(applicationId: string): Promise<any> {
+    const res = await apiClient.get<any>(`/applications/${applicationId}`);
+    return res.data;
+  },
+
+  async shortlistApplication(applicationId: string, payload?: any): Promise<any> {
+    const res = await apiClient.post(`/applications/${applicationId}/shortlist`, payload || {});
+    return res.data;
+  },
+
+  async rejectApplication(applicationId: string, reason?: string): Promise<any> {
+    const res = await apiClient.post(`/applications/${applicationId}/reject`, { reason });
+    return res.data;
+  },
+
+  async allocateAptitude(payload: {
+    application_id: string;
+    drive_id?: string;
+    student_id?: string;
+    round_type?: string;
+    title?: string;
+    scheduled_at?: string;
+    deadline?: string;
+    duration_minutes?: number;
+  } | string): Promise<any> {
+    const applicationId = typeof payload === 'string' ? payload : payload.application_id;
+    const body = typeof payload === 'object' ? payload : {};
+    try {
+      const res = await apiClient.post(`/applications/${applicationId}/allocate-aptitude`, body);
+      return res.data;
+    } catch (err: any) {
+      if (err?.response?.status === 405 || err?.response?.status === 404) {
+        const res = await apiClient.post('/assessments/allocate', typeof payload === 'object' ? payload : { application_id: applicationId });
+        return res.data;
+      }
+      throw err;
+    }
+  },
+
+  async allocateTechnicalRound(payload: {
+    application_id: string;
+    scheduled_at?: string;
+    deadline?: string;
+    duration_minutes?: number;
+  } | string): Promise<any> {
+    const applicationId = typeof payload === 'string' ? payload : payload.application_id;
+    const body = typeof payload === 'object' ? payload : {};
+    const res = await apiClient.post(`/applications/${applicationId}/allocate-technical`, body);
+    return res.data;
+  },
+
+  async allocateHRRound(payload: {
+    application_id: string;
+  } | string): Promise<any> {
+    const applicationId = typeof payload === 'string' ? payload : payload.application_id;
+    const body = typeof payload === 'object' ? payload : {};
+    const res = await apiClient.post(`/applications/${applicationId}/allocate-hr`, body);
+    return res.data;
+  },
+
+  async getInterviewEligibleCandidates(driveId?: string, companyName?: string): Promise<any[]> {
+    const params = new URLSearchParams();
+    if (driveId) params.append('drive_id', driveId);
+    if (companyName) params.append('company_name', companyName);
+    const url = params.toString() ? `/interviews/eligible-candidates?${params.toString()}` : '/interviews/eligible-candidates';
+    const res = await apiClient.get<any[]>(url);
+    return res.data;
+  },
+
+  async getStudentAssessments(roundType?: string): Promise<any[]> {
+    const url = roundType ? `/assessments/student/me?round_type=${encodeURIComponent(roundType)}` : '/assessments/student/me';
+    const res = await apiClient.get<any[]>(url);
+    return res.data;
+  },
+
+
+
+  async getAssessmentDetail(assessmentId: string): Promise<any> {
+    const res = await apiClient.get(`/assessments/${assessmentId}`);
+    return res.data;
+  },
+
+  async startAssessment(assessmentId: string): Promise<any> {
+    const res = await apiClient.post(`/assessments/${assessmentId}/start`);
+    return res.data;
+  },
+
+  async saveAssessmentAnswer(assessmentId: string, questionId: string, selectedOption?: string, code?: string): Promise<any> {
+    const res = await apiClient.post(`/assessments/${assessmentId}/answers`, {
+      question_id: questionId,
+      selected_option: selectedOption,
+      code,
+    });
+    return res.data;
+  },
+
+
+
+
+  async evaluateAptitude(applicationId: string, passed: boolean = true, score: number = 85): Promise<any> {
+    const res = await apiClient.post(`/applications/${applicationId}/evaluate-aptitude`, { passed, score });
+    return res.data;
+  },
+
 
   // Exceptions / AI Operations
   async getExceptions(): Promise<ExceptionItem[]> {
@@ -344,11 +644,532 @@ export const apiService = {
     return res.data;
   },
 
+  async getOpportunities(
+    sourceType: string = 'all',
+    eligibilityFilter: string = 'all',
+    page: number = 1,
+    pageSize: number = 20,
+    search: string = ''
+  ): Promise<UnifiedOpportunitiesResponse> {
+    const res = await apiClient.get<UnifiedOpportunitiesResponse>('/opportunities', {
+      params: {
+        source_type: sourceType,
+        eligibility_filter: eligibilityFilter,
+        page,
+        page_size: pageSize,
+        search
+      }
+    });
+    return res.data;
+  },
+
+  async getOpportunitySkillGap(opportunityId: string): Promise<any> {
+    const res = await apiClient.get<any>(`/opportunities/${opportunityId}/skill-gap`);
+    return res.data;
+  },
+
   async getSkillGaps(studentId?: string): Promise<SkillGapResponse> {
     const target = studentId && studentId !== 'me' ? `/students/${studentId}/skill-gaps` : '/students/me/skill-gaps';
     const res = await apiClient.get<SkillGapResponse>(target);
     return res.data;
   },
+
+  // Interview Availability Slots
+  async getInterviewAvailability(): Promise<any[]> {
+    const res = await apiClient.get<any[]>('/interviews/availability');
+    return res.data;
+  },
+
+  async getAvailableInterviewSlots(): Promise<any[]> {
+    const res = await apiClient.get<any[]>('/interviews/availability/available');
+    return res.data;
+  },
+
+  async createInterviewAvailability(data: any): Promise<any> {
+    const res = await apiClient.post<any>('/interviews/availability', data);
+    return res.data;
+  },
+
+  async updateInterviewAvailability(id: string, data: any): Promise<any> {
+    const res = await apiClient.put<any>(`/interviews/availability/${id}`, data);
+    return res.data;
+  },
+
+  async deleteInterviewAvailability(id: string): Promise<any> {
+    const res = await apiClient.delete<any>(`/interviews/availability/${id}`);
+    return res.data;
+  },
+
+  async getMyInterviews(): Promise<any[]> {
+    const res = await apiClient.get<any[]>('/interviews/student/me');
+    return res.data;
+  },
+
+  // External Application Lifecycle
+  async startExternalApplication(data: {
+    drive_id: string;
+    company_name?: string;
+    job_title?: string;
+    company_id?: string;
+    application_url: string;
+  }): Promise<{
+    status: string;
+    already_applied: boolean;
+    message: string;
+    redirect_url: string;
+    return_token?: string;
+    drive_id: string;
+    company_name?: string;
+    job_title?: string;
+  }> {
+    const res = await apiClient.post<any>('/students/external-apply/start', data);
+    return res.data;
+  },
+
+  async getExternalApplicationStatus(driveId: string, token?: string): Promise<any> {
+    const params = new URLSearchParams();
+    params.append('drive_id', driveId);
+    if (token) params.append('token', token);
+    const res = await apiClient.get<any>(`/students/external-apply/status?${params.toString()}`);
+    return res.data;
+  },
+
+  async confirmExternalApplication(data: {
+    drive_id: string;
+    token?: string;
+    completed: boolean;
+  }): Promise<{
+    status: string;
+    is_completed: boolean;
+    message: string;
+    company_name?: string;
+    job_title?: string;
+  }> {
+    const res = await apiClient.post<any>('/students/external-apply/confirm', data);
+    return res.data;
+  },
+
+  async getDashboardSummary(): Promise<{
+    active_drives: number;
+    eligible_students: number;
+    shortlisted_candidates: number;
+    interviews_today: number;
+    pending_actions: number;
+    active_drives_change: string;
+    eligible_students_change: string;
+    shortlisted_change: string;
+    interviews_change: string;
+    pending_actions_change: string;
+    available_slots_today: number;
+    total_registered_students: number;
+    unresolved_exceptions_count: number;
+    pipeline: Array<{ stage: string; count: number; fill: string }>;
+  }> {
+    const res = await apiClient.get<any>('/dashboard/summary');
+    return res.data;
+  },
+
+  async getAnalyticsSummary(): Promise<any> {
+    const res = await apiClient.get<any>('/analytics/summary');
+    return res.data;
+  },
+
+  async getKpiDetails(kpi: string): Promise<any> {
+    const res = await apiClient.get<any>(`/dashboard/kpi-details?kpi=${encodeURIComponent(kpi)}`);
+    return res.data;
+  },
+
+  // =========================================================================
+  // AI PLACEMENT ASSESSMENT & PREPBOT APIS
+  // =========================================================================
+  async chatWithPrepBot(message: string, context?: any): Promise<{
+    id: string;
+    reply: string;
+    suggested_actions?: Array<{ label: string; action: string; [key: string]: any }>;
+    assessment_config_preset?: any;
+    timestamp: string;
+  }> {
+    const res = await apiClient.post<any>('/assessments/chat', { message, context });
+    return res.data;
+  },
+
+  async generateAssessment(data: {
+    type?: string;
+    difficulty?: string;
+    topics?: string[];
+    question_count?: number;
+    duration_minutes?: number;
+    prompt?: string;
+  }): Promise<AssessmentSession> {
+    const res = await apiClient.post<AssessmentSession>('/assessments/generate', data);
+    return res.data;
+  },
+
+  async getAssessmentSession(assessmentId: string): Promise<AssessmentSession> {
+    const res = await apiClient.get<AssessmentSession>(`/assessments/${assessmentId}`);
+    return res.data;
+  },
+
+  async runAssessmentCode(assessmentId: string, data: {
+    question_id: string;
+    code: string;
+    language?: string;
+    custom_input?: string;
+  }): Promise<{
+    status: string;
+    stdout: string;
+    stderr?: string;
+    execution_time_ms: number;
+    passed_sample_cases: number;
+    total_sample_cases: number;
+    test_results: any[];
+  }> {
+    const res = await apiClient.post<any>(`/assessments/${assessmentId}/run-code`, data);
+    return res.data;
+  },
+
+  async submitAssessment(assessmentId: string, data: {
+    answers: Array<{
+      question_id: string;
+      type: string;
+      selected_option?: string;
+      code?: string;
+      language?: string;
+    }>;
+    time_taken_seconds?: number;
+  }): Promise<AssessmentResult> {
+    const res = await apiClient.post<AssessmentResult>(`/assessments/${assessmentId}/submit`, data);
+    return res.data;
+  },
+
+  async getAssessmentResult(assessmentId: string): Promise<AssessmentResult> {
+    const res = await apiClient.get<AssessmentResult>(`/assessments/${assessmentId}/results`);
+    return res.data;
+  },
+
+  async getMyAssessmentsHistory(roundType?: string): Promise<AssessmentHistoryItem[]> {
+    const url = roundType ? `/assessments/student/me?round_type=${encodeURIComponent(roundType)}` : '/assessments/student/me';
+    const res = await apiClient.get<AssessmentHistoryItem[]>(url);
+    return res.data;
+  },
+
+
+  async analyzeCodeComplexity(assessmentId: string, data: {
+    question_id: string;
+    code: string;
+    language?: string;
+  }): Promise<{
+    complexity_time: string;
+    complexity_space: string;
+    optimization_tip: string;
+    summary: string;
+  }> {
+    const res = await apiClient.post<any>(`/assessments/${assessmentId}/analyze-complexity`, data);
+    return res.data;
+  },
+
+  async getAssessmentHint(assessmentId: string, data: {
+    question_id: string;
+    code?: string;
+    language?: string;
+    hint_level?: number;
+  }): Promise<{
+    hint_level: number;
+    hint_text: string;
+    title: string;
+  }> {
+    const res = await apiClient.post<any>(`/assessments/${assessmentId}/hint`, data);
+    return res.data;
+  },
+
+  async evaluateAdaptiveSubmission(data: {
+    question_id: string;
+    topic: string;
+    difficulty?: string;
+    passed_test_cases?: number;
+    total_test_cases?: number;
+    hints_used?: number;
+    time_taken_seconds?: number;
+  }): Promise<{
+    attempt_score: number;
+    accuracy: number;
+    hint_penalty: number;
+    current_difficulty: string;
+    difficulty_transition: string;
+    transition_message: string;
+    topic_mastery: { topic: string; mastery_percentage: number; status: string; total_attempts: number; clean_submissions: number };
+    spaced_repetition_queued: boolean;
+    next_review_date?: string;
+    recommended_next_topic: string;
+  }> {
+    const res = await apiClient.post<any>('/assessments/adaptive/evaluate', data);
+    return res.data;
+  },
+
+  async getSpacedRevisionSummary(): Promise<{
+    due_reviews: Array<{ question_id: string; topic_tag: string; repetition_count: number; interval_days: number; ease_factor: number; next_review_date: string; last_score: number }>;
+    topic_mastery_index: Array<{ topic: string; mastery_percentage: number; status: string; total_attempts: number; clean_submissions: number }>;
+    active_difficulty: string;
+    recommended_next_topic: string;
+  }> {
+    const res = await apiClient.get<any>('/assessments/adaptive/spaced-revision');
+    return res.data;
+  },
+
+  async getStudentAssessmentAnalytics(): Promise<{
+    assessments_count: number;
+    coding_average?: number | null;
+    aptitude_average?: number | null;
+    overall_average?: number | null;
+    topics: Array<{ topic: string; average_percentage: number; status: string }>;
+    strengths: string[];
+    weaknesses: string[];
+    has_data: boolean;
+  }> {
+    const res = await apiClient.get<any>('/assessments/student/analytics');
+    return res.data;
+  },
+
+  // =========================================================================
+  // PLACEMENT COMMUNITY & FORMS APIS
+  // =========================================================================
+  async getPlacementCommunities(): Promise<CommunityItem[]> {
+    const res = await apiClient.get<CommunityItem[]>('/communities');
+    return res.data;
+  },
+
+  async getPlacementCommunity(driveId: string): Promise<CommunityItem> {
+    const res = await apiClient.get<CommunityItem>(`/communities/${driveId}`);
+    return res.data;
+  },
+
+  async getCommunityMessages(driveId: string): Promise<CommunityMessage[]> {
+    const res = await apiClient.get<CommunityMessage[]>(`/communities/${driveId}/messages`);
+    return res.data;
+  },
+
+  async postCommunityMessage(driveId: string, data: {
+    content: string;
+    message_type?: string;
+    action_type?: string;
+    action_label?: string;
+    form_schema?: any;
+  }): Promise<CommunityMessage> {
+    const res = await apiClient.post<CommunityMessage>(`/communities/${driveId}/messages`, data);
+    return res.data;
+  },
+
+  async registerForCommunityDrive(driveId: string, data: {
+    name?: string;
+    email?: string;
+    roll_number?: string;
+    branch?: string;
+    cgpa?: number;
+    phone?: string;
+    preferred_location?: string;
+    custom_answers?: Record<string, any>;
+  }): Promise<{ status: string; message: string; application_id: string; registered_count: number }> {
+    const res = await apiClient.post<any>(`/communities/${driveId}/register`, data);
+    return res.data;
+  },
+
+  async getCommunityResponses(driveId: string): Promise<CommunityResponseItem[]> {
+    const res = await apiClient.get<CommunityResponseItem[]>(`/communities/${driveId}/responses`);
+    return res.data;
+  },
+
+
+
+  // =========================================================================
+  // PLACEMENT FORMS
+  // =========================================================================
+  async createForm(data: {
+    title: string;
+    description?: string;
+    drive_id?: string;
+    fields?: PlacementFormField[];
+    is_published?: boolean;
+  }): Promise<PlacementForm> {
+    const res = await apiClient.post<PlacementForm>('/forms', data);
+    return res.data;
+  },
+
+  async getForms(driveId?: string): Promise<PlacementForm[]> {
+    const url = driveId ? `/forms?drive_id=${encodeURIComponent(driveId)}` : '/forms';
+    const res = await apiClient.get<PlacementForm[]>(url);
+    return res.data;
+  },
+
+  async getForm(formId: string): Promise<PlacementForm> {
+    const res = await apiClient.get<PlacementForm>(`/forms/${formId}`);
+    return res.data;
+  },
+
+  async submitForm(formId: string, answers: Record<string, any>): Promise<FormSubmission> {
+    const res = await apiClient.post<FormSubmission>(`/forms/${formId}/submit`, { answers });
+    return res.data;
+  },
+
+  async getFormSubmissions(formId: string): Promise<FormSubmission[]> {
+    const res = await apiClient.get<FormSubmission[]>(`/forms/${formId}/submissions`);
+    return res.data;
+  },
+
+  async getMyFormSubmissions(): Promise<FormSubmission[]> {
+    const res = await apiClient.get<FormSubmission[]>('/forms/student/me/submissions');
+    return res.data;
+  },
+
+  // =========================================================================
+  // AI MOCK INTERVIEW LIVE CHAT API
+  // =========================================================================
+  async sendInterviewChatMessage(payload: MockInterviewChatPayload): Promise<MockInterviewChatResponse> {
+    const res = await apiClient.post<MockInterviewChatResponse>('/interview/chat', payload);
+    return res.data;
+  },
 };
+
+export interface MockInterviewChatMessage {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
+export interface MockInterviewChatPayload {
+  history: MockInterviewChatMessage[];
+  userMessage: string;
+  company: string;
+  topics: string[];
+  experienceLevel: string;
+  format?: string;
+}
+
+export interface MockInterviewChatResponse {
+  response: string;
+  reply?: string;
+  company?: string;
+  experienceLevel?: string;
+  status?: string;
+}
+
+
+
+export interface CommunityItem {
+  id: string;
+  community_id: string;
+  drive_id: string;
+  company_id?: string;
+  company_name: string;
+  role_title: string;
+  package_lpa?: number;
+  salary_text?: string;
+  location?: string;
+  status: string;
+  registered_count: number;
+  is_registered: boolean;
+  created_at: string;
+  drive?: PlacementDrive;
+}
+
+export interface CommunityMessage {
+  id: string;
+  community_id: string;
+  drive_id: string;
+  author_id: string;
+  author_name: string;
+  author_role: string;
+  message_type: string;
+  content: string;
+  action_type?: string;
+  action_label?: string;
+  form_schema?: any;
+  form_id?: string;
+  created_at: string;
+}
+
+export interface CommunityResponseItem {
+  id: string;
+  student_id: string;
+  student_name: string;
+  student_email: string;
+  roll_number?: string;
+  branch?: string;
+  cgpa?: number;
+  skills: string[];
+  registered_at: string;
+  status: string;
+  custom_answers?: Record<string, any>;
+}
+
+export interface AssessmentQuestion {
+  id: string;
+  type: 'coding' | 'aptitude';
+  topic: string;
+  difficulty: string;
+  question: string;
+  description?: string;
+  input_format?: string;
+  output_format?: string;
+  constraints?: string;
+  code_template?: Record<string, string>;
+  sample_test_cases?: Array<{ input: string; expected_output: string; is_sample: boolean }>;
+  options?: string[];
+  points: number;
+}
+
+export interface AssessmentSession {
+  id: string;
+  student_id: string;
+  type: string;
+  difficulty: string;
+  topics: string[];
+  question_count: number;
+  duration_minutes: number;
+  status: string;
+  questions: AssessmentQuestion[];
+  created_at: string;
+  expires_at?: string;
+}
+
+export interface TopicPerformance {
+  topic: string;
+  score: number;
+  total: number;
+  percentage: number;
+  status: string;
+}
+
+export interface AssessmentResult {
+  id: string;
+  assessment_id: string;
+  student_id: string;
+  type: string;
+  difficulty: string;
+  coding_score: number;
+  aptitude_score: number;
+  total_score: number;
+  percentage: number;
+  passed: boolean;
+  topic_performance: TopicPerformance[];
+  strengths: string[];
+  weaknesses: string[];
+  recommendations: string[];
+  time_taken_seconds: number;
+  completed_at: string;
+  questions_review?: any[];
+}
+
+export interface AssessmentHistoryItem {
+  id: string;
+  assessment_id: string;
+  type: string;
+  difficulty: string;
+  topics: string[];
+  total_score: number;
+  percentage: number;
+  status: string;
+  completed_at: string;
+  duration_minutes: number;
+}
+
 
 

@@ -15,7 +15,7 @@ def calculate_readiness_score(profile: ExtractedProfileSchema) -> int:
     score = 40  # Base score for uploading readable resume
 
     # Skills weight (max +30)
-    skill_count = len(profile.raw_skills) or len(profile.skills)
+    skill_count = len(getattr(profile, "raw_skills", []) or [])
     score += min(30, skill_count * 5)
 
     # CGPA weight (max +15)
@@ -47,7 +47,7 @@ async def analyze_resume(
     Accepts resume file (PDF/DOCX max 10MB), extracts plain text, parses structured profile with AI/heuristics,
     stores analysis in MongoDB, and updates student profile records.
     """
-    target_student_id = (current_user.get("id") if current_user else None) or student_id or "student-demo"
+    target_student_id = (current_user.get("id") if current_user else None) or student_id or f"usr-{uuid.uuid4().hex[:8]}"
     target_email = (current_user.get("email") if current_user else None)
     db = db_manager.db
     if db is None:
@@ -132,10 +132,12 @@ async def analyze_resume(
         resume_id=resume_id,
         student_id=target_student_id,
         profile=extracted_profile,
+        extracted_profile=extracted_profile,
         readiness_score=readiness_score,
         filename=file.filename,
         file_type=file_type,
-        uploaded_at=now_iso
+        uploaded_at=now_iso,
+        summary="Resume successfully analyzed."
     )
 
 @router.get("/latest/{student_id}", response_model=Optional[ResumeUploadResponse])

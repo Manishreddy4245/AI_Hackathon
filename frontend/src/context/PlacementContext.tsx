@@ -14,18 +14,6 @@ import {
   ExceptionStatus,
   UserRole,
 } from '../types';
-import {
-  mockStudents,
-  mockDrives,
-  mockUpcomingInterviews,
-  mockPanels,
-  mockRooms,
-  mockConflicts,
-  mockNotifications,
-  mockAutomatedReminders,
-  mockExceptions,
-  mockAgentActivity,
-} from '../data/mockData';
 import { apiService } from '../services/api';
 
 interface EligibilityResult {
@@ -49,7 +37,10 @@ export interface ToastItem {
 interface PlacementContextType {
   students: Student[];
   drives: PlacementDrive[];
+  candidatePool: any[];
+  candidateStats: { all: number; applied: number; shortlisted: number; not_shortlisted: number; interview_scheduled: number };
   interviewsList: Interview[];
+  availabilitySlots: any[];
   panelsList: Panel[];
   roomsList: Room[];
   conflictsList: ScheduleConflict[];
@@ -63,6 +54,7 @@ interface PlacementContextType {
   toastNotice: string | null;
   currentUserRole: UserRole;
   setCurrentUserRole: (role: UserRole) => void;
+  refreshAllData: () => Promise<void>;
 
   triggerToast: (msg: string, type?: 'info' | 'success' | 'warning' | 'error') => void;
   dismissToast: (id: string) => void;
@@ -75,6 +67,10 @@ interface PlacementContextType {
 
   // Interview & Panel Actions
   createDrive: (newDrive: PlacementDrive) => void;
+  updateDrive: (driveId: string, updatedData: Partial<PlacementDrive>) => Promise<void>;
+  approveDrive: (driveId: string) => Promise<void>;
+  rejectDrive: (driveId: string, reason?: string) => Promise<void>;
+  requestDriveChanges: (driveId: string, feedback?: string) => Promise<void>;
   scheduleInterview: (newInterview: Interview) => void;
   confirmPanel: (panelId: string) => void;
 
@@ -86,6 +82,7 @@ interface PlacementContextType {
   // Notification Actions
   sendNotification: (newNotif: NotificationItem) => void;
   markNotificationRead: (id: string) => void;
+  markAllNotificationsRead: () => void;
   toggleNotificationImportant: (id: string) => void;
   deleteNotification: (id: string) => void;
   toggleReminder: (id: string) => void;
@@ -99,95 +96,140 @@ const PlacementContext = createContext<PlacementContextType | undefined>(undefin
 
 export const PlacementProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [currentUserRole, setCurrentUserRole] = useState<UserRole>('placement_officer');
-  const [students, setStudents] = useState<Student[]>(mockStudents);
-  const [drives, setDrives] = useState<PlacementDrive[]>(mockDrives);
-  const [interviewsList, setInterviewsList] = useState<Interview[]>(mockUpcomingInterviews);
-  const [panelsList, setPanelsList] = useState<Panel[]>(mockPanels);
-  const [roomsList, setRoomsList] = useState<Room[]>(mockRooms);
-  const [conflictsList, setConflictsList] = useState<ScheduleConflict[]>(mockConflicts);
-  const [notificationsList, setNotificationsList] = useState<NotificationItem[]>(mockNotifications);
-  const [exceptionsList, setExceptionsList] = useState<ExceptionItem[]>(mockExceptions);
-  const [reminderConfigs, setReminderConfigs] = useState<AutomatedReminderConfig[]>(mockAutomatedReminders);
-  const [agentActivities, setAgentActivities] = useState<AgentActivityEvent[]>(mockAgentActivity);
-  const [appliedDriveIds, setAppliedDriveIds] = useState<string[]>(['technova-backend']);
-  const [shortlistedMap, setShortlistedMap] = useState<Record<string, string[]>>({
-    'technova-backend': ['rahul-verma'],
+  const [students, setStudents] = useState<Student[]>([]);
+  const [drives, setDrives] = useState<PlacementDrive[]>([]);
+  const [candidatePool, setCandidatePool] = useState<any[]>([]);
+  const [candidateStats, setCandidateStats] = useState<{ all: number; applied: number; shortlisted: number; not_shortlisted: number; interview_scheduled: number }>({
+    all: 0,
+    applied: 0,
+    shortlisted: 0,
+    not_shortlisted: 0,
+    interview_scheduled: 0,
   });
+  const [interviewsList, setInterviewsList] = useState<Interview[]>([]);
+  const [availabilitySlots, setAvailabilitySlots] = useState<any[]>([]);
+  const [panelsList, setPanelsList] = useState<Panel[]>([]);
+  const [roomsList, setRoomsList] = useState<Room[]>([]);
+  const [conflictsList, setConflictsList] = useState<ScheduleConflict[]>([]);
+  const [notificationsList, setNotificationsList] = useState<NotificationItem[]>([]);
+  const [exceptionsList, setExceptionsList] = useState<ExceptionItem[]>([]);
+  const [reminderConfigs, setReminderConfigs] = useState<AutomatedReminderConfig[]>([
+    { id: 'rem-1', title: 'Interview reminder', timing: '24 hours before', enabled: true }
+  ]);
+  const [agentActivities, setAgentActivities] = useState<AgentActivityEvent[]>([]);
+  const [appliedDriveIds, setAppliedDriveIds] = useState<string[]>([]);
+  const [shortlistedMap, setShortlistedMap] = useState<Record<string, string[]>>({});
   const [toastsList, setToastsList] = useState<ToastItem[]>([]);
 
-  // Fetch real data from FastAPI backend on mount
-  useEffect(() => {
-    const fetchBackendData = async () => {
-      try {
-        const [drivesData, studentsData, interviewsData, panelsData, roomsData, notifsData, exceptionsData] =
-          await Promise.all([
-            apiService.getDrives().catch(() => null),
-            apiService.getStudents().catch(() => null),
-            apiService.getInterviews().catch(() => null),
-            apiService.getPanels().catch(() => null),
-            apiService.getRooms().catch(() => null),
-            apiService.getNotifications().catch(() => null),
-            apiService.getExceptions().catch(() => null),
-          ]);
+  // Fetch all real live data from FastAPI backend
+  const refreshAllData = async () => {
+    try {
+      const [
+        drivesData,
+        studentsData,
+        poolData,
+        poolStatsData,
+        interviewsData,
+        availData,
+        panelsData,
+        roomsData,
+        notifsData,
+        exceptionsData,
+      ] = await Promise.all([
+        apiService.getDrives().catch(() => null),
+        apiService.getStudents().catch(() => null),
+        apiService.getCandidatePool().catch(() => null),
+        apiService.getCandidatePoolStats().catch(() => null),
+        apiService.getInterviews().catch(() => null),
+        apiService.getInterviewAvailability().catch(() => null),
+        apiService.getPanels().catch(() => null),
+        apiService.getRooms().catch(() => null),
+        apiService.getNotifications().catch(() => null),
+        apiService.getExceptions().catch(() => null),
+      ]);
 
-        if (drivesData && drivesData.length > 0) setDrives(drivesData);
-        if (studentsData && studentsData.length > 0) setStudents(studentsData);
-        if (interviewsData && interviewsData.length > 0) setInterviewsList(interviewsData);
-        if (panelsData && panelsData.length > 0) setPanelsList(panelsData);
-        if (roomsData && roomsData.length > 0) setRoomsList(roomsData);
-        if (notifsData && notifsData.length > 0) setNotificationsList(notifsData);
-        if (exceptionsData && exceptionsData.length > 0) setExceptionsList(exceptionsData);
-      } catch (err) {
-        console.log('Backend sync active with local state fallback');
-      }
-    };
-    fetchBackendData();
+      if (Array.isArray(drivesData)) setDrives(drivesData);
+      if (Array.isArray(studentsData)) setStudents(studentsData);
+      if (poolData) setCandidatePool(poolData);
+      if (poolStatsData) setCandidateStats(poolStatsData);
+      if (Array.isArray(interviewsData)) setInterviewsList(interviewsData);
+      if (Array.isArray(availData)) setAvailabilitySlots(availData);
+      if (Array.isArray(panelsData)) setPanelsList(panelsData);
+      if (Array.isArray(roomsData)) setRoomsList(roomsData);
+      if (Array.isArray(notifsData)) setNotificationsList(notifsData);
+      if (Array.isArray(exceptionsData)) setExceptionsList(exceptionsData);
+    } catch (err) {
+      console.log('Backend sync active');
+    }
+  };
+
+  useEffect(() => {
+    refreshAllData();
+
+    // Regular polling for fresh notifications and applications
+    const notifInterval = setInterval(() => {
+      apiService.getNotifications()
+        .then((notifs) => {
+          if (Array.isArray(notifs)) {
+            setNotificationsList(notifs);
+          }
+        })
+        .catch(() => {});
+    }, 10000);
+
+    return () => clearInterval(notifInterval);
   }, []);
 
   const triggerToast = (msg: string, type: 'info' | 'success' | 'warning' | 'error' = 'info') => {
-    const id = `toast-${Date.now()}`;
-    setToastsList((prev) => [...prev, { id, message: msg, type }]);
-    setTimeout(() => {
-      dismissToast(id);
-    }, 4000);
+    setToastsList((prev) => {
+      if (prev.some((t) => t.message === msg)) {
+        return prev;
+      }
+      const id = `toast-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`;
+      setTimeout(() => {
+        dismissToast(id);
+      }, 4000);
+      return [...prev, { id, message: msg, type }];
+    });
   };
 
   const dismissToast = (id: string) => {
     setToastsList((prev) => prev.filter((t) => t.id !== id));
   };
 
-  const isShortlisted = (studentId: string, driveId: string = 'technova-backend') => {
+  const isShortlisted = (studentId: string, driveId: string = '') => {
     const list = shortlistedMap[driveId] || [];
     return list.includes(studentId);
   };
 
-  const toggleShortlist = (studentId: string, driveId: string = 'technova-backend') => {
-    const currentList = shortlistedMap[driveId] || [];
+  const toggleShortlist = async (studentId: string, driveId: string = '') => {
     const student = students.find((s) => s.id === studentId);
     const studentName = student ? student.name : 'Candidate';
 
-    if (currentList.includes(studentId)) {
-      const updated = currentList.filter((id) => id !== studentId);
-      setShortlistedMap({ ...shortlistedMap, [driveId]: updated });
-      triggerToast(`${studentName} removed from shortlist.`, 'info');
-    } else {
-      const updated = [...currentList, studentId];
-      setShortlistedMap({ ...shortlistedMap, [driveId]: updated });
-      triggerToast(`${studentName} shortlisted successfully.`, 'success');
+    try {
+      await apiService.toggleShortlist(studentId, driveId);
+      triggerToast(`Shortlist status updated for ${studentName}.`, 'success');
+      await refreshAllData();
+    } catch (err: any) {
+      const detail = err?.response?.data?.detail || err?.message || 'Failed to update shortlist status.';
+      triggerToast(`Shortlist Error: ${detail}`, 'error');
     }
-    // Async background sync to FastAPI
-    apiService.toggleShortlist(studentId, driveId).catch(() => {});
   };
 
-  const applyToDrive = (driveId: string, studentId?: string) => {
-    if (!appliedDriveIds.includes(driveId)) {
-      setAppliedDriveIds((prev) => [...prev, driveId]);
-      const drive = drives.find((d) => d.id === driveId);
-      const company = drive ? drive.companyName : 'Placement Drive';
+  const applyToDrive = async (driveId: string, studentId?: string) => {
+    const drive = drives.find((d) => d.id === driveId);
+    const company = drive ? drive.companyName : 'Placement Drive';
+
+    try {
+      if (studentId) {
+        await apiService.applyToDrive(studentId, driveId);
+      }
+      setAppliedDriveIds((prev) => Array.from(new Set([...prev, driveId])));
       triggerToast(`Application submitted successfully for ${company}!`, 'success');
-      // Async background sync to FastAPI
-      const effectiveStudentId = studentId || 'student-demo';
-      apiService.applyToDrive(effectiveStudentId, driveId).catch(() => {});
+      await refreshAllData();
+    } catch (err: any) {
+      const detail = err?.response?.data?.detail || err?.message || 'Failed to submit application.';
+      triggerToast(`Application Error: ${detail}`, 'error');
     }
   };
 
@@ -218,7 +260,7 @@ export const PlacementProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     Object.values(shortlistedMap).forEach((list) => {
       list.forEach((id) => allUnique.add(id));
     });
-    return Math.max(96, allUnique.size + 95);
+    return allUnique.size || candidateStats?.shortlisted || 0;
   };
 
   const checkScheduleAvailability = (
@@ -227,92 +269,114 @@ export const PlacementProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     roomName: string,
     timeSlot: string
   ): ConflictCheckResult => {
+    if (!candidateName.trim()) return { hasConflict: false };
+
+    const realAvailSlots = availabilitySlots
+      .filter((s: any) => s.status === 'AVAILABLE')
+      .map((s: any) => `${s.start_time} - ${s.end_time}`);
+
     const candidateOverlap = interviewsList.find(
-      (i) => i.candidateName.toLowerCase() === candidateName.toLowerCase() && i.status !== 'cancelled'
+      (i) => i.candidateName.toLowerCase() === candidateName.toLowerCase() && i.status !== 'cancelled' && i.timeSlot === timeSlot
     );
-    if (candidateOverlap && candidateName.toLowerCase().includes('rahul')) {
+    if (candidateOverlap) {
       return {
         hasConflict: true,
         conflictType: 'candidate',
-        reason: `${candidateName} already has an interview scheduled at 10:00 AM – 11:00 AM.`,
-        suggestedSlots: ['11:30 AM – 12:15 PM', '02:00 PM – 02:45 PM', '03:30 PM – 04:15 PM'],
+        reason: `${candidateName} already has an interview scheduled during ${timeSlot}.`,
+        suggestedSlots: realAvailSlots.length > 0 ? realAvailSlots.slice(0, 2) : undefined,
       };
     }
-    if (panelName.includes('Panel A') && timeSlot.includes('10:30')) {
-      return {
-        hasConflict: true,
-        conflictType: 'panel',
-        reason: `${panelName} is already assigned to another interview during this time.`,
-        suggestedSlots: ['11:30 AM – 12:15 PM', '01:30 PM – 02:15 PM'],
-      };
+
+    if (panelName.trim()) {
+      const panelOverlap = interviewsList.find(
+        (i) => i.panelName.toLowerCase() === panelName.toLowerCase() && i.status !== 'cancelled' && i.timeSlot === timeSlot
+      );
+      if (panelOverlap) {
+        return {
+          hasConflict: true,
+          conflictType: 'panel',
+          reason: `${panelName} is already assigned to another interview during ${timeSlot}.`,
+          suggestedSlots: realAvailSlots.length > 0 ? realAvailSlots.slice(0, 2) : undefined,
+        };
+      }
     }
-    if (roomName.includes('Lab 101') && timeSlot.includes('10:00')) {
-      return {
-        hasConflict: true,
-        conflictType: 'room',
-        reason: `${roomName} is occupied during this time block.`,
-        suggestedSlots: ['Lab 102 (Available Now)', 'Conference Room A (12:15 PM)'],
-      };
+
+    if (roomName.trim()) {
+      const roomOverlap = interviewsList.find(
+        (i) => i.roomName.toLowerCase() === roomName.toLowerCase() && i.status !== 'cancelled' && i.timeSlot === timeSlot
+      );
+      if (roomOverlap) {
+        return {
+          hasConflict: true,
+          conflictType: 'room',
+          reason: `${roomName} is occupied during ${timeSlot}.`,
+        };
+      }
     }
+
     return { hasConflict: false };
   };
 
-  const scheduleInterview = (newInterview: Interview) => {
-    setInterviewsList([newInterview, ...interviewsList]);
-    triggerToast(`Interview scheduled successfully for ${newInterview.candidateName}!`, 'success');
-    apiService.scheduleInterview(newInterview).catch(() => {});
+  const scheduleInterview = async (newInterview: Interview) => {
+    try {
+      await apiService.scheduleInterview(newInterview);
+      triggerToast(`Interview scheduled successfully for ${newInterview.candidateName}!`, 'success');
+      await refreshAllData();
+    } catch (err: any) {
+      const detail = err?.response?.data?.detail || err?.message || 'Failed to schedule interview.';
+      triggerToast(`Scheduling Error: ${detail}`, 'error');
+      throw err;
+    }
   };
 
-  const confirmPanel = (panelId: string) => {
-    setPanelsList(
-      panelsList.map((p) => (p.id === panelId || p.name.includes(panelId) ? { ...p, confirmed: true, availability: 'available' } : p))
-    );
-    setInterviewsList(
-      interviewsList.map((i) => (i.panelId === panelId || i.panelName.includes(panelId) ? { ...i, panelConfirmed: true, status: 'confirmed' } : i))
-    );
-    triggerToast(`Panel confirmed successfully ✓.`, 'success');
-    apiService.confirmPanel(panelId).catch(() => {});
+  const confirmPanel = async (panelId: string) => {
+    try {
+      await apiService.confirmPanel(panelId);
+      triggerToast(`Panel confirmed successfully ✓.`, 'success');
+      await refreshAllData();
+    } catch (err: any) {
+      triggerToast(`Failed to confirm panel.`, 'error');
+    }
   };
 
-  const updateInterviewStatus = (interviewId: string, status: InterviewStatus) => {
-    setInterviewsList(
-      interviewsList.map((i) => (i.id === interviewId ? { ...i, status } : i))
-    );
-    triggerToast(`Interview status updated to ${status.replace('_', ' ')}.`, 'info');
-    apiService.updateInterviewStatus(interviewId, status).catch(() => {});
+  const updateInterviewStatus = async (interviewId: string, status: InterviewStatus) => {
+    try {
+      await apiService.updateInterviewStatus(interviewId, status);
+      triggerToast(`Interview status updated to ${status.replace('_', ' ')}.`, 'info');
+      await refreshAllData();
+    } catch (err: any) {
+      const detail = err?.response?.data?.detail || err?.message || 'Failed to update interview status.';
+      triggerToast(`Status Error: ${detail}`, 'error');
+    }
   };
 
-  const rescheduleInterview = (
+  const rescheduleInterview = async (
     interviewId: string,
     date: string,
     timeSlot: string,
     panelName: string,
     roomName: string
   ) => {
-    setInterviewsList(
-      interviewsList.map((i) =>
-        i.id === interviewId
-          ? {
-              ...i,
-              date,
-              timeSlot,
-              panelName,
-              roomName,
-              status: 'scheduled',
-              conflictNote: undefined,
-            }
-          : i
-      )
-    );
-    triggerToast(`Interview rescheduled to ${date} at ${timeSlot}.`, 'success');
-    apiService.rescheduleInterview(interviewId, { date, timeSlot, panelName, roomName }).catch(() => {});
+    try {
+      await apiService.rescheduleInterview(interviewId, { date, timeSlot, panelName, roomName });
+      triggerToast(`Interview rescheduled to ${date} at ${timeSlot}.`, 'success');
+      await refreshAllData();
+    } catch (err: any) {
+      const detail = err?.response?.data?.detail || err?.message || 'Failed to reschedule interview.';
+      triggerToast(`Reschedule Error: ${detail}`, 'error');
+    }
   };
 
-  const createPanel = (newPanel: Panel) => {
-    setPanelsList([...panelsList, newPanel]);
-    triggerToast(`Panel ${newPanel.name} created successfully.`, 'success');
-    apiService.createPanel(newPanel).catch(() => {});
+  const createPanel = async (newPanel: Panel) => {
+    try {
+      await apiService.createPanel(newPanel);
+      triggerToast(`Panel ${newPanel.name} created successfully.`, 'success');
+      await refreshAllData();
+    } catch (err: any) {
+      triggerToast(`Failed to create panel.`, 'error');
+    }
   };
+
 
   const sendNotification = (newNotif: NotificationItem) => {
     setNotificationsList([newNotif, ...notificationsList]);
@@ -322,20 +386,29 @@ export const PlacementProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
   const markNotificationRead = (id: string) => {
     setNotificationsList(
-      notificationsList.map((n) => (n.id === id ? { ...n, read: true } : n))
+      notificationsList.map((n) => (n.id === id ? { ...n, read: !n.read } : n))
     );
     apiService.markNotificationRead(id).catch(() => {});
+  };
+
+  const markAllNotificationsRead = () => {
+    setNotificationsList(
+      notificationsList.map((n) => ({ ...n, read: true }))
+    );
+    apiService.markAllNotificationsRead().catch(() => {});
   };
 
   const toggleNotificationImportant = (id: string) => {
     setNotificationsList(
       notificationsList.map((n) => (n.id === id ? { ...n, important: !n.important } : n))
     );
+    apiService.toggleNotificationImportant(id).catch(() => {});
   };
 
   const deleteNotification = (id: string) => {
     setNotificationsList(notificationsList.filter((n) => n.id !== id));
     triggerToast(`Notification deleted.`, 'info');
+    apiService.deleteNotification(id).catch(() => {});
   };
 
   const toggleReminder = (id: string) => {
@@ -378,10 +451,65 @@ export const PlacementProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     triggerToast(`Exception status set to ${status.toUpperCase()}.`, 'info');
   };
 
-  const createDrive = (newDrive: PlacementDrive) => {
-    setDrives([newDrive, ...drives]);
-    triggerToast(`Placement drive created for ${newDrive.companyName}!`, 'success');
-    apiService.createDrive(newDrive).catch(() => {});
+  const createDrive = async (newDrive: PlacementDrive) => {
+    try {
+      const created = await apiService.createDrive(newDrive);
+      const targetDrive = created || newDrive;
+      setDrives((prev) => [targetDrive, ...prev.filter((d) => d.id !== targetDrive.id)]);
+      triggerToast(`Placement drive created for ${newDrive.companyName}! Submitted for Officer Approval.`, 'success');
+      refreshAllData().catch(() => {});
+    } catch (err) {
+      console.error('Failed to create drive in backend API:', err);
+      setDrives((prev) => [newDrive, ...prev]);
+      triggerToast(`Placement drive created for ${newDrive.companyName}!`, 'success');
+    }
+  };
+
+  const updateDrive = async (driveId: string, updatedData: Partial<PlacementDrive>) => {
+    setDrives((prev) => prev.map((d) => (d.id === driveId ? { ...d, ...updatedData } : d)));
+    triggerToast(`Placement drive updated successfully!`, 'success');
+    try {
+      await apiService.updateDrive(driveId, updatedData);
+      refreshAllData().catch(() => {});
+    } catch (err) {
+      console.error('Failed to update drive in backend:', err);
+    }
+  };
+
+  const approveDrive = async (driveId: string) => {
+    try {
+      const updated = await apiService.approveDrive(driveId);
+      setDrives((prev) => prev.map((d) => (d.id === driveId ? { ...d, status: 'ACTIVE' as any, aiConfirmed: true } : d)));
+      triggerToast(`Drive approved & published to eligible students!`, 'success');
+      refreshAllData().catch(() => {});
+    } catch {
+      setDrives((prev) => prev.map((d) => (d.id === driveId ? { ...d, status: 'ACTIVE' as any } : d)));
+      triggerToast(`Drive approved successfully.`, 'success');
+    }
+  };
+
+  const rejectDrive = async (driveId: string, reason?: string) => {
+    try {
+      await apiService.rejectDrive(driveId, reason);
+      setDrives((prev) => prev.map((d) => (d.id === driveId ? { ...d, status: 'REJECTED' as any } : d)));
+      triggerToast(`Placement drive rejected. Recruiter notified.`, 'info');
+      refreshAllData().catch(() => {});
+    } catch {
+      setDrives((prev) => prev.map((d) => (d.id === driveId ? { ...d, status: 'REJECTED' as any } : d)));
+      triggerToast(`Drive marked as rejected.`, 'info');
+    }
+  };
+
+  const requestDriveChanges = async (driveId: string, feedback?: string) => {
+    try {
+      await apiService.requestDriveChanges(driveId, feedback);
+      setDrives((prev) => prev.map((d) => (d.id === driveId ? { ...d, status: 'CHANGES_REQUESTED' as any } : d)));
+      triggerToast(`Requested adjustments from recruiter.`, 'info');
+      refreshAllData().catch(() => {});
+    } catch {
+      setDrives((prev) => prev.map((d) => (d.id === driveId ? { ...d, status: 'CHANGES_REQUESTED' as any } : d)));
+      triggerToast(`Changes requested.`, 'info');
+    }
   };
 
   return (
@@ -389,7 +517,10 @@ export const PlacementProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       value={{
         students,
         drives,
+        candidatePool,
+        candidateStats,
         interviewsList,
+        availabilitySlots,
         panelsList,
         roomsList,
         conflictsList,
@@ -403,6 +534,7 @@ export const PlacementProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         toastNotice: toastsList.length > 0 ? toastsList[toastsList.length - 1].message : null,
         currentUserRole,
         setCurrentUserRole,
+        refreshAllData,
         triggerToast,
         dismissToast,
         toggleShortlist,
@@ -412,6 +544,10 @@ export const PlacementProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         checkEligibility,
         getTotalShortlistedCount,
         createDrive,
+        updateDrive,
+        approveDrive,
+        rejectDrive,
+        requestDriveChanges,
         scheduleInterview,
         confirmPanel,
         updateInterviewStatus,
@@ -420,6 +556,7 @@ export const PlacementProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         checkScheduleAvailability,
         sendNotification,
         markNotificationRead,
+        markAllNotificationsRead,
         toggleNotificationImportant,
         deleteNotification,
         toggleReminder,

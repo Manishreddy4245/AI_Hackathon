@@ -22,8 +22,60 @@ export const NotificationDetailDrawer: React.FC<NotificationDetailDrawerProps> =
   const handleNavigate = () => {
     markNotificationRead(notification.id);
     onClose();
+
+    const notifType = (notification.type || (notification as any).notificationType || '').toUpperCase();
+    const driveId = notification.drive_id || (notification as any).driveId;
+    const role = notification.recipientRole || (notification as any).recipient_role;
+
+    // Explicit related route takes highest priority
     if (notification.relatedRoute) {
       navigate(notification.relatedRoute);
+      return;
+    }
+
+    // Role & event specific destinations
+    if (notifType === 'FORM_UPLOADED' || (notification as any).form_id) {
+      const formId = (notification as any).form_id;
+      if (formId) {
+        navigate(`/student/forms/${formId}`);
+        return;
+      }
+    }
+
+    if (notifType === 'CAMPUS_DRIVE_PENDING') {
+      if (driveId) {
+        navigate(`/admin/companies/${driveId}`);
+        return;
+      }
+    }
+
+    if (notifType.includes('INTERVIEW') || notifType.includes('SHORTLIST')) {
+      navigate(role === 'student' ? '/student/interviews' : '/admin/interviews');
+      return;
+    }
+
+    if (notifType.includes('COMMUNITY') || notifType.includes('ANNOUNCEMENT') || notifType === 'NEW_DRIVE_AVAILABLE') {
+      if (driveId) {
+        navigate(`/student/community/${driveId}`);
+        return;
+      }
+    }
+
+    if (role === 'recruiter' || notifType.includes('DRIVE_APPROVED') || notifType.includes('DRIVE_REJECTED')) {
+      navigate('/recruiter/drives');
+      return;
+    }
+
+    if (notifType === 'APPLICATION_RECEIVED' && driveId) {
+      navigate(`/admin/companies/${driveId}`);
+      return;
+    }
+
+    // Fallback: If driveId is present on any drive notification
+    if (driveId) {
+      navigate(`/student/community/${driveId}`);
+    } else {
+      navigate(role === 'student' ? '/student/drives' : '/admin/notifications');
     }
   };
 
@@ -99,14 +151,16 @@ export const NotificationDetailDrawer: React.FC<NotificationDetailDrawerProps> =
 
         {/* Footer Actions */}
         <div className="pt-4 border-t border-[#243650] space-y-2">
-          {notification.relatedRoute && (
+          {(notification.relatedRoute || notification.drive_id || (notification as any).driveId) && (
             <Button
               variant="primary"
               className="w-full justify-center"
               icon={<ExternalLink className="w-4 h-4" />}
               onClick={handleNavigate}
             >
-              Go to Related Item
+              {(notification.type === 'APPLICATION_RECEIVED' || (notification as any).notificationType === 'APPLICATION_RECEIVED')
+                ? 'Open Placement Drive & Candidates'
+                : 'Go to Related Item'}
             </Button>
           )}
           <Button

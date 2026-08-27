@@ -81,14 +81,10 @@ async def login(req: LoginRequest):
             user = await db.users.find_one({
                 "$or": [
                     {"id": target_id},
-                    {"email": target_email},
-                    {"email": "student@demo.com"} if target_id == "rahul-verma" else {"id": target_id}
+                    {"email": target_email}
                 ]
             }, {"_id": 0})
-        elif clean_input.upper() in ("22CS042", "2021CS1115"):
-            user = await db.users.find_one({
-                "$or": [{"email": "student@demo.com"}, {"email": "student@placemind.local"}, {"id": "rahul-verma"}]
-            }, {"_id": 0})
+
 
     if not user:
         raise HTTPException(
@@ -224,7 +220,7 @@ async def register_recruiter(req: RegisterRecruiterRequest):
     if existing:
         raise HTTPException(status_code=400, detail="This corporate email is already registered.")
 
-    comp_id = f"comp-{int(datetime.now().timestamp())}"
+    comp_id = getattr(req, "companyId", None) or getattr(req, "company_id", None) or f"comp-{int(datetime.now().timestamp())}"
     user_id = f"usr-rec-{int(datetime.now().timestamp())}"
     pass_hash = hash_password(req.password)
 
@@ -240,7 +236,7 @@ async def register_recruiter(req: RegisterRecruiterRequest):
         "contactPerson": req.name,
         "contactEmail": clean_email,
     }
-    await db.companies.insert_one(new_company)
+    await db.companies.update_one({"id": comp_id}, {"$setOnInsert": new_company}, upsert=True)
 
     # 2. Create recruiter user
     user_doc = {
@@ -250,12 +246,13 @@ async def register_recruiter(req: RegisterRecruiterRequest):
         "password_hash": pass_hash,
         "role": "recruiter",
         "companyId": comp_id,
+        "companyName": req.companyName,
         "is_active": True,
         "created_at": datetime.now().isoformat()
     }
     await db.users.insert_one(user_doc)
 
-    token = create_access_token({"sub": user_id, "email": clean_email, "role": "recruiter", "name": req.name, "companyId": comp_id})
+    token = create_access_token({"sub": user_id, "email": clean_email, "role": "recruiter", "name": req.name, "companyId": comp_id, "companyName": req.companyName})
 
     return {
         "access_token": token,

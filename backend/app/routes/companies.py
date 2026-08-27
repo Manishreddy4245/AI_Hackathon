@@ -26,6 +26,23 @@ async def list_companies():
     companies = await db.companies.find({}, {"_id": 0}).to_list(length=100)
     return companies
 
+@router.get("/search", response_model=List[CompanySchema])
+async def search_companies(query: str = ""):
+    db = db_manager.db
+    if db is None:
+        raise HTTPException(status_code=503, detail="Database unavailable")
+    
+    if not query.strip():
+        companies = await db.companies.find({}, {"_id": 0}).limit(15).to_list(length=15)
+        return companies
+
+    pattern = f".*{query.strip()}.*"
+    companies = await db.companies.find(
+        {"name": {"$regex": pattern, "$options": "i"}},
+        {"_id": 0}
+    ).limit(15).to_list(length=15)
+    return companies
+
 @router.get("/{company_id}", response_model=CompanySchema)
 async def get_company(company_id: str):
     db = db_manager.db

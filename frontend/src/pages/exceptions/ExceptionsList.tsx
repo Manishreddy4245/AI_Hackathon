@@ -40,6 +40,7 @@ export const ExceptionsList: React.FC = () => {
   const criticalCount = exceptionsList.filter((e) => e.severity === 'critical' && e.status !== 'resolved').length;
   const warningCount = exceptionsList.filter((e) => e.severity === 'warning' && e.status !== 'resolved').length;
   const resolvedCount = exceptionsList.filter((e) => e.status === 'resolved').length;
+  const pendingReviewCount = exceptionsList.filter((e) => e.status === 'open' || (e.status as string) === 'pending' || e.status === 'in_review').length;
 
   return (
     <div className="space-y-6 pb-12">
@@ -83,7 +84,7 @@ export const ExceptionsList: React.FC = () => {
         </div>
         <div className="p-4 bg-[#101D31] rounded-xl border border-[#243650] shadow-sm">
           <span className="text-xs font-bold text-[#94A3B8] uppercase tracking-wider">Pending Review</span>
-          <div className="text-2xl font-black text-[#F8FAFC] mt-1">6</div>
+          <div className="text-2xl font-black text-[#F8FAFC] mt-1">{pendingReviewCount}</div>
         </div>
       </div>
 

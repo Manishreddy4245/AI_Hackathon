@@ -98,7 +98,7 @@ export const SignupModal: React.FC<SignupModalProps> = ({ isOpen, onClose, onSuc
               <input
                 type="text"
                 required
-                placeholder="Rahul Verma"
+                placeholder="Full Name"
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                 className="w-full px-3 py-2 bg-[#101D31] border border-[#243650] rounded-lg text-sm text-[#F8FAFC] placeholder-[#64748B] focus:outline-none focus:border-[#3B82F6]"

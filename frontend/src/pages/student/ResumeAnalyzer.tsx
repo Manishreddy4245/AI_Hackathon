@@ -43,7 +43,7 @@ const ANALYSIS_STEPS = [
 export const ResumeAnalyzer: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const currentStudentId = user?.id || 'student-demo';
+  const currentStudentId = user?.id || '';
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -408,10 +408,10 @@ export const ResumeAnalyzer: React.FC = () => {
               <div>
                 <span className="text-xs font-semibold text-slate-400 block">Top Company Match</span>
                 <span className="text-sm font-bold text-white truncate block">
-                  {topMatch ? topMatch.company : 'TechNova'}
+                  {topMatch ? topMatch.company : 'N/A'}
                 </span>
                 <span className="text-xs font-bold text-indigo-400">
-                  {topMatch ? `${topMatch.match_score}% Match` : '91% Match'}
+                  {topMatch ? `${topMatch.match_score}% Match` : 'N/A'}
                 </span>
               </div>
             </Card>
@@ -436,7 +436,7 @@ export const ResumeAnalyzer: React.FC = () => {
               <div>
                 <span className="text-xs font-semibold text-slate-400 block">Skill Gaps Identified</span>
                 <span className="text-base font-black text-white">
-                  {skillGapData?.skill_gaps.length || 3} Core Skills
+                  {skillGapData?.skill_gaps ? skillGapData.skill_gaps.length : 0} Core Skills
                 </span>
                 <span className="text-[10px] text-amber-400 font-semibold block">Target for improvement</span>
               </div>
@@ -458,23 +458,23 @@ export const ResumeAnalyzer: React.FC = () => {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
                 <div className="p-3 bg-slate-950/80 rounded-lg border border-slate-800">
                   <span className="text-slate-400 font-semibold block">Full Name</span>
-                  <span className="font-bold text-white">{profile.name || 'Rahul Verma'}</span>
+                  <span className="font-bold text-white">{profile.name || user?.name || 'N/A'}</span>
                 </div>
                 <div className="p-3 bg-slate-950/80 rounded-lg border border-slate-800">
                   <span className="text-slate-400 font-semibold block">Email Address</span>
-                  <span className="font-bold text-white">{profile.email || 'rahul.verma@campus.edu'}</span>
+                  <span className="font-bold text-white">{profile.email || user?.email || 'N/A'}</span>
                 </div>
                 <div className="p-3 bg-slate-950/80 rounded-lg border border-slate-800">
                   <span className="text-slate-400 font-semibold block">Phone Number</span>
-                  <span className="font-bold text-white">{profile.phone || '+91 98765 43210'}</span>
+                  <span className="font-bold text-white">{profile.phone || 'N/A'}</span>
                 </div>
                 <div className="p-3 bg-slate-950/80 rounded-lg border border-slate-800">
                   <span className="text-slate-400 font-semibold block">Branch / Discipline</span>
-                  <span className="font-bold text-white">{profile.branch || 'CSE'}</span>
+                  <span className="font-bold text-white">{profile.branch || 'N/A'}</span>
                 </div>
                 <div className="p-3 bg-slate-950/80 rounded-lg border border-slate-800">
                   <span className="text-slate-400 font-semibold block">Graduation Batch</span>
-                  <span className="font-bold text-white">{profile.graduation_year || 2027}</span>
+                  <span className="font-bold text-white">{profile.graduation_year || 'N/A'}</span>
                 </div>
                 <div className="p-3 bg-slate-950/80 rounded-lg border border-slate-800">
                   <span className="text-slate-400 font-semibold block">CGPA</span>

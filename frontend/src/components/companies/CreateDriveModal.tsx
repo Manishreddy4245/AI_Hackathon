@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   Sparkles,
   X,
@@ -10,67 +10,196 @@ import {
   Bot,
   Loader2,
   Check,
+  Send,
+  RefreshCw,
+  Building2,
+  MapPin,
+  Briefcase,
+  Calendar,
 } from 'lucide-react';
 import { PlacementDrive } from '../../types';
 import { Button } from '../ui/Button';
+import { useAuth } from '../../context/AuthContext';
+import { apiService } from '../../services/api';
 
 interface CreateDriveModalProps {
   isOpen: boolean;
   onClose: () => void;
   onDriveCreated: (drive: PlacementDrive) => void;
+  initialDrive?: PlacementDrive | null;
+  onDriveUpdated?: (drive: PlacementDrive) => void;
 }
 
 export const CreateDriveModal: React.FC<CreateDriveModalProps> = ({
   isOpen,
   onClose,
   onDriveCreated,
+  initialDrive,
+  onDriveUpdated,
 }) => {
+  const { user } = useAuth();
   const [step, setStep] = useState<'form' | 'analyzing' | 'review'>('form');
-  const [analysisProgress, setAnalysisProgress] = useState(0);
-  const [analysisStatusText, setAnalysisStatusText] = useState('AI is analyzing the job description...');
 
-  // Form State
-  const [companyName, setCompanyName] = useState('TechNova Solutions');
-  const [roleTitle, setRoleTitle] = useState('Backend Developer');
-  const [jobDescription, setJobDescription] = useState(
-    'We are seeking a Backend Developer proficient in Python and SQL to build high-scale microservices. Candidates should have solid experience with REST APIs. Familiarity with FastAPI, Docker, Git, and Cloud infrastructure is highly preferred. Minimum CGPA requirement is 7.5 for CSE and IT branches of 2027 batch.'
-  );
-  const [location, setLocation] = useState('Hyderabad');
-  const [packageLpa, setPackageLpa] = useState<number>(10.5);
+  // Recruiter Form Inputs
+  const [companyName, setCompanyName] = useState('');
+  const [roleTitle, setRoleTitle] = useState('');
+  const [jobDescription, setJobDescription] = useState('');
+  const [location, setLocation] = useState('');
+  const [packageLpa, setPackageLpa] = useState<number>(0);
   const [employmentType, setEmploymentType] = useState<'Full-time' | 'Internship' | 'PPO'>('Full-time');
-  const [deadline, setDeadline] = useState('2026-08-30');
+  const [deadline, setDeadline] = useState('');
 
-  // Extracted AI Requirements State (Human-in-the-Loop Editable)
+  // AI Extraction State strictly derived from Raw Text
+  const [lastAnalyzedText, setLastAnalyzedText] = useState<string>('');
+  const [hasAnalyzed, setHasAnalyzed] = useState(false);
+  const [analysisError, setAnalysisError] = useState<string | null>(null);
+  const [analysisStatusText, setAnalysisStatusText] = useState('AI is analyzing the current raw job description...');
+
+  // Extracted AI Requirements State (Editable by Recruiter)
   const [isEditingRequirements, setIsEditingRequirements] = useState(false);
-  const [extractedMinCgpa, setExtractedMinCgpa] = useState<number>(7.5);
+  const [extractedMinCgpa, setExtractedMinCgpa] = useState<number>(0);
   const [extractedGradYear, setExtractedGradYear] = useState<number>(2027);
-  const [extractedBranches, setExtractedBranches] = useState<string[]>(['CSE', 'IT']);
-  const [extractedRequiredSkills, setExtractedRequiredSkills] = useState<string[]>(['Python', 'SQL', 'REST APIs']);
-  const [extractedPreferredSkills, setExtractedPreferredSkills] = useState<string[]>(['FastAPI', 'Docker', 'Git', 'Cloud']);
+  const [extractedGradYears, setExtractedGradYears] = useState<number[]>([2027]);
+  const [extractedBranches, setExtractedBranches] = useState<string[]>([]);
+  const [extractedRequiredSkills, setExtractedRequiredSkills] = useState<string[]>([]);
+  const [extractedPreferredSkills, setExtractedPreferredSkills] = useState<string[]>([]);
+  const [extractedExplanation, setExtractedExplanation] = useState<string>('');
+  const [extractedSummary, setExtractedSummary] = useState<string>('');
   const [newSkillInput, setNewSkillInput] = useState('');
   const [newBranchInput, setNewBranchInput] = useState('');
 
+  // Race condition & request cancellation protection
+  const latestRequestIdRef = useRef<number>(0);
+  const abortControllerRef = useRef<AbortController | null>(null);
+
+  // Initialize or reset state when modal opens or initialDrive changes
+  useEffect(() => {
+    if (!isOpen) return;
+
+    if (initialDrive) {
+      setCompanyName(initialDrive.companyName || '');
+      setRoleTitle(initialDrive.roleTitle || '');
+      setJobDescription(initialDrive.description || '');
+      setLocation(initialDrive.location || '');
+      setPackageLpa(initialDrive.packageLpa || 0);
+      setEmploymentType(initialDrive.employmentType || 'Full-time');
+      setDeadline(initialDrive.deadline || initialDrive.driveDate || '');
+      setExtractedMinCgpa(initialDrive.minCgpa ?? 0);
+      setExtractedGradYear(initialDrive.graduationYear || 2027);
+      setExtractedGradYears(initialDrive.graduationYears || [initialDrive.graduationYear || 2027]);
+      setExtractedBranches(initialDrive.eligibleBranches || []);
+      setExtractedRequiredSkills(initialDrive.requiredSkills || []);
+      setExtractedPreferredSkills(initialDrive.preferredSkills || []);
+      setExtractedExplanation(initialDrive.aiExplanation || '');
+      setLastAnalyzedText(initialDrive.description || '');
+      setHasAnalyzed(Boolean(initialDrive.description && initialDrive.requiredSkills?.length));
+      setStep('form');
+      setAnalysisError(null);
+    } else {
+      // Clean slate for creating a new drive
+      const initialCompany = user?.companyName || (user?.role === 'recruiter' && user?.name && !user.name.toLowerCase().includes('demo') ? user.name : '');
+      setCompanyName(initialCompany);
+      setRoleTitle('');
+      setJobDescription('');
+      setLocation('');
+      setPackageLpa(0);
+      setEmploymentType('Full-time');
+      const defaultDate = new Date();
+      defaultDate.setDate(defaultDate.getDate() + 30);
+      setDeadline(defaultDate.toISOString().split('T')[0]);
+      setExtractedMinCgpa(0);
+      setExtractedGradYear(2027);
+      setExtractedGradYears([2027]);
+      setExtractedBranches([]);
+      setExtractedRequiredSkills([]);
+      setExtractedPreferredSkills([]);
+      setExtractedExplanation('');
+      setExtractedSummary('');
+      setLastAnalyzedText('');
+
+      setHasAnalyzed(false);
+      setStep('form');
+      setAnalysisError(null);
+    }
+  }, [isOpen, initialDrive, user]);
+
+  // Check if raw text changed since last analysis
+  const isAnalysisStale = hasAnalyzed && (
+    jobDescription.trim() !== lastAnalyzedText.trim()
+  );
+
   if (!isOpen) return null;
 
-  const handleStartAIAnalysis = () => {
+  const handleStartAIAnalysis = async () => {
+    const rawTextToAnalyze = jobDescription.trim();
+    if (!rawTextToAnalyze) {
+      setAnalysisError('Please enter the raw job description before analyzing.');
+      return;
+    }
+
+    // Cancel previous in-flight request if any
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    const abortController = new AbortController();
+    abortControllerRef.current = abortController;
+
+    const currentRequestId = ++latestRequestIdRef.current;
     setStep('analyzing');
-    setAnalysisProgress(15);
-    setAnalysisStatusText('Extracting semantic skill tokens...');
+    setAnalysisError(null);
+    setAnalysisStatusText(`Sending raw text to AI engine for ${companyName || 'the placement drive'}...`);
 
-    setTimeout(() => {
-      setAnalysisProgress(55);
-      setAnalysisStatusText('Evaluating CGPA and branch eligibility rules...');
-    }, 700);
+    try {
+      // Call backend AI extractor with recruiter's current Raw Text
+      const extracted = await apiService.extractJd(rawTextToAnalyze, companyName, abortController.signal);
 
-    setTimeout(() => {
-      setAnalysisProgress(90);
-      setAnalysisStatusText('Generating placement matching strategy...');
-    }, 1400);
+      // Protect against race conditions: only latest request wins
+      if (currentRequestId !== latestRequestIdRef.current) {
+        return;
+      }
 
-    setTimeout(() => {
-      setAnalysisProgress(100);
+      // Update state strictly from the returned analysis
+      if (extracted.roleTitle) {
+        setRoleTitle(extracted.roleTitle);
+      }
+      if (extracted.companyName && extracted.companyName !== 'Company') {
+        setCompanyName(extracted.companyName);
+      }
+      if (extracted.location) {
+        setLocation(extracted.location);
+      }
+      if (extracted.packageLpa !== undefined && extracted.packageLpa !== null && extracted.packageLpa > 0) {
+        setPackageLpa(extracted.packageLpa);
+      }
+      if ((extracted as any).graduationYears && (extracted as any).graduationYears.length > 0) {
+        setExtractedGradYears((extracted as any).graduationYears);
+      } else if (extracted.graduationYear) {
+        setExtractedGradYears([extracted.graduationYear]);
+      }
+      setExtractedMinCgpa(extracted.minCgpa ?? 0);
+      setExtractedBranches(extracted.eligibleBranches || []);
+      setExtractedRequiredSkills(extracted.requiredSkills || []);
+      setExtractedPreferredSkills(extracted.preferredSkills || []);
+      setExtractedExplanation(
+        extracted.aiExplanation ||
+        `Requirements extracted strictly from raw text for ${extracted.roleTitle || roleTitle || 'this role'}.`
+      );
+      setExtractedSummary(
+        extracted.summary ||
+        `Evaluated placement drive requirements for ${extracted.roleTitle || roleTitle || 'the role'}.`
+      );
+
+      setLastAnalyzedText(rawTextToAnalyze);
+      setHasAnalyzed(true);
       setStep('review');
-    }, 2000);
+    } catch (err: any) {
+      if (currentRequestId !== latestRequestIdRef.current) return;
+      if (err.name === 'CanceledError' || err.code === 'ERR_CANCELED') return;
+      const errorMsg = err?.response?.data?.detail || err?.message || 'AI analysis failed. Please check the raw text and try again.';
+      setAnalysisError(errorMsg);
+      setStep('form');
+    }
+
   };
 
   const handleAddBranch = () => {
@@ -95,63 +224,96 @@ export const CreateDriveModal: React.FC<CreateDriveModalProps> = ({
     setExtractedRequiredSkills(extractedRequiredSkills.filter((s) => s !== skill));
   };
 
+  const handleAddPreferredSkill = () => {
+    if (newSkillInput.trim() && !extractedPreferredSkills.includes(newSkillInput.trim())) {
+      setExtractedPreferredSkills([...extractedPreferredSkills, newSkillInput.trim()]);
+      setNewSkillInput('');
+    }
+  };
+
   const handleRemovePreferredSkill = (skill: string) => {
     setExtractedPreferredSkills(extractedPreferredSkills.filter((s) => s !== skill));
   };
 
   const handleSaveDraft = () => {
-    const newDrive: PlacementDrive = {
-      id: `drive-${Date.now()}`,
-      companyId: `comp-${Date.now()}`,
-      companyName,
-      companyLogo: companyName.substring(0, 2).toUpperCase(),
-      roleTitle,
-      packageLpa,
-      location,
+    const rawText = jobDescription.trim();
+    if (!rawText) {
+      setAnalysisError('Please enter a job description to save draft.');
+      return;
+    }
+
+    const drivePayload: PlacementDrive = {
+      id: initialDrive?.id || `drive-${Date.now()}`,
+      companyId: initialDrive?.companyId || `comp-${Date.now()}`,
+      companyName: companyName.trim() || 'Company',
+      companyLogo: (companyName.trim() || 'CO').substring(0, 2).toUpperCase(),
+      roleTitle: roleTitle.trim() || 'Placement Role (Draft)',
+      packageLpa: packageLpa || 0,
+      location: location.trim() || 'TBD',
       employmentType,
       eligibleBranches: extractedBranches,
       minCgpa: extractedMinCgpa,
-      graduationYear: extractedGradYear,
+      graduationYear: extractedGradYears[0] || extractedGradYear || 2027,
+      graduationYears: extractedGradYears,
       driveDate: deadline,
       status: 'draft',
-      registeredCount: 0,
-      shortlistedCount: 0,
-      selectedCount: 0,
+      registeredCount: initialDrive?.registeredCount || 0,
+      shortlistedCount: initialDrive?.shortlistedCount || 0,
+      selectedCount: initialDrive?.selectedCount || 0,
       deadline,
-      description: jobDescription,
+      description: rawText, // Raw Text as source of truth
       requiredSkills: extractedRequiredSkills,
       preferredSkills: extractedPreferredSkills,
       aiConfirmed: false,
+      recruiter_id: initialDrive?.recruiter_id || user?.id,
+      recruiter_email: initialDrive?.recruiter_email || user?.email,
+      created_at: initialDrive?.created_at || new Date().toISOString(),
     };
-    onDriveCreated(newDrive);
+
+    if (initialDrive && onDriveUpdated) {
+      onDriveUpdated(drivePayload);
+    } else {
+      onDriveCreated(drivePayload);
+    }
     onClose();
   };
 
-  const handleConfirmRequirements = () => {
-    const newDrive: PlacementDrive = {
-      id: `drive-${Date.now()}`,
-      companyId: `comp-${Date.now()}`,
-      companyName,
-      companyLogo: companyName.substring(0, 2).toUpperCase(),
-      roleTitle,
-      packageLpa,
-      location,
+  const handleConfirmRequirements = async () => {
+    const rawText = jobDescription.trim();
+    if (!rawText) {
+      setAnalysisError('Raw job description cannot be empty.');
+      setStep('form');
+      return;
+    }
+
+    const drivePayload: PlacementDrive = {
+      id: initialDrive?.id || `drive-${Date.now()}`,
+      companyId: initialDrive?.companyId || `comp-${Date.now()}`,
+      companyName: companyName.trim() || 'Company',
+      companyLogo: (companyName.trim() || 'CO').substring(0, 2).toUpperCase(),
+      roleTitle: roleTitle.trim() || 'Campus Placement Opportunity',
+      packageLpa: packageLpa || 0,
+      location: location.trim() || 'Location as per JD',
       employmentType,
       eligibleBranches: extractedBranches,
       minCgpa: extractedMinCgpa,
-      graduationYear: extractedGradYear,
+      graduationYear: extractedGradYears[0] || extractedGradYear || 2027,
+      graduationYears: extractedGradYears,
       driveDate: deadline,
-      status: 'open',
-      registeredCount: 0,
-      shortlistedCount: 0,
-      selectedCount: 0,
+      status: (initialDrive?.status || 'PENDING_APPROVAL') as any,
+      registeredCount: initialDrive?.registeredCount || 0,
+      shortlistedCount: initialDrive?.shortlistedCount || 0,
+      selectedCount: initialDrive?.selectedCount || 0,
       deadline,
-      description: jobDescription,
+      description: rawText, // Current Raw Text is single source of truth
       requiredSkills: extractedRequiredSkills,
       preferredSkills: extractedPreferredSkills,
-      aiExplanation: 'This role primarily requires backend development skills with Python and SQL. Candidates with REST API experience and FastAPI exposure are likely to be strong matches.',
+      aiExplanation: extractedExplanation || `Requirements extracted strictly from the recruiter-provided job description for ${roleTitle}.`,
       aiConfirmed: true,
-      pipeline: {
+      recruiter_id: initialDrive?.recruiter_id || user?.id,
+      recruiter_email: initialDrive?.recruiter_email || user?.email,
+      created_at: initialDrive?.created_at || new Date().toISOString(),
+      pipeline: initialDrive?.pipeline || {
         eligible: 150,
         applied: 0,
         shortlisted: 0,
@@ -161,11 +323,26 @@ export const CreateDriveModal: React.FC<CreateDriveModalProps> = ({
       aiInsights: {
         topMatchingSkills: extractedRequiredSkills,
         commonSkillGaps: extractedPreferredSkills.slice(0, 2),
-        preparationAdvice: 'Schedule a 1-day revision workshop covering REST API standards and database querying.',
+        preparationAdvice: extractedRequiredSkills.length > 0
+          ? `Target revision for core requirements: ${extractedRequiredSkills.join(', ')}.`
+          : 'Review standard technical assessment concepts.',
       },
     };
-    onDriveCreated(newDrive);
-    onClose();
+
+    try {
+      if (initialDrive && onDriveUpdated) {
+        const updated = await apiService.updateDrive(initialDrive.id, drivePayload);
+        onDriveUpdated(updated || drivePayload);
+      } else {
+        const created = await apiService.createDrive(drivePayload);
+        onDriveCreated(created || drivePayload);
+      }
+    } catch (err: any) {
+      console.error('CreateDriveModal: Failed API drive creation', err);
+      onDriveCreated(drivePayload);
+    } finally {
+      onClose();
+    }
   };
 
   return (
@@ -178,8 +355,10 @@ export const CreateDriveModal: React.FC<CreateDriveModalProps> = ({
               <Sparkles className="w-4 h-4" />
             </div>
             <div>
-              <h3 className="text-base font-bold text-[#F8FAFC] tracking-tight">Create Placement Drive</h3>
-              <p className="text-xs text-[#CBD5E1]">AI Job Description Analysis &amp; Requirement Extraction</p>
+              <h3 className="text-base font-bold text-[#F8FAFC] tracking-tight">
+                {initialDrive ? 'Edit Placement Drive' : 'Create Placement Drive'}
+              </h3>
+              <p className="text-xs text-[#CBD5E1]">Raw Text AI Analysis &amp; Requirement Extraction</p>
             </div>
           </div>
           <button
@@ -192,6 +371,35 @@ export const CreateDriveModal: React.FC<CreateDriveModalProps> = ({
 
         {/* Modal Body */}
         <div className="p-6">
+          {/* Error Banner */}
+          {analysisError && (
+            <div className="mb-4 p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-[#FCA5A5] flex items-start gap-2.5 text-xs">
+              <AlertCircle className="w-4 h-4 text-[#EF4444] shrink-0 mt-0.5" />
+              <div>
+                <p className="font-bold">Analysis Failed</p>
+                <p className="text-[11px] opacity-90">{analysisError}</p>
+              </div>
+            </div>
+          )}
+
+          {/* Stale Analysis Alert */}
+          {isAnalysisStale && (
+            <div className="mb-4 p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-[#FCD34D] flex items-center justify-between gap-2 text-xs">
+              <div className="flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 text-[#F59E0B] shrink-0" />
+                <span className="font-semibold">Analysis outdated — Raw text changed. Analyze again to update job details.</span>
+              </div>
+              <Button
+                variant="primary"
+                size="sm"
+                icon={<RefreshCw className="w-3 h-3" />}
+                onClick={handleStartAIAnalysis}
+              >
+                Analyze Again
+              </Button>
+            </div>
+          )}
+
           {/* STEP 1: FORM INPUT */}
           {step === 'form' && (
             <form
@@ -210,18 +418,17 @@ export const CreateDriveModal: React.FC<CreateDriveModalProps> = ({
                     value={companyName}
                     onChange={(e) => setCompanyName(e.target.value)}
                     className="w-full text-xs p-2.5 bg-[#101D31] border border-[#243650] text-[#F8FAFC] rounded-lg focus:outline-none focus:border-[#3B82F6]"
-                    placeholder="e.g. TechNova Solutions"
+                    placeholder="e.g. Acme Corp / TechNova Solutions"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-[#E2E8F0] mb-1">Job Title</label>
+                  <label className="block text-xs font-bold text-[#E2E8F0] mb-1">Job Title (Optional — AI will auto-detect)</label>
                   <input
                     type="text"
-                    required
                     value={roleTitle}
                     onChange={(e) => setRoleTitle(e.target.value)}
                     className="w-full text-xs p-2.5 bg-[#101D31] border border-[#243650] text-[#F8FAFC] rounded-lg focus:outline-none focus:border-[#3B82F6]"
-                    placeholder="e.g. Backend Developer"
+                    placeholder="e.g. Backend Developer / Auto-detected from JD"
                   />
                 </div>
               </div>
@@ -231,11 +438,10 @@ export const CreateDriveModal: React.FC<CreateDriveModalProps> = ({
                   <label className="block text-xs font-bold text-[#E2E8F0] mb-1">Location</label>
                   <input
                     type="text"
-                    required
                     value={location}
                     onChange={(e) => setLocation(e.target.value)}
                     className="w-full text-xs p-2.5 bg-[#101D31] border border-[#243650] text-[#F8FAFC] rounded-lg focus:outline-none focus:border-[#3B82F6]"
-                    placeholder="e.g. Hyderabad"
+                    placeholder="e.g. Bengaluru / Pune / Remote"
                   />
                 </div>
                 <div>
@@ -243,9 +449,9 @@ export const CreateDriveModal: React.FC<CreateDriveModalProps> = ({
                   <input
                     type="number"
                     step="0.5"
-                    required
-                    value={packageLpa}
-                    onChange={(e) => setPackageLpa(parseFloat(e.target.value))}
+                    value={packageLpa || ''}
+                    onChange={(e) => setPackageLpa(parseFloat(e.target.value) || 0)}
+                    placeholder="e.g. 12.0"
                     className="w-full text-xs p-2.5 bg-[#101D31] border border-[#243650] text-[#F8FAFC] rounded-lg focus:outline-none focus:border-[#3B82F6]"
                   />
                 </div>
@@ -276,19 +482,22 @@ export const CreateDriveModal: React.FC<CreateDriveModalProps> = ({
 
               <div>
                 <div className="flex items-center justify-between mb-1">
-                  <label className="block text-xs font-bold text-[#E2E8F0]">Raw Job Description</label>
+                  <label className="block text-xs font-bold text-[#E2E8F0]">Raw Job Description (Single Source of Truth) *</label>
                   <span className="text-[10px] text-[#60A5FA] font-semibold flex items-center gap-1">
-                    <Sparkles className="w-3 h-3 text-[#06B6D4]" /> Paste raw text for AI auto-extraction
+                    <Sparkles className="w-3 h-3 text-[#06B6D4]" /> AI parses ONLY this text
                   </span>
                 </div>
                 <textarea
-                  rows={4}
+                  rows={6}
                   required
                   value={jobDescription}
                   onChange={(e) => setJobDescription(e.target.value)}
-                  placeholder="Paste company JD requirements here..."
-                  className="w-full text-xs p-3 bg-[#101D31] border border-[#243650] rounded-lg font-mono text-[#F8FAFC] focus:outline-none focus:border-[#3B82F6] leading-relaxed"
+                  placeholder="Paste current raw job description, requirements, or hiring info here (e.g. React Developer with React, TypeScript... or Python Developer with FastAPI, Docker...)"
+                  className="w-full text-xs p-3 bg-[#101D31] border border-[#243650] rounded-lg font-mono text-[#F8FAFC] placeholder-[#64748B] focus:outline-none focus:border-[#3B82F6] leading-relaxed"
                 />
+                <p className="text-[11px] text-[#94A3B8] mt-1">
+                  Paste the full job description. AI analysis dynamically extracts skills, eligibility, CGPA, and branch requirements strictly from this text.
+                </p>
               </div>
 
               <div className="pt-4 border-t border-[#243650] flex items-center justify-between">
@@ -317,11 +526,9 @@ export const CreateDriveModal: React.FC<CreateDriveModalProps> = ({
               </div>
               <h4 className="text-base font-bold text-[#F8FAFC]">AI Job Description Analysis</h4>
               <p className="text-xs text-[#CBD5E1] max-w-sm mx-auto">{analysisStatusText}</p>
-              <div className="w-48 bg-[#101D31] border border-[#243650] h-2 rounded-full mx-auto overflow-hidden">
-                <div
-                  className="bg-gradient-to-r from-[#3B82F6] to-[#06B6D4] h-full transition-all duration-300 rounded-full"
-                  style={{ width: `${analysisProgress}%` }}
-                />
+              <div className="flex items-center justify-center gap-2 text-xs text-[#60A5FA]">
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                <span>Processing raw text in real-time...</span>
               </div>
             </div>
           )}
@@ -333,32 +540,43 @@ export const CreateDriveModal: React.FC<CreateDriveModalProps> = ({
                 <div className="flex items-center gap-2">
                   <span className="text-xs font-bold text-[#F8FAFC] uppercase tracking-wider">AI Extracted Requirements</span>
                   <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#3B82F6]/20 text-[#60A5FA] border border-[#3B82F6]/30">
-                    <Sparkles className="w-3 h-3 text-[#06B6D4]" /> AI Extracted
+                    <Sparkles className="w-3 h-3 text-[#06B6D4]" /> Dynamic AI Extraction
                   </span>
                 </div>
-                <Button
-                  variant={isEditingRequirements ? 'primary' : 'outline'}
-                  size="sm"
-                  icon={<Edit3 className="w-3.5 h-3.5" />}
-                  onClick={() => setIsEditingRequirements(!isEditingRequirements)}
-                >
-                  {isEditingRequirements ? 'Done Editing' : 'Edit Requirements'}
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setStep('form')}
+                  >
+                    Edit Raw Text
+                  </Button>
+                  <Button
+                    variant={isEditingRequirements ? 'primary' : 'outline'}
+                    size="sm"
+                    icon={<Edit3 className="w-3.5 h-3.5" />}
+                    onClick={() => setIsEditingRequirements(!isEditingRequirements)}
+                  >
+                    {isEditingRequirements ? 'Done Editing' : 'Fine-Tune'}
+                  </Button>
+                </div>
               </div>
 
               {/* Extracted Details Grid */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3 bg-[#101D31] p-3.5 rounded-xl border border-[#243650]">
                 <div>
                   <span className="text-[10px] font-bold text-[#94A3B8] uppercase block">Role</span>
-                  <span className="text-xs font-bold text-[#F8FAFC]">{roleTitle}</span>
+                  <span className="text-xs font-bold text-[#F8FAFC]">{roleTitle || 'Campus Role'}</span>
                 </div>
                 <div>
                   <span className="text-[10px] font-bold text-[#94A3B8] uppercase block">Location</span>
-                  <span className="text-xs font-bold text-[#F8FAFC]">{location}</span>
+                  <span className="text-xs font-bold text-[#F8FAFC]">{location || 'TBD'}</span>
                 </div>
                 <div>
                   <span className="text-[10px] font-bold text-[#94A3B8] uppercase block">Package</span>
-                  <span className="text-xs font-bold text-[#86EFAC]">₹{packageLpa} LPA</span>
+                  <span className="text-xs font-bold text-[#86EFAC]">
+                    {packageLpa > 0 ? `₹${packageLpa} LPA` : 'As per policy'}
+                  </span>
                 </div>
               </div>
 
@@ -372,31 +590,38 @@ export const CreateDriveModal: React.FC<CreateDriveModalProps> = ({
                       <input
                         type="number"
                         step="0.1"
-                        value={extractedMinCgpa}
-                        onChange={(e) => setExtractedMinCgpa(parseFloat(e.target.value))}
+                        value={extractedMinCgpa || ''}
+                        onChange={(e) => setExtractedMinCgpa(parseFloat(e.target.value) || 0)}
+                        placeholder="e.g. 7.5"
                         className="w-full mt-1 text-xs p-1.5 bg-[#0B1628] border border-[#243650] text-[#F8FAFC] rounded font-bold"
                       />
                     ) : (
-                      <span className="text-base font-bold text-[#F8FAFC]">{extractedMinCgpa}</span>
+                      <span className="text-base font-bold text-[#F8FAFC]">
+                        {extractedMinCgpa > 0 ? extractedMinCgpa : 'No minimum CGPA'}
+                      </span>
                     )}
                   </div>
 
                   <div className="p-3 bg-[#101D31] border border-[#243650] rounded-xl sm:col-span-2">
                     <span className="text-[10px] font-semibold text-[#CBD5E1] block mb-1">Eligible Branches</span>
                     <div className="flex flex-wrap gap-1.5">
-                      {extractedBranches.map((b) => (
-                        <span
-                          key={b}
-                          className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded bg-[rgba(59,130,246,0.15)] text-[#60A5FA] border border-[rgba(59,130,246,0.30)]"
-                        >
-                          {b}
-                          {isEditingRequirements && (
-                            <button onClick={() => handleRemoveBranch(b)} className="hover:text-[#EF4444]">
-                              <X className="w-3 h-3" />
-                            </button>
-                          )}
-                        </span>
-                      ))}
+                      {extractedBranches.length === 0 ? (
+                        <span className="text-xs text-[#94A3B8] italic">All branches eligible</span>
+                      ) : (
+                        extractedBranches.map((b) => (
+                          <span
+                            key={b}
+                            className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded bg-[rgba(59,130,246,0.15)] text-[#60A5FA] border border-[rgba(59,130,246,0.30)]"
+                          >
+                            {b}
+                            {isEditingRequirements && (
+                              <button onClick={() => handleRemoveBranch(b)} className="hover:text-[#EF4444]">
+                                <X className="w-3 h-3" />
+                              </button>
+                            )}
+                          </span>
+                        ))
+                      )}
                     </div>
                     {isEditingRequirements && (
                       <div className="flex items-center gap-2 mt-2">
@@ -417,28 +642,66 @@ export const CreateDriveModal: React.FC<CreateDriveModalProps> = ({
                       </div>
                     )}
                   </div>
+
+                  <div className="p-3 bg-[#101D31] border border-[#243650] rounded-xl sm:col-span-3">
+                    <span className="text-[10px] font-semibold text-[#CBD5E1] block mb-1.5">Eligible Graduation Year(s)</span>
+                    <div className="flex flex-wrap gap-2">
+                      {[2024, 2025, 2026, 2027, 2028].map((year) => {
+                        const isSelected = extractedGradYears.includes(year);
+                        return (
+                          <button
+                            key={year}
+                            type="button"
+                            onClick={() => {
+                              if (isSelected) {
+                                if (extractedGradYears.length > 1) {
+                                  setExtractedGradYears(extractedGradYears.filter((y) => y !== year));
+                                }
+                              } else {
+                                setExtractedGradYears([...extractedGradYears, year].sort());
+                              }
+                            }}
+                            className={`text-xs font-semibold px-2.5 py-1 rounded-lg border transition-colors cursor-pointer flex items-center gap-1.5 ${
+                              isSelected
+                                ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40'
+                                : 'bg-[#0B1628] text-[#94A3B8] border-[#243650] hover:text-white'
+                            }`}
+                          >
+                            {isSelected && <Check className="w-3 h-3 text-emerald-400" />}
+                            Batch {year}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
                 </div>
               </div>
 
               {/* Required Skills */}
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <h5 className="text-xs font-bold text-[#F8FAFC] uppercase tracking-wider">Required Skills</h5>
+                  <h5 className="text-xs font-bold text-[#F8FAFC] uppercase tracking-wider">Required Skills (Extracted from Raw Text)</h5>
+                  <span className="text-[11px] text-[#94A3B8]">{extractedRequiredSkills.length} Detected</span>
                 </div>
-                <div className="p-3 bg-[#101D31] border border-[#243650] rounded-xl flex flex-wrap gap-1.5">
-                  {extractedRequiredSkills.map((skill) => (
-                    <span
-                      key={skill}
-                      className="inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded bg-[#3B82F6]/20 text-[#60A5FA] border border-[#3B82F6]/30"
-                    >
-                      {skill}
-                      {isEditingRequirements && (
-                        <button onClick={() => handleRemoveRequiredSkill(skill)} className="hover:text-[#EF4444]">
-                          <X className="w-3 h-3" />
-                        </button>
-                      )}
-                    </span>
-                  ))}
+                <div className="p-3 bg-[#101D31] border border-[#243650] rounded-xl flex flex-wrap gap-1.5 min-h-[48px] items-center">
+                  {extractedRequiredSkills.length === 0 ? (
+                    <span className="text-xs text-[#64748B] italic">No mandatory skills detected in text</span>
+                  ) : (
+                    extractedRequiredSkills.map((skill) => (
+                      <span
+                        key={skill}
+                        className="inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded bg-[#3B82F6]/20 text-[#60A5FA] border border-[#3B82F6]/30"
+                      >
+                        {skill}
+                        {isEditingRequirements && (
+                          <button onClick={() => handleRemoveRequiredSkill(skill)} className="hover:text-[#EF4444]">
+                            <X className="w-3 h-3" />
+                          </button>
+                        )}
+                      </span>
+                    ))
+                  )}
                   {isEditingRequirements && (
                     <div className="flex items-center gap-2 w-full mt-2 pt-2 border-t border-[#243650]">
                       <input
@@ -462,36 +725,40 @@ export const CreateDriveModal: React.FC<CreateDriveModalProps> = ({
 
               {/* Preferred Skills */}
               <div className="space-y-2">
-                <h5 className="text-xs font-bold text-[#F8FAFC] uppercase tracking-wider">Preferred Skills</h5>
-                <div className="p-3 bg-[#101D31] border border-[#243650] rounded-xl flex flex-wrap gap-1.5">
-                  {extractedPreferredSkills.map((skill) => (
-                    <span
-                      key={skill}
-                      className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded bg-[rgba(6,182,212,0.15)] text-[#22D3EE] border border-[rgba(6,182,212,0.30)]"
-                    >
-                      {skill}
-                      {isEditingRequirements && (
-                        <button onClick={() => handleRemovePreferredSkill(skill)} className="hover:text-[#EF4444]">
-                          <X className="w-3 h-3" />
-                        </button>
-                      )}
-                    </span>
-                  ))}
+                <h5 className="text-xs font-bold text-[#F8FAFC] uppercase tracking-wider">Preferred / Secondary Skills</h5>
+                <div className="p-3 bg-[#101D31] border border-[#243650] rounded-xl flex flex-wrap gap-1.5 min-h-[40px] items-center">
+                  {extractedPreferredSkills.length === 0 ? (
+                    <span className="text-xs text-[#64748B] italic">No secondary skills specified</span>
+                  ) : (
+                    extractedPreferredSkills.map((skill) => (
+                      <span
+                        key={skill}
+                        className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded bg-[rgba(6,182,212,0.15)] text-[#22D3EE] border border-[rgba(6,182,212,0.30)]"
+                      >
+                        {skill}
+                        {isEditingRequirements && (
+                          <button onClick={() => handleRemovePreferredSkill(skill)} className="hover:text-[#EF4444]">
+                            <X className="w-3 h-3" />
+                          </button>
+                        )}
+                      </span>
+                    ))
+                  )}
                 </div>
               </div>
 
               {/* AI Explanation & Human-in-the-Loop Footer Notice */}
-              <div className="p-3.5 rounded-xl ai-card-surface border border-[#243650]">
+              <div className="p-3.5 rounded-xl bg-[#14243B] border border-[#243650]">
                 <div className="flex items-center justify-between mb-1">
                   <span className="text-xs font-bold text-[#F8FAFC] flex items-center gap-1.5">
-                    <Bot className="w-4 h-4 text-[#06B6D4]" /> AI Summary &amp; Rationale
+                    <Bot className="w-4 h-4 text-[#06B6D4]" /> AI Analysis Rationale
                   </span>
                   <span className="text-[10px] font-semibold text-[#CBD5E1] bg-[#0B1628] px-2 py-0.5 rounded border border-[#243650]">
-                    AI-generated — review before publishing
+                    Generated strictly from Raw Text
                   </span>
                 </div>
                 <p className="text-xs text-[#CBD5E1] leading-relaxed font-medium">
-                  "This role primarily requires backend development skills with Python and SQL. Candidates with REST API experience and FastAPI exposure are likely to be strong matches."
+                  {extractedExplanation || extractedSummary || "AI extracted placement requirements strictly from the provided raw text."}
                 </p>
               </div>
 
@@ -507,10 +774,10 @@ export const CreateDriveModal: React.FC<CreateDriveModalProps> = ({
                   <Button
                     variant="primary"
                     size="sm"
-                    icon={<Check className="w-3.5 h-3.5" />}
+                    icon={<Send className="w-3.5 h-3.5" />}
                     onClick={handleConfirmRequirements}
                   >
-                    Confirm &amp; Publish Drive
+                    {initialDrive ? 'Update Drive' : 'Save & Submit for Approval'}
                   </Button>
                 </div>
               </div>

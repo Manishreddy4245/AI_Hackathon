@@ -85,6 +85,9 @@ mock_drives = [
         "preferredSkills": ["FastAPI", "Docker", "Git", "Cloud"],
         "aiExplanation": "AI JD Analysis: Evaluated requirement density & skill weights. High recruiter demand for FastAPI & SQL.",
         "aiConfirmed": True,
+        "recruiter_id": "usr-recruiter",
+        "recruiter_name": "Vikram Mehta",
+        "recruiter_email": "recruiter@placemind.local",
         "pipeline": {"eligible": 428, "applied": 310, "shortlisted": 96, "interview": 24, "selected": 18},
         "aiInsights": {
             "topMatchingSkills": ["Python", "SQL", "FastAPI"],
@@ -115,6 +118,9 @@ mock_drives = [
         "preferredSkills": ["Pandas", "PowerBI", "Machine Learning"],
         "aiExplanation": "AI JD Analysis: Requires strong SQL aggregation and Python data manipulation skills.",
         "aiConfirmed": True,
+        "recruiter_id": "recruiter-demo",
+        "recruiter_name": "Vikram Mehta",
+        "recruiter_email": "recruiter@demo.com",
     },
     {
         "id": "cloudpeak-engineer",
@@ -139,6 +145,9 @@ mock_drives = [
         "preferredSkills": ["Docker", "Kubernetes", "AWS"],
         "aiExplanation": "AI JD Analysis: Cloud systems role requiring Java backend fluency and container orchestration.",
         "aiConfirmed": True,
+        "recruiter_id": "usr-recruiter",
+        "recruiter_name": "Vikram Mehta",
+        "recruiter_email": "recruiter@placemind.local",
     },
 ]
 
@@ -160,9 +169,9 @@ mock_students = [
         "readinessScore": 92,
         "resumeUrl": "#",
         "placementStatus": "unplaced",
-        "applicationsCount": 5,
-        "shortlistsCount": 4,
-        "interviewsCount": 2,
+        "applicationsCount": 0,
+        "shortlistsCount": 0,
+        "interviewsCount": 0,
     },
     {
         "id": "ananya-reddy",
@@ -181,9 +190,9 @@ mock_students = [
         "readinessScore": 86,
         "resumeUrl": "#",
         "placementStatus": "unplaced",
-        "applicationsCount": 4,
-        "shortlistsCount": 3,
-        "interviewsCount": 1,
+        "applicationsCount": 0,
+        "shortlistsCount": 0,
+        "interviewsCount": 0,
     },
     {
         "id": "aarav-sharma",
@@ -202,9 +211,9 @@ mock_students = [
         "readinessScore": 88,
         "resumeUrl": "#",
         "placementStatus": "unplaced",
-        "applicationsCount": 6,
-        "shortlistsCount": 4,
-        "interviewsCount": 2,
+        "applicationsCount": 0,
+        "shortlistsCount": 0,
+        "interviewsCount": 0,
     },
     {
         "id": "priya-singh",
@@ -221,8 +230,8 @@ mock_students = [
         "readinessScore": 75,
         "resumeUrl": "#",
         "placementStatus": "unplaced",
-        "applicationsCount": 3,
-        "shortlistsCount": 1,
+        "applicationsCount": 0,
+        "shortlistsCount": 0,
         "interviewsCount": 0,
     },
     {
@@ -240,9 +249,9 @@ mock_students = [
         "readinessScore": 78,
         "resumeUrl": "#",
         "placementStatus": "unplaced",
-        "applicationsCount": 3,
-        "shortlistsCount": 2,
-        "interviewsCount": 1,
+        "applicationsCount": 0,
+        "shortlistsCount": 0,
+        "interviewsCount": 0,
     },
 ]
 
@@ -335,19 +344,7 @@ mock_rooms = [
     },
 ]
 
-mock_notifications = [
-    {
-        "id": "notif-101",
-        "title": "Technical Interview Scheduled",
-        "message": "Your Technical Interview for TechNova is scheduled for today at 10:30 AM in Lab 101.",
-        "timestamp": "10 minutes ago",
-        "read": False,
-        "important": False,
-        "type": "interview",
-        "recipientRole": "students",
-        "recipientName": "Rahul Verma",
-    }
-]
+mock_notifications = []
 
 mock_exceptions = [
     {
@@ -450,18 +447,45 @@ mock_audit_logs = [
     }
 ]
 
+from app.core.config import settings
+
 async def seed_database() -> None:
-    """Populate MongoDB collections with initial placement records if empty."""
+    """Populate MongoDB collections with initial placement records if SEED_DEMO_DATA is True."""
     db = db_manager.db
     if db is None:
         logger.warning("Database connection unavailable for seeding.")
         return
 
     try:
-        # Upsert all mock users to ensure credentials and roles are always up to date
+        # Upsert user accounts to ensure login credentials and roles are configured
         for u in mock_users:
             await db.users.update_one({"email": u["email"]}, {"$set": u}, upsert=True)
         logger.info("Synchronized %d user accounts into MongoDB", len(mock_users))
+
+        # Demo business data seeding is skipped unless SEED_DEMO_DATA=True
+        if not settings.SEED_DEMO_DATA:
+            logger.info("SEED_DEMO_DATA=False. Cleaning legacy demo records and skipping demo business data seeding for production mode.")
+            demo_drives = ["technova-backend", "datasphere-data", "cloudpeak-devops", "finedge-analyst"]
+            demo_companies = ["comp-1", "comp-2", "comp-3", "comp-4"]
+            demo_students = ["std-1", "std-2", "std-3", "std-4", "std-5", "std-6", "std-7", "std-8", "student-demo"]
+            demo_interviews = ["int-101", "int-102", "int-103"]
+            demo_panels = ["pnl-1", "pnl-2", "pnl-3", "pnl-4"]
+            demo_rooms = ["rm-101", "rm-102", "rm-103", "rm-104"]
+            demo_exceptions = ["exc-101", "exc-102", "exc-103"]
+            demo_notifs = ["notif-101", "notif-102", "notif-103", "notif-104"]
+            demo_audits = ["aud-101", "aud-102"]
+
+            await db.drives.delete_many({"id": {"$in": demo_drives}})
+            await db.companies.delete_many({"id": {"$in": demo_companies}})
+            await db.students.delete_many({"id": {"$in": demo_students}})
+            await db.interviews.delete_many({"id": {"$in": demo_interviews}})
+            await db.panels.delete_many({"id": {"$in": demo_panels}})
+            await db.rooms.delete_many({"id": {"$in": demo_rooms}})
+            await db.exceptions.delete_many({"id": {"$in": demo_exceptions}})
+            await db.notifications.delete_many({"$or": [{"id": {"$in": demo_notifs}}, {"id": {"$regex": r"^notif-10[0-9]"}}]})
+            await db.applications.delete_many({"$or": [{"drive_id": {"$in": demo_drives}}, {"driveId": {"$in": demo_drives}}, {"student_id": {"$in": demo_students}}, {"studentId": {"$in": demo_students}}]})
+            await db.audit_logs.delete_many({"id": {"$in": demo_audits}})
+            return
 
         if await db.companies.count_documents({}) == 0:
             await db.companies.insert_many(mock_companies)
@@ -487,9 +511,27 @@ async def seed_database() -> None:
             await db.rooms.insert_many(mock_rooms)
             logger.info("Seeded %d rooms into MongoDB", len(mock_rooms))
 
-        if await db.notifications.count_documents({}) == 0:
-            await db.notifications.insert_many(mock_notifications)
-            logger.info("Seeded %d notifications into MongoDB", len(mock_notifications))
+        # Remove any legacy mock/demo notifications
+        await db.notifications.delete_many({
+            "$or": [
+                {"id": {"$regex": r"^notif-10[0-9]"}},
+                {"title": "Technical Interview Scheduled", "recipientName": "Rahul Verma"},
+                {"title": "Interview Panel Assigned"},
+                {"title": "Candidate Shortlist Pending Review"},
+                {"message": {"$regex": r"Neha Workflow"}}
+            ]
+        })
+
+        # Clean up legacy mock/dummy application records
+        await db.applications.delete_many({
+            "$or": [
+                {"id": None},
+                {"id": {"$regex": r"^demo-app"}},
+                {"id": {"$regex": r"^mock-app"}},
+                {"student_id": "student-demo"},
+                {"studentId": "student-demo"}
+            ]
+        })
 
         if await db.exceptions.count_documents({}) == 0:
             await db.exceptions.insert_many(mock_exceptions)
@@ -501,4 +543,5 @@ async def seed_database() -> None:
 
     except Exception as e:
         logger.error("Error seeding MongoDB database: %s", str(e))
+
 

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   CalendarCheck,
@@ -35,6 +35,39 @@ export const InterviewsList: React.FC = () => {
   const [roundFilter, setRoundFilter] = useState('all');
   const [panelFilter, setPanelFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
+
+  const todayStr = useMemo(() => new Date().toISOString().split('T')[0], []);
+
+  const todaysInterviewsCount = useMemo(() => {
+    return interviewsList.filter((item) => {
+      if (!item.date) return false;
+      const dStr = item.date.includes('-') ? item.date.slice(0, 10) : item.date;
+      return dStr === todayStr;
+    }).length;
+  }, [interviewsList, todayStr]);
+
+  const upcomingInterviewsCount = useMemo(() => {
+    return interviewsList.filter((item) => {
+      const st = (item.status || '').toLowerCase();
+      if (st === 'completed' || st === 'cancelled' || st === 'rejected') return false;
+      if (item.date && item.date.includes('-') && item.date.slice(0, 10) > todayStr) return true;
+      return st === 'scheduled' || st === 'confirmed' || st === 'pending';
+    }).length;
+  }, [interviewsList, todayStr]);
+
+  const completedInterviewsCount = useMemo(() => {
+    return interviewsList.filter((item) => {
+      const st = (item.status || '').toLowerCase();
+      return st === 'completed';
+    }).length;
+  }, [interviewsList]);
+
+  const pendingConfirmationCount = useMemo(() => {
+    return interviewsList.filter((item) => {
+      const st = (item.status || '').toLowerCase();
+      return item.panelConfirmed === false || st === 'pending' || st === 'pending_approval';
+    }).length;
+  }, [interviewsList]);
 
   const filteredInterviews = interviewsList.filter((item) => {
     const matchesCompany = companyFilter === 'all' || item.companyName.includes(companyFilter);
@@ -85,15 +118,15 @@ export const InterviewsList: React.FC = () => {
       <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
         <div className="p-4 bg-[#101D31] rounded-xl border border-[#243650] shadow-sm">
           <span className="text-xs font-bold text-[#94A3B8] uppercase tracking-wider">Today's Interviews</span>
-          <div className="text-2xl font-black text-[#F8FAFC] mt-1">24</div>
+          <div className="text-2xl font-black text-[#F8FAFC] mt-1">{todaysInterviewsCount}</div>
         </div>
         <div className="p-4 bg-[#101D31] rounded-xl border border-[#243650] shadow-sm">
           <span className="text-xs font-bold text-[#94A3B8] uppercase tracking-wider">Upcoming</span>
-          <div className="text-2xl font-black text-[#3B82F6] mt-1">18</div>
+          <div className="text-2xl font-black text-[#3B82F6] mt-1">{upcomingInterviewsCount}</div>
         </div>
         <div className="p-4 bg-[#101D31] rounded-xl border border-[#243650] shadow-sm">
           <span className="text-xs font-bold text-[#94A3B8] uppercase tracking-wider">Completed</span>
-          <div className="text-2xl font-black text-[#86EFAC] mt-1">42</div>
+          <div className="text-2xl font-black text-[#86EFAC] mt-1">{completedInterviewsCount}</div>
         </div>
         <div className="p-4 bg-[#101D31] rounded-xl border border-[rgba(239,68,68,0.25)] shadow-sm">
           <span className="text-xs font-bold text-[#FCA5A5] uppercase tracking-wider">Conflicts</span>
@@ -101,7 +134,7 @@ export const InterviewsList: React.FC = () => {
         </div>
         <div className="p-4 bg-[#101D31] rounded-xl border border-[rgba(245,158,11,0.25)] shadow-sm">
           <span className="text-xs font-bold text-[#FCD34D] uppercase tracking-wider">Pending Confirmation</span>
-          <div className="text-2xl font-black text-[#F59E0B] mt-1">5</div>
+          <div className="text-2xl font-black text-[#F59E0B] mt-1">{pendingConfirmationCount}</div>
         </div>
       </div>
 
@@ -163,10 +196,9 @@ export const InterviewsList: React.FC = () => {
             className="text-xs p-2 bg-[#0B1628] border border-[#243650] text-[#F8FAFC] rounded-lg focus:outline-none cursor-pointer font-medium"
           >
             <option value="all">All Companies</option>
-            <option value="TechNova">TechNova Solutions</option>
-            <option value="DataSphere">DataSphere Analytics</option>
-            <option value="CloudPeak">CloudPeak Systems</option>
-            <option value="FinEdge">FinEdge Technologies</option>
+            {Array.from(new Set(interviewsList.map((i) => i.companyName))).filter(Boolean).map((c) => (
+              <option key={c} value={c}>{c}</option>
+            ))}
           </select>
 
           <select

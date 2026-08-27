@@ -9,6 +9,8 @@ interface StatCardProps {
   trendType?: 'neutral' | 'positive' | 'warning' | 'negative';
   subtitle?: string;
   accent?: 'blue' | 'cyan' | 'violet' | 'emerald' | 'amber' | 'indigo';
+  onClick?: () => void;
+  className?: string;
 }
 
 export const StatCard: React.FC<StatCardProps> = ({
@@ -19,6 +21,8 @@ export const StatCard: React.FC<StatCardProps> = ({
   trendType = 'neutral',
   subtitle,
   accent = 'blue',
+  onClick,
+  className = '',
 }) => {
   const trendColors = {
     neutral: 'bg-[#14243B] text-[#CBD5E1] border-[#243650]',
@@ -37,10 +41,26 @@ export const StatCard: React.FC<StatCardProps> = ({
   };
 
   return (
-    <Card className="p-5 relative overflow-hidden bg-[#101D31] border-[#243650] shadow-[0_12px_35px_rgba(0,0,0,0.22)] text-[#F8FAFC] hover:bg-[#14243B] hover:border-[#31527A]">
+    <Card
+      onClick={onClick}
+      className={`p-5 relative overflow-hidden bg-[#101D31] border-[#243650] shadow-[0_12px_35px_rgba(0,0,0,0.22)] text-[#F8FAFC] transition-all group ${
+        onClick
+          ? 'cursor-pointer hover:bg-[#14243B] hover:border-[#3B82F6] hover:shadow-[0_16px_40px_rgba(59,130,246,0.15)] active:scale-[0.99]'
+          : 'hover:bg-[#14243B] hover:border-[#31527A]'
+      } ${className}`}
+    >
       <div className="flex items-start justify-between gap-3">
-        <div>
-          <span className="text-xs font-bold text-[#94A3B8] uppercase tracking-wider block">{label}</span>
+        <div className="flex-1">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-[#94A3B8] uppercase tracking-wider block group-hover:text-[#60A5FA] transition-colors">
+              {label}
+            </span>
+            {onClick && (
+              <span className="text-[10px] font-bold text-[#3B82F6] opacity-0 group-hover:opacity-100 transition-opacity">
+                Details →
+              </span>
+            )}
+          </div>
           <div className="mt-2 flex items-baseline gap-2">
             <span className="text-3xl font-black tracking-tight text-[#F8FAFC] drop-shadow-xs">{value}</span>
             {trend && (
@@ -54,7 +74,7 @@ export const StatCard: React.FC<StatCardProps> = ({
           )}
         </div>
 
-        <div className={`p-3 rounded-xl ${accentBadges[accent]} shrink-0 transform translate-z-10`}>
+        <div className={`p-3 rounded-xl ${accentBadges[accent]} shrink-0 transform translate-z-10 group-hover:scale-105 transition-transform`}>
           {icon}
         </div>
       </div>

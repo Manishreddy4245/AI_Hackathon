@@ -146,7 +146,7 @@ export const InterviewDetail: React.FC = () => {
               <p className="text-xs text-[#CBD5E1] font-semibold">Roll: {student.rollNumber} &bull; {student.branch}</p>
               <div className="flex items-center gap-2 mt-2">
                 <span className="text-xs font-bold text-[#F8FAFC] bg-[#14243B] border border-[#243650] px-2 py-0.5 rounded">CGPA: {student.cgpa}</span>
-                <MatchScore score={student.readinessScore || 85} />
+                <MatchScore score={student.readinessScore || 0} />
               </div>
             </div>
           </div>

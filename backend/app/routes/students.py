@@ -2,13 +2,15 @@ from typing import List, Optional, Dict, Any
 from datetime import datetime
 from fastapi import APIRouter, HTTPException, status, Depends
 from app.db.mongodb import db_manager
-from app.core.deps import get_current_user, require_role
-from app.schemas.student import StudentSchema, ShortlistRequest, ApplyDriveRequest
+from app.db.integrity import create_idempotent_notification
+from app.core.deps import get_current_user, require_role, get_optional_current_user
+from app.schemas.student import StudentSchema, ShortlistRequest, ApplyDriveRequest, ExternalApplyStartRequest, ExternalApplyConfirmRequest
 from app.schemas.resume import PlacementRecommendationSchema, SkillGapResponseSchema, SkillGapItemSchema
 from app.services.eligibility_engine import evaluate_drive_eligibility
 from app.services.skill_matching_engine import calculate_skill_match
 from app.services.skill_gap_engine import generate_recommendation_text, aggregate_skill_gaps_across_drives
 from app.services.profile_completion_engine import calculate_profile_completion
+from app.services.opportunity_aggregator import get_ranked_opportunities_for_student
 
 router = APIRouter(prefix="/api/students", tags=["Students"])
 
@@ -52,9 +54,14 @@ async def get_my_student_profile(current_user: Dict[str, Any] = Depends(get_curr
             "interviewsCount": 0,
         }
 
-    # Check resume
-    latest_resume = await db.resumes.find_one({"student_id": user_id}, {"_id": 0})
+    # Check resume in MongoDB
+    latest_resume = await db.resumes.find_one({
+        "$or": [{"student_id": user_id}, {"email": user_email}]
+    }, {"_id": 0})
     has_resume = latest_resume is not None or bool(student.get("resumeUrl"))
+    resume_filename = (latest_resume.get("filename") if latest_resume else None) or student.get("resumeUrl")
+    resume_id = (latest_resume.get("id") if latest_resume else None) or student.get("resumeId")
+    extracted_prof = (latest_resume.get("extracted_profile") if latest_resume else None)
     
     pct, is_comp, missing, checklist = calculate_profile_completion(
         student,
@@ -64,6 +71,11 @@ async def get_my_student_profile(current_user: Dict[str, Any] = Depends(get_curr
 
     return {
         **student,
+        "hasResume": has_resume,
+        "resumeId": resume_id,
+        "resumeUrl": resume_filename,
+        "resumeFilename": resume_filename,
+        "extractedProfile": extracted_prof,
         "profileCompletion": pct,
         "isProfileComplete": is_comp,
         "missingRequirements": missing,
@@ -112,30 +124,37 @@ async def get_my_student_dashboard(current_user: Dict[str, Any] = Depends(get_cu
 
     # 2. Fetch student's applied drive IDs
     applications = await db.applications.find({
-        "$or": [{"studentId": user_id}, {"studentEmail": user_email}]
+        "$or": [
+            {"student_id": user_id},
+            {"studentId": user_id},
+            {"student_email": user_email},
+            {"studentEmail": user_email},
+            {"applicant.email": user_email}
+        ]
     }, {"_id": 0}).to_list(length=100)
-    applied_drive_ids = [a["driveId"] for a in applications if "driveId" in a]
-
-    # If demo student and no explicit applications table records, check seed
-    if user_id == "student-demo" or user_id == "rahul-verma":
-        if not applied_drive_ids:
-            applied_drive_ids = ["technova-backend"]
+    applied_drive_ids = list(set([
+        a.get("drive_id") or a.get("driveId")
+        for a in applications
+        if (a.get("drive_id") or a.get("driveId"))
+    ]))
 
     # 3. Fetch student's scheduled interviews
     interviews = await db.interviews.find({
         "$or": [
             {"candidateId": user_id},
             {"candidateEmail": user_email},
-            {"candidateId": "rahul-verma"} if (user_id in ("student-demo", "rahul-verma")) else {"candidateId": user_id}
+            {"student_id": user_id}
         ]
     }, {"_id": 0}).to_list(length=100)
 
     # 4. Fetch latest resume
     latest_resume = await db.resumes.find_one({
-        "$or": [{"student_id": user_id}, {"student_id": "rahul-verma"} if user_id == "student-demo" else {"student_id": user_id}]
+        "$or": [{"student_id": user_id}, {"email": user_email}]
     }, {"_id": 0})
 
     has_resume = latest_resume is not None or bool(student.get("resumeUrl"))
+    resume_filename = (latest_resume.get("filename") if latest_resume else None) or student.get("resumeUrl")
+    resume_id = (latest_resume.get("id") if latest_resume else None) or student.get("resumeId")
     readiness_score = latest_resume.get("readiness_score", 0) if latest_resume else student.get("readinessScore", 0)
 
     skills = student.get("skills", [])
@@ -169,6 +188,9 @@ async def get_my_student_dashboard(current_user: Dict[str, Any] = Depends(get_cu
             "experience": experience,
             "certifications": certifications,
             "readinessScore": readiness_score,
+            "resumeUrl": resume_filename,
+            "resumeFilename": resume_filename,
+            "resumeId": resume_id,
             "applicationsCount": len(applied_drive_ids),
             "interviewsCount": len(interviews),
             "profileCompletion": pct,
@@ -177,6 +199,9 @@ async def get_my_student_dashboard(current_user: Dict[str, Any] = Depends(get_cu
             "checklist": checklist,
         },
         "hasResume": has_resume,
+        "resumeId": resume_id,
+        "resumeFilename": resume_filename,
+        "resumeUrl": resume_filename,
         "appliedDriveIds": applied_drive_ids,
         "interviews": interviews,
         "isNewUser": not has_resume and len(skills) == 0 and len(applied_drive_ids) == 0,
@@ -205,115 +230,688 @@ async def get_student(student_id: str):
     return student
 
 @router.post("/shortlist")
-async def shortlist_student(req: ShortlistRequest):
+async def shortlist_student(
+    req: ShortlistRequest,
+    current_user: Optional[Dict[str, Any]] = Depends(get_optional_current_user)
+):
+    """
+    Drive-specific student shortlisting handler.
+    Updates the canonical db.applications record for the specific student + drive.
+    Prevents duplicate shortlistedCount increments.
+    """
     db = db_manager.db
     if db is None:
         raise HTTPException(status_code=503, detail="Database unavailable")
+    
     student = await db.students.find_one({"id": req.studentId}, {"_id": 0})
     if not student:
         raise HTTPException(status_code=404, detail="Student not found")
 
-    new_status = "shortlisted" if student.get("placementStatus") != "shortlisted" else "unplaced"
-    await db.students.update_one({"id": req.studentId}, {"$set": {"placementStatus": new_status}})
-    return {"status": "ok", "studentId": req.studentId, "newStatus": new_status}
+    app_id = f"app-{req.studentId}-{req.driveId}"
+    app = await db.applications.find_one({
+        "$or": [
+            {"id": app_id},
+            {"studentId": req.studentId, "driveId": req.driveId},
+            {"student_id": req.studentId, "drive_id": req.driveId}
+        ]
+    })
+
+    current_app_status = (app.get("status") if app else "APPLIED").upper()
+    new_app_status = "SHORTLISTED" if current_app_status != "SHORTLISTED" else "APPLIED"
+    now_iso = datetime.now().isoformat()
+
+    # Update application record
+    await db.applications.update_one(
+        {"$or": [
+            {"id": app_id},
+            {"studentId": req.studentId, "driveId": req.driveId},
+            {"student_id": req.studentId, "drive_id": req.driveId}
+        ]},
+        {"$set": {
+            "status": new_app_status,
+            "updated_at": now_iso
+        }},
+        upsert=True
+    )
+
+    drive = await db.drives.find_one({"id": req.driveId}, {"_id": 0}) if req.driveId else None
+    
+    # Drive-specific shortlistedCount increment/decrement
+    if drive and req.driveId:
+        if new_app_status == "SHORTLISTED" and current_app_status != "SHORTLISTED":
+            await db.drives.update_one({"id": req.driveId}, {"$inc": {"shortlistedCount": 1}})
+        elif new_app_status == "APPLIED" and current_app_status == "SHORTLISTED":
+            await db.drives.update_one({"id": req.driveId}, {"$inc": {"shortlistedCount": -1}})
+
+    # Update student shortlistsCount count safely
+    if new_app_status == "SHORTLISTED" and current_app_status != "SHORTLISTED":
+        await db.students.update_one({"id": req.studentId}, {"$inc": {"shortlistsCount": 1}})
+    elif new_app_status == "APPLIED" and current_app_status == "SHORTLISTED":
+        await db.students.update_one({"id": req.studentId}, {"$inc": {"shortlistsCount": -1}})
+
+    # Dispatch shortlist notification only if transitioning to SHORTLISTED
+    if new_app_status == "SHORTLISTED" and current_app_status != "SHORTLISTED":
+        company_name = drive.get("companyName", "Placement Drive") if drive else "Placement Drive"
+        job_title = drive.get("roleTitle", "Software Engineer") if drive else "Software Engineer"
+        notif_id = f"notif-shortlist-{req.studentId}-{int(datetime.now().timestamp())}"
+
+        await create_idempotent_notification(db, {
+            "id": notif_id,
+            "recipient_user_id": req.studentId,
+            "recipientRole": "student",
+            "recipientName": student.get("name", "Student"),
+            "type": "APPLICATION_SHORTLISTED",
+            "title": "🎉 You've Been Shortlisted!",
+            "message": f"Congratulations! You have been shortlisted for {job_title} at {company_name}.",
+            "application_id": app_id,
+            "student_id": req.studentId,
+            "drive_id": req.driveId,
+            "company_id": drive.get("companyId") if drive else "comp-1",
+            "company_name": company_name,
+            "job_title": job_title,
+            "relatedRoute": "/student/drives",
+            "read": False,
+            "important": True,
+            "timestamp": "Just now",
+            "created_at": now_iso
+        })
+
+    return {"status": "ok", "studentId": req.studentId, "driveId": req.driveId, "applicationStatus": new_app_status}
+
+
+from fastapi import UploadFile, File, Form
+import uuid
+from app.services.resume_parser import parse_resume_document
+from app.services.resume_ai_service import extract_resume_profile_ai
+
+async def _process_student_application(
+    db: Any,
+    current_user: Dict[str, Any],
+    drive_id: str,
+    name: Optional[str] = None,
+    mobile: Optional[str] = None,
+    college_name: Optional[str] = None,
+    location: Optional[str] = None,
+    company_name: Optional[str] = None,
+    job_title: Optional[str] = None,
+    company_id: Optional[str] = None,
+    source: Optional[str] = None,
+    application_url: Optional[str] = None,
+    file: Optional[UploadFile] = None
+):
+    student_id = current_user.get("id")
+    student_email = (current_user.get("email") or "").lower()
+
+    # 1. Fetch or initialize student record
+    student = await db.students.find_one({
+        "$or": [{"id": student_id}, {"email": student_email}]
+    }, {"_id": 0})
+    if not student:
+        student = {
+            "id": student_id,
+            "rollNumber": current_user.get("rollNumber", f"2023{student_id[-4:] if len(student_id) >= 4 else '1001'}"),
+            "name": current_user.get("name", "Student Candidate"),
+            "email": student_email,
+            "branch": current_user.get("branch", "CSE"),
+            "batch": str(current_user.get("graduationYear", 2027)),
+            "cgpa": float(current_user.get("cgpa", 8.5)),
+            "skills": ["Python", "JavaScript", "Problem Solving"],
+            "projects": [],
+            "experience": [],
+            "certifications": [],
+            "readinessScore": 85,
+            "resumeUrl": "resume.pdf",
+            "placementStatus": "unplaced",
+            "applicationsCount": 0,
+            "shortlistsCount": 0,
+            "interviewsCount": 0,
+        }
+        await db.students.update_one({"id": student_id}, {"$set": student}, upsert=True)
+
+    # 2. Check Drive Existence (internal college drive or external company opportunity)
+    drive = await db.drives.find_one({"$or": [{"id": drive_id}, {"driveId": drive_id}]}, {"_id": 0})
+    if drive:
+        resolved_company_name = drive.get("companyName", company_name or "Company")
+        resolved_job_title = drive.get("roleTitle", job_title or "Software Engineer")
+        resolved_company_id = drive.get("companyId", company_id or "comp-1")
+        resolved_source = "college"
+        resolved_url = drive.get("application_url", application_url or "")
+    else:
+        resolved_company_name = company_name or "Company"
+        resolved_job_title = job_title or "Software Engineer"
+        resolved_company_id = company_id or f"comp-{uuid.uuid4().hex[:6]}"
+        resolved_source = source or "external"
+        resolved_url = application_url or ""
+
+    # 3. Duplicate Prevention (student_id + drive_id)
+    existing_app = await db.applications.find_one({
+        "$or": [
+            {"student_id": student_id, "drive_id": drive_id},
+            {"studentId": student_id, "driveId": drive_id}
+        ]
+    })
+    if existing_app:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="You have already applied for this placement drive."
+        )
+
+    # 4. Handle Resume Upload & Extraction
+    latest_resume = await db.resumes.find_one({
+        "$or": [{"student_id": student_id}, {"email": student_email}]
+    }, {"_id": 0})
+    resume_id = (latest_resume.get("id") if latest_resume else None) or student.get("resumeId")
+
+    if file and file.filename:
+        file_bytes = await file.read()
+        try:
+            extracted_text, file_type = parse_resume_document(file_bytes, file.filename, file.content_type or "")
+        except ValueError as ve:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(ve))
+        except Exception as e:
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=f"Failed to process resume document: {str(e)}")
+
+        extracted_profile = await extract_resume_profile_ai(extracted_text)
+        readiness_score = 85
+        if extracted_profile.cgpa:
+            readiness_score = min(100, max(50, int(extracted_profile.cgpa * 10)))
+
+        resume_id = f"res-{uuid.uuid4().hex[:8]}"
+        now_iso = datetime.now().isoformat()
+        resume_doc = {
+            "id": resume_id,
+            "_id": resume_id,
+            "student_id": student_id,
+            "filename": file.filename,
+            "file_type": file_type,
+            "uploaded_at": now_iso,
+            "analysis_status": "completed",
+            "readiness_score": readiness_score,
+            "extracted_profile": extracted_profile.model_dump(),
+            "created_at": now_iso,
+            "updated_at": now_iso
+        }
+        await db.resumes.delete_many({"student_id": student_id})
+        await db.resumes.insert_one(resume_doc)
+        latest_resume = resume_doc
+
+        # Update student record
+        update_student = {
+            "readinessScore": readiness_score,
+            "skills": extracted_profile.raw_skills if extracted_profile.raw_skills else student.get("skills", []),
+            "projects": [p.model_dump() if hasattr(p, "model_dump") else p for p in extracted_profile.projects],
+            "experience": [e.model_dump() if hasattr(e, "model_dump") else e for e in extracted_profile.experience],
+            "certifications": [c.model_dump() if hasattr(c, "model_dump") else c for c in extracted_profile.certifications],
+            "resumeUrl": file.filename,
+            "resumeId": resume_id,
+            "profileCompletion": 100,
+            "isProfileComplete": True
+        }
+        if mobile:
+            update_student["mobile"] = mobile
+        if college_name:
+            update_student["college"] = college_name
+        if location:
+            update_student["location"] = location
+
+        await db.students.update_one({"id": student_id}, {"$set": update_student})
+        student.update(update_student)
+
+    # If no file uploaded and no existing resume
+    if not latest_resume and not student.get("resumeUrl"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Please upload and analyze your resume before applying."
+        )
+
+    # Extract real profile data
+    extracted_prof = latest_resume.get("extracted_profile", {}) if latest_resume else {}
+    real_skills = extracted_prof.get("raw_skills") or student.get("skills", [])
+    real_projects = extracted_prof.get("projects") or student.get("projects", [])
+    real_exp = extracted_prof.get("experience") or student.get("experience", [])
+    real_certs = extracted_prof.get("certifications") or student.get("certifications", [])
+
+    submitted_name = name or student.get("name") or current_user.get("name") or "Student"
+    submitted_mobile = mobile or student.get("mobile") or student.get("phone") or "N/A"
+    submitted_college = college_name or student.get("college") or "Campus University"
+    submitted_location = location or student.get("location") or "Bengaluru"
+
+    app_id = f"app-{student_id}-{drive_id}"
+    now_iso = datetime.now().isoformat()
+
+    app_doc = {
+        "id": app_id,
+        "student_id": student_id,
+        "studentId": student_id,
+        "student_name": submitted_name,
+        "studentName": submitted_name,
+        "student_email": student_email,
+        "studentEmail": student_email,
+        "drive_id": drive_id,
+        "driveId": drive_id,
+        "company_id": resolved_company_id,
+        "company_name": resolved_company_name,
+        "job_title": resolved_job_title,
+        "source": resolved_source,
+        "application_url": resolved_url,
+        "applicant": {
+            "name": submitted_name,
+            "mobile": submitted_mobile,
+            "email": student_email,
+            "college_name": submitted_college,
+            "location": submitted_location
+        },
+        "resume_id": resume_id or (latest_resume.get("id") if latest_resume else None) or student.get("resumeId"),
+        "resume_url": (latest_resume.get("filename") if latest_resume else None) or student.get("resumeUrl") or "resume.pdf",
+        "skills": real_skills,
+        "matched_skills": real_skills,
+        "projects": real_projects,
+        "experience": real_exp,
+        "certifications": real_certs,
+        "status": "APPLIED",
+        "applied_at": datetime.now().strftime("%d %b %Y"),
+        "appliedAt": now_iso,
+        "created_at": now_iso,
+        "updated_at": now_iso,
+        "cgpa": float(student.get("cgpa") or extracted_prof.get("cgpa") or 8.5),
+        "branch": str(student.get("branch") or extracted_prof.get("branch") or "CSE"),
+    }
+
+    existing_app = await db.applications.find_one({"student_id": student_id, "drive_id": drive_id})
+    await db.applications.update_one(
+        {"student_id": student_id, "drive_id": drive_id},
+        {"$set": app_doc},
+        upsert=True
+    )
+    if not existing_app:
+        await db.students.update_one({"id": student_id}, {"$inc": {"applicationsCount": 1}})
+        if drive:
+            await db.drives.update_one({"id": drive_id}, {"$inc": {"registeredCount": 1}})
+
+    # 5. Dispatch Officer Notification (APPLICATION_RECEIVED)
+    officer_query_list: List[Dict[str, Any]] = [
+        {"role": "placement_officer"},
+        {"role": "recruiter"},
+        {"portalRole": "recruiter"},
+        {"portalRole": "placement_officer"},
+        {"role": "admin"}
+    ]
+    if resolved_company_id:
+        officer_query_list.extend([{"companyId": resolved_company_id}, {"company_id": resolved_company_id}])
+    if drive and drive.get("placement_officer_id"):
+        officer_query_list.append({"id": drive.get("placement_officer_id")})
+    if drive and drive.get("recruiter_id"):
+        officer_query_list.append({"id": drive.get("recruiter_id")})
+
+    responsible_officers = await db.users.find({"$or": officer_query_list}, {"_id": 0}).to_list(length=500)
+
+    target_officer_ids = list(set([o["id"] for o in responsible_officers if o.get("id")]))
+    if not target_officer_ids:
+        all_officers = await db.users.find({"role": {"$in": ["placement_officer", "admin"]}}, {"_id": 0}).to_list(length=50)
+        target_officer_ids = [o["id"] for o in all_officers if o.get("id")]
+
+    title_suffix = " (Company Website)" if resolved_source == "external" else ""
+    message_text = f"{submitted_name} has applied for {resolved_job_title} role at {resolved_company_name} placement drive."
+
+    for off_id in target_officer_ids:
+        notif_id = f"notif-app-{student_id}-{int(datetime.now().timestamp())}-{off_id[:6]}"
+        await create_idempotent_notification(db, {
+            "id": notif_id,
+            "recipient_user_id": off_id,
+            "recipientRole": "placement_officer",
+            "recipientName": "Placement Officer",
+            "type": "APPLICATION_RECEIVED",
+            "title": f"New Placement Application{title_suffix}",
+            "message": message_text,
+            "application_id": app_id,
+            "student_id": student_id,
+            "drive_id": drive_id,
+            "company_id": resolved_company_id,
+            "company_name": resolved_company_name,
+            "job_title": resolved_job_title,
+            "source": resolved_source,
+            "application_url": resolved_url,
+            "applicant": app_doc["applicant"],
+            "relatedRoute": f"/companies/{drive_id}",
+            "read": False,
+            "important": True,
+            "timestamp": datetime.now().strftime("%I:%M %p • %d %b %Y"),
+            "created_at": now_iso
+        })
+
+    return {
+        "status": "ok",
+        "message": f"Application submitted successfully for {resolved_job_title} at {resolved_company_name}",
+        "applicationId": app_id,
+        "studentId": student_id,
+        "driveId": drive_id,
+        "source": resolved_source,
+        "applicationUrl": resolved_url,
+        "applicant": app_doc["applicant"],
+        "skillsExtracted": len(real_skills),
+        "projectsExtracted": len(real_projects)
+    }
 
 @router.post("/apply")
 async def apply_to_drive(
     req: ApplyDriveRequest,
     current_user: Dict[str, Any] = Depends(get_current_user)
 ):
+    """Submit application via JSON payload."""
+    db = db_manager.db
+    if db is None:
+        raise HTTPException(status_code=503, detail="Database unavailable")
+    return await _process_student_application(
+        db=db,
+        current_user=current_user,
+        drive_id=req.driveId,
+        name=req.name,
+        mobile=req.mobile,
+        college_name=req.college_name,
+        location=req.location,
+        company_name=req.company_name,
+        job_title=req.job_title,
+        company_id=req.company_id,
+        source=req.source,
+        application_url=req.application_url
+    )
+
+@router.post("/apply-form")
+async def apply_to_drive_form(
+    driveId: str = Form(...),
+    name: Optional[str] = Form(None),
+    mobile: Optional[str] = Form(None),
+    college_name: Optional[str] = Form(None),
+    location: Optional[str] = Form(None),
+    company_name: Optional[str] = Form(None),
+    job_title: Optional[str] = Form(None),
+    company_id: Optional[str] = Form(None),
+    source: Optional[str] = Form(None),
+    application_url: Optional[str] = Form(None),
+    file: Optional[UploadFile] = File(None),
+    current_user: Dict[str, Any] = Depends(get_current_user)
+):
+    """Submit application via multipart form with automatic resume analysis."""
+    db = db_manager.db
+    if db is None:
+        raise HTTPException(status_code=503, detail="Database unavailable")
+    return await _process_student_application(
+        db=db,
+        current_user=current_user,
+        drive_id=driveId,
+        name=name,
+        mobile=mobile,
+        college_name=college_name,
+        location=location,
+        company_name=company_name,
+        job_title=job_title,
+        company_id=company_id,
+        source=source,
+        application_url=application_url,
+        file=file
+    )
+
+@router.post("/external-apply/start")
+async def start_external_application(
+    req: ExternalApplyStartRequest,
+    current_user: Dict[str, Any] = Depends(get_current_user)
+):
     """
-    Submit application for active placement drive.
-    GATED: Profile must be complete (Resume uploaded + verified skills).
+    Initialize external job application tracking before redirecting student to external company URL.
+    Generates a secure return token and records status: APPLICATION_STARTED.
     """
     db = db_manager.db
     if db is None:
         raise HTTPException(status_code=503, detail="Database unavailable")
-    
-    # Enforce student ID from authenticated JWT session
+
+    import uuid
     student_id = current_user.get("id")
     student_email = (current_user.get("email") or "").lower()
 
-    # 1. Fetch student record and resume
-    student = await db.students.find_one({
-        "$or": [{"id": student_id}, {"email": student_email}]
-    }, {"_id": 0})
-
+    student = await db.students.find_one({"$or": [{"id": student_id}, {"email": student_email}]}, {"_id": 0})
     if not student:
-        raise HTTPException(status_code=404, detail="Student profile record not found")
+        raise HTTPException(status_code=404, detail="Student profile not found")
 
-    latest_resume = await db.resumes.find_one({"student_id": student_id}, {"_id": 0})
-    has_resume = latest_resume is not None or bool(student.get("resumeUrl"))
-    skills = student.get("skills", [])
-    if latest_resume and "extracted_profile" in latest_resume:
-        skills = list(set(skills + latest_resume["extracted_profile"].get("raw_skills", [])))
-
-    # 2. Check Profile Completion Gate
-    pct, is_comp, missing, _ = calculate_profile_completion(
-        student,
-        has_resume=has_resume,
-        skills_count=len(skills)
-    )
-
-    if not is_comp:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=f"Profile Incomplete ({pct}%): You must upload and analyze your resume before applying for placement drives. Missing: {', '.join(missing)}"
-        )
-    
-    # 3. Check Placement Drive Existence & Eligibility
-    drive = await db.drives.find_one({"id": req.driveId}, {"_id": 0})
-    if not drive:
-        raise HTTPException(status_code=404, detail=f"Placement drive {req.driveId} not found")
-
-    grad_year = 2027
-    if str(student.get("batch", "")).isdigit():
-        grad_year = int(student.get("batch"))
-
-    student_eval_data = {
-        "cgpa": float(student.get("cgpa") or 0.0),
-        "branch": str(student.get("branch") or "CSE"),
-        "graduationYear": grad_year,
-        "skills": skills
-    }
-
-    is_eligible, reasons, missing_reqs = evaluate_drive_eligibility(student_eval_data, drive)
-    if not is_eligible:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=f"Not Eligible for {drive.get('companyName', 'this drive')}: {', '.join(reasons)}"
-        )
-
-    # 4. Store application record (Avoid duplicate submission)
-    existing_app = await db.applications.find_one({"studentId": student_id, "driveId": req.driveId})
-    if existing_app:
+    # Check if already completed
+    existing_app = await db.applications.find_one({
+        "$or": [
+            {"student_id": student_id, "drive_id": req.drive_id},
+            {"studentId": student_id, "driveId": req.drive_id}
+        ]
+    })
+    if existing_app and existing_app.get("status") in ["EXTERNAL_APPLICATION_COMPLETED", "APPLIED", "SHORTLISTED"]:
         return {
-            "status": "ok",
-            "message": f"Already applied for drive {req.driveId}",
-            "studentId": student_id,
-            "driveId": req.driveId,
-            "alreadyApplied": True
+            "status": "already_applied",
+            "already_applied": True,
+            "message": f"You have already applied for {req.company_name or 'this company'}.",
+            "redirect_url": req.application_url,
+            "return_token": existing_app.get("return_token"),
+            "drive_id": req.drive_id
         }
 
+    return_token = f"tok_{uuid.uuid4().hex[:16]}"
+    now_iso = datetime.now().isoformat()
+    app_id = f"app-{student_id}-{req.drive_id}"
+
+    # Get student resume info
+    latest_resume = await db.resumes.find_one({"student_id": student_id}, {"_id": 0})
+    extracted_prof = latest_resume.get("extracted_profile", {}) if latest_resume else {}
+    real_skills = extracted_prof.get("raw_skills") or student.get("skills", [])
+    real_projects = extracted_prof.get("projects") or student.get("projects", [])
+
+    app_doc = {
+        "id": app_id,
+        "student_id": student_id,
+        "studentId": student_id,
+        "student_name": student.get("name") or current_user.get("name") or "Student",
+        "studentName": student.get("name") or current_user.get("name") or "Student",
+        "student_email": student_email,
+        "studentEmail": student_email,
+        "drive_id": req.drive_id,
+        "driveId": req.drive_id,
+        "company_name": req.company_name or "Company",
+        "companyName": req.company_name or "Company",
+        "job_title": req.job_title or "Software Engineer",
+        "roleTitle": req.job_title or "Software Engineer",
+        "company_id": req.company_id or "comp-external",
+        "companyId": req.company_id or "comp-external",
+        "source": "external",
+        "application_type": "EXTERNAL",
+        "application_url": req.application_url,
+        "return_token": return_token,
+        "status": "APPLICATION_STARTED",
+        "started_at": now_iso,
+        "applied_at": datetime.now().strftime("%d %b %Y"),
+        "applicant": {
+            "name": student.get("name") or current_user.get("name") or "Student",
+            "email": student_email,
+            "mobile": student.get("mobile") or student.get("phone") or "N/A",
+            "college_name": student.get("college") or "Campus University",
+            "location": student.get("location") or "Bengaluru"
+        },
+        "skills": real_skills,
+        "projects": real_projects,
+        "created_at": now_iso,
+        "updated_at": now_iso
+    }
+
     await db.applications.update_one(
-        {"studentId": student_id, "driveId": req.driveId},
-        {"$set": {
-            "studentId": student_id,
-            "studentEmail": student_email,
-            "studentName": student.get("name", current_user.get("name")),
-            "driveId": req.driveId,
-            "appliedAt": datetime.now().isoformat()
-        }},
+        {"student_id": student_id, "drive_id": req.drive_id},
+        {"$set": app_doc},
         upsert=True
     )
-    await db.students.update_one({"id": student_id}, {"$inc": {"applicationsCount": 1}})
-    await db.drives.update_one({"id": req.driveId}, {"$inc": {"registeredCount": 1}})
+
     return {
         "status": "ok",
-        "message": f"Application submitted successfully for drive {req.driveId}",
-        "studentId": student_id,
-        "driveId": req.driveId
+        "already_applied": False,
+        "message": "External application initiated",
+        "redirect_url": req.application_url,
+        "return_token": return_token,
+        "drive_id": req.drive_id,
+        "company_name": req.company_name,
+        "job_title": req.job_title
     }
+
+@router.get("/external-apply/status")
+async def get_external_application_status(
+    drive_id: str,
+    token: Optional[str] = None,
+    current_user: Dict[str, Any] = Depends(get_current_user)
+):
+    """
+    Check the current tracking status of an external job application attempt.
+    """
+    db = db_manager.db
+    if db is None:
+        raise HTTPException(status_code=503, detail="Database unavailable")
+
+    student_id = current_user.get("id")
+    student_email = (current_user.get("email") or "").lower()
+
+    query: Dict[str, Any] = {
+        "$or": [
+            {"student_id": student_id, "drive_id": drive_id},
+            {"student_email": student_email, "drive_id": drive_id}
+        ]
+    }
+    if token:
+        query["return_token"] = token
+
+    app = await db.applications.find_one(query, {"_id": 0})
+    if not app:
+        # Fallback query by drive_id alone for the student
+        app = await db.applications.find_one({
+            "$or": [
+                {"student_id": student_id, "drive_id": drive_id},
+                {"student_email": student_email, "drive_id": drive_id}
+            ]
+        }, {"_id": 0})
+
+    if not app:
+        raise HTTPException(status_code=404, detail="External application record not found")
+
+    return {
+        "status": "ok",
+        "application_id": app.get("id"),
+        "drive_id": app.get("drive_id"),
+        "company_name": app.get("company_name", "Company"),
+        "job_title": app.get("job_title", "Software Engineer"),
+        "application_url": app.get("application_url"),
+        "application_status": app.get("status", "APPLICATION_STARTED"),
+        "started_at": app.get("started_at"),
+        "completed_at": app.get("completed_at"),
+        "verification_type": app.get("verification_type"),
+        "is_completed": app.get("status") in ["EXTERNAL_APPLICATION_COMPLETED", "APPLIED", "SHORTLISTED"]
+    }
+
+@router.post("/external-apply/confirm")
+async def confirm_external_application(
+    req: ExternalApplyConfirmRequest,
+    current_user: Dict[str, Any] = Depends(get_current_user)
+):
+    """
+    Process return confirmation after external job application.
+    If student confirmed completion: updates status to EXTERNAL_APPLICATION_COMPLETED and dispatches officer notification.
+    If student indicates not completed: updates status to APPLICATION_NOT_CONFIRMED.
+    """
+    db = db_manager.db
+    if db is None:
+        raise HTTPException(status_code=503, detail="Database unavailable")
+
+    import uuid
+    student_id = current_user.get("id")
+    student_email = (current_user.get("email") or "").lower()
+
+    app = await db.applications.find_one({
+        "$or": [
+            {"student_id": student_id, "drive_id": req.drive_id},
+            {"student_email": student_email, "drive_id": req.drive_id}
+        ]
+    })
+    if not app:
+        raise HTTPException(status_code=404, detail="Application record not found")
+
+    now_iso = datetime.now().isoformat()
+    company_name = app.get("company_name", "Company")
+    job_title = app.get("job_title", "Software Engineer")
+    student_name = app.get("student_name") or current_user.get("name") or "Student"
+    company_id = app.get("company_id", "comp-external")
+
+    if req.completed:
+        await db.applications.update_one(
+            {"_id": app["_id"]},
+            {"$set": {
+                "status": "EXTERNAL_APPLICATION_COMPLETED",
+                "verification_type": "self_confirmed",
+                "completed_at": now_iso,
+                "updated_at": now_iso
+            }}
+        )
+        await db.students.update_one({"id": student_id}, {"$inc": {"applicationsCount": 1}})
+
+        # Dispatch Officer Notification
+        responsible_officers = await db.users.find({
+            "$or": [
+                {"role": "placement_officer"},
+                {"role": "recruiter"},
+                {"portalRole": "recruiter"},
+                {"portalRole": "placement_officer"},
+                {"role": "admin"}
+            ]
+        }, {"_id": 0}).to_list(length=500)
+
+        target_officer_ids = list(set([o["id"] for o in responsible_officers if o.get("id")]))
+        if not target_officer_ids:
+            all_officers = await db.users.find({"role": {"$in": ["placement_officer", "admin"]}}, {"_id": 0}).to_list(length=50)
+            target_officer_ids = [o["id"] for o in all_officers if o.get("id")]
+
+        for off_id in target_officer_ids:
+            notif_id = f"notif-ext-app-{student_id}-{int(datetime.now().timestamp())}-{off_id[:6]}"
+            await create_idempotent_notification(db, {
+                "id": notif_id,
+                "recipient_user_id": off_id,
+                "recipientRole": "placement_officer",
+                "recipientName": "Placement Officer",
+                "type": "APPLICATION_RECEIVED",
+                "title": "New External Application Completed",
+                "message": f"{student_name} has applied for {job_title} role at {company_name} placement drive.",
+                "application_id": app.get("id"),
+                "student_id": student_id,
+                "drive_id": req.drive_id,
+                "company_id": company_id,
+                "company_name": company_name,
+                "job_title": job_title,
+                "source": "external",
+                "application_url": app.get("application_url"),
+                "relatedRoute": f"/companies/{req.drive_id}",
+                "read": False,
+                "important": True,
+                "timestamp": datetime.now().strftime("%I:%M %p • %d %b %Y"),
+                "created_at": now_iso
+            })
+
+        return {
+            "status": "ok",
+            "is_completed": True,
+            "message": f"You have successfully applied for {company_name}",
+            "company_name": company_name,
+            "job_title": job_title
+        }
+    else:
+        await db.applications.update_one(
+            {"_id": app["_id"]},
+            {"$set": {
+                "status": "APPLICATION_NOT_CONFIRMED",
+                "updated_at": now_iso
+            }}
+        )
+        return {
+            "status": "not_confirmed",
+            "is_completed": False,
+            "message": "Application not confirmed",
+            "company_name": company_name,
+            "job_title": job_title
+        }
 
 @router.get("/me/placement-recommendations", response_model=List[PlacementRecommendationSchema])
 async def get_my_placement_recommendations(current_user: Dict[str, Any] = Depends(get_current_user)):
@@ -328,109 +926,16 @@ async def get_my_skill_gaps(current_user: Dict[str, Any] = Depends(get_current_u
 @router.get("/{student_id}/placement-recommendations", response_model=List[PlacementRecommendationSchema])
 async def get_placement_recommendations(student_id: str):
     """
-    Returns active placement drives ranked by calculated AI skill match score and deterministic hard eligibility
+    Returns unified placement opportunities (College Drives + Live External Feeds)
+    ranked by calculated AI skill match score and deterministic hard eligibility
     using the student's real resume data.
     """
-    db = db_manager.db
-    if db is None:
-        raise HTTPException(status_code=503, detail="Database unavailable")
-
-    # 1. Fetch student data and latest uploaded resume profile
-    student = await db.students.find_one({"id": student_id}, {"_id": 0})
-    latest_resume = await db.resumes.find_one({
-        "$or": [{"student_id": student_id}, {"student_id": "rahul-verma"} if student_id in ("student-demo", "rahul-verma") else {"student_id": student_id}]
-    }, {"_id": 0})
-
-    has_resume = latest_resume is not None or bool(student and student.get("resumeUrl") and student.get("resumeUrl") not in ("#", "None", ""))
-
-    student_data = {
-        "cgpa": float(student.get("cgpa", 0.0)) if student else 0.0,
-        "branch": student.get("branch", "CSE") if student else "CSE",
-        "graduationYear": 2027,
-        "skills": student.get("skills", []) if student else []
-    }
-    if student and str(student.get("batch", "")).isdigit():
-        student_data["graduationYear"] = int(student.get("batch"))
-
-    if latest_resume and "extracted_profile" in latest_resume:
-        prof = latest_resume["extracted_profile"]
-        if prof.get("cgpa"):
-            student_data["cgpa"] = prof["cgpa"]
-        if prof.get("branch"):
-            student_data["branch"] = prof["branch"]
-        if prof.get("graduation_year"):
-            student_data["graduationYear"] = prof["graduation_year"]
-        if prof.get("raw_skills"):
-            student_data["skills"] = list(set(student_data["skills"] + prof["raw_skills"]))
-
-    # 2. Fetch active drives
-    drives = await db.drives.find({"status": "open"}, {"_id": 0}).to_list(length=100)
-    if not drives:
-        drives = await db.drives.find({}, {"_id": 0}).to_list(length=100)
-
-    recommendations: List[PlacementRecommendationSchema] = []
-
-    for drive in drives:
-        if not has_resume or len(student_data.get("skills", [])) == 0:
-            # NO RESUME / PROFILE INCOMPLETE CASE
-            recommendations.append(PlacementRecommendationSchema(
-                drive_id=drive.get("id", "drive-1"),
-                company=drive.get("companyName", "Company"),
-                role=drive.get("roleTitle", "Software Engineer"),
-                company_logo=drive.get("companyLogo", "TN"),
-                package_lpa=drive.get("packageLpa"),
-                location=drive.get("location"),
-                match_score=0,
-                eligible=False,
-                eligibility_reasons=["Upload and analyze your resume in the Resume Analyzer to determine eligibility and match score."],
-                missing_requirements=["Resume Upload Required"],
-                matched_skills=[],
-                skill_gaps=drive.get("requiredSkills", []),
-                matched_preferred_skills=[],
-                missing_preferred_skills=drive.get("preferredSkills", []),
-                recommendation="Upload your resume to discover placement opportunities you are eligible for."
-            ))
-            continue
-
-        # Step 1: Hard Eligibility Check (Deterministic)
-        eligible, reasons, missing_reqs = evaluate_drive_eligibility(student_data, drive)
-
-        # Step 2: Skill Matching Score (Dynamic from real student skills)
-        match_score, matched_req, missing_req, matched_pref, missing_pref = calculate_skill_match(
-            student_data.get("skills", []),
-            drive
-        )
-
-        # Step 3: Recommendation string
-        rec_text = generate_recommendation_text(
-            eligible,
-            reasons,
-            match_score,
-            missing_req,
-            missing_pref
-        )
-
-        recommendations.append(PlacementRecommendationSchema(
-            drive_id=drive.get("id", "drive-1"),
-            company=drive.get("companyName", "Company"),
-            role=drive.get("roleTitle", "Software Engineer"),
-            company_logo=drive.get("companyLogo", "TN"),
-            package_lpa=drive.get("packageLpa"),
-            location=drive.get("location"),
-            match_score=match_score,
-            eligible=eligible,
-            eligibility_reasons=reasons,
-            missing_requirements=missing_reqs,
-            matched_skills=matched_req,
-            skill_gaps=missing_req,
-            matched_preferred_skills=matched_pref,
-            missing_preferred_skills=missing_pref,
-            recommendation=rec_text
-        ))
-
-    # Rank drives by match_score descending (eligible drives prioritized)
-    recommendations.sort(key=lambda x: (1 if x.eligible else 0, x.match_score), reverse=True)
-    return recommendations
+    ranked_ops = await get_ranked_opportunities_for_student(
+        student_id=student_id,
+        source_filter="all",
+        eligibility_filter="all"
+    )
+    return [PlacementRecommendationSchema(**opp) for opp in ranked_ops]
 
 @router.get("/{student_id}/skill-gaps", response_model=SkillGapResponseSchema)
 async def get_student_skill_gaps(student_id: str):
@@ -475,3 +980,10 @@ async def get_student_skill_gaps(student_id: str):
         total_drives_analyzed=len(drives),
         skill_gaps=gap_items
     )
+
+@router.get("/me/interviews")
+async def get_my_interviews_alias(current_user: Dict[str, Any] = Depends(get_current_user)):
+    """Retrieve all scheduled/assigned interviews for currently authenticated student."""
+    from app.routes.interviews import get_my_student_interviews
+    return await get_my_student_interviews(current_user=current_user)
+

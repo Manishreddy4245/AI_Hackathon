@@ -16,48 +16,7 @@ export const EligibilityModal: React.FC<EligibilityModalProps> = ({ isOpen, onCl
 
   if (!isOpen) return null;
 
-  // Additional mock candidates to populate realistic 428 pool metrics
-  const fullRoster: Student[] = [
-    ...students,
-    {
-      id: 'std-7',
-      rollNumber: '2021ECE1045',
-      name: 'Rohan Gupta',
-      email: 'rohan.g@campus.edu',
-      avatar: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=150',
-      branch: 'ECE',
-      batch: '2027',
-      cgpa: 6.9,
-      skills: ['Python', 'C++'],
-      projects: [],
-      certifications: [],
-      readinessScore: 65,
-      resumeUrl: '#',
-      placementStatus: 'unplaced',
-      applicationsCount: 1,
-      shortlistsCount: 0,
-      interviewsCount: 0,
-    },
-    {
-      id: 'std-8',
-      rollNumber: '2021ME1012',
-      name: 'Vikas Sharma',
-      email: 'vikas.s@campus.edu',
-      avatar: 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?w=150',
-      branch: 'Mechanical',
-      batch: '2027',
-      cgpa: 7.9,
-      skills: ['CAD', 'Python'],
-      projects: [],
-      certifications: [],
-      readinessScore: 70,
-      resumeUrl: '#',
-      placementStatus: 'unplaced',
-      applicationsCount: 2,
-      shortlistsCount: 0,
-      interviewsCount: 0,
-    },
-  ];
+  const fullRoster: Student[] = students;
 
   const evaluatedList = fullRoster.map((student) => {
     const result = checkEligibility(student, drive);

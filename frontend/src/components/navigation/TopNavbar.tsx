@@ -30,7 +30,7 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
 }) => {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
-  const { notificationsList, markNotificationRead } = usePlacement();
+  const { notificationsList, markNotificationRead, markAllNotificationsRead } = usePlacement();
 
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
@@ -41,7 +41,7 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
   const unreadCount = notificationsList.filter((n) => !n.read).length;
 
   const markAllRead = () => {
-    notificationsList.forEach((n) => markNotificationRead(n.id));
+    markAllNotificationsRead();
   };
 
   // Close dropdowns on outside click
@@ -165,9 +165,27 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
                   <div
                     key={n.id}
                     onClick={() => {
+                      markNotificationRead(n.id);
                       setNotificationsOpen(false);
-                      const baseRoute = user?.role === 'student' ? '/student/interviews' : '/admin/notifications';
-                      navigate(n.relatedRoute || baseRoute);
+                      if (n.relatedRoute) {
+                        navigate(n.relatedRoute);
+                        return;
+                      }
+                      const notifType = (n.type || (n as any).notificationType || '').toUpperCase();
+                      const driveId = n.drive_id || (n as any).driveId;
+                      if (notifType.includes('INTERVIEW') || notifType.includes('SHORTLIST')) {
+                        navigate(user?.role === 'student' ? '/student/interviews' : '/admin/interviews');
+                        return;
+                      }
+                      if (user?.role === 'recruiter') {
+                        navigate('/recruiter/drives');
+                        return;
+                      }
+                      if (driveId) {
+                        navigate(user?.role === 'student' ? `/student/community/${driveId}` : `/admin/companies/${driveId}`);
+                        return;
+                      }
+                      navigate(user?.role === 'student' ? '/student/drives' : '/admin/notifications');
                     }}
                     className={`p-3.5 hover:bg-[#192B45] transition-colors cursor-pointer space-y-1 ${
                       !n.read ? 'bg-[#3B82F6]/10' : ''

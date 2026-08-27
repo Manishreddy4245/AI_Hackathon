@@ -38,19 +38,89 @@ def evaluate_drive_eligibility(student_data: Dict[str, Any], drive_data: Dict[st
             missing_requirements.append(f"Branch in [{branch_list_str}]")
 
     # 3. Graduation Year Check
-    student_grad_year = student_data.get("graduationYear") or student_data.get("graduation_year") or student_data.get("batch")
+    student_grad_year = (
+        student_data.get("graduationYear")
+        if student_data.get("graduationYear") is not None
+        else student_data.get("graduation_year")
+        if student_data.get("graduation_year") is not None
+        else student_data.get("batch")
+    )
     try:
-        if isinstance(student_grad_year, str):
+        if student_grad_year is not None:
             student_grad_year = int(student_grad_year)
     except (ValueError, TypeError):
         student_grad_year = None
 
-    drive_grad_year = drive_data.get("graduationYear") or drive_data.get("graduation_year")
+    raw_drive_years = (
+        drive_data.get("graduationYears")
+        if drive_data.get("graduationYears") is not None
+        else drive_data.get("eligible_graduation_years")
+        if drive_data.get("eligible_graduation_years") is not None
+        else drive_data.get("graduation_years")
+        if drive_data.get("graduation_years") is not None
+        else drive_data.get("graduationYear")
+        if drive_data.get("graduationYear") is not None
+        else drive_data.get("graduation_year")
+    )
 
-    if drive_grad_year and student_grad_year:
-        if student_grad_year != drive_grad_year:
-            reasons.append(f"Eligible graduation year is {drive_grad_year} (Your Graduation Year: {student_grad_year}).")
-            missing_requirements.append(f"Graduation Year == {drive_grad_year}")
+    drive_grad_years: List[int] = []
+    if raw_drive_years is not None:
+        if isinstance(raw_drive_years, (list, tuple, set)):
+            for y in raw_drive_years:
+                try:
+                    drive_grad_years.append(int(y))
+                except (ValueError, TypeError):
+                    pass
+        else:
+            try:
+                drive_grad_years.append(int(raw_drive_years))
+            except (ValueError, TypeError):
+                pass
+
+    if drive_grad_years and student_grad_year is not None:
+        if student_grad_year not in drive_grad_years:
+            if len(drive_grad_years) == 1:
+                years_str = str(drive_grad_years[0])
+            else:
+                years_str = ", ".join(str(y) for y in sorted(drive_grad_years))
+            reasons.append(f"Graduation year {student_grad_year} is not eligible for this drive. Eligible graduation year(s): {years_str}.")
+            missing_requirements.append(f"Graduation Year in [{years_str}]")
+
+
+    # 4. Active Backlogs Check
+    student_backlogs = (
+        student_data.get("activeBacklogs")
+        if student_data.get("activeBacklogs") is not None
+        else student_data.get("backlogs")
+        if student_data.get("backlogs") is not None
+        else student_data.get("backlogsCount")
+        if student_data.get("backlogsCount") is not None
+        else student_data.get("active_backlogs")
+    )
+    
+    max_backlogs = (
+        drive_data.get("maxBacklogs")
+        if drive_data.get("maxBacklogs") is not None
+        else drive_data.get("max_backlogs")
+        if drive_data.get("max_backlogs") is not None
+        else drive_data.get("allowedBacklogs")
+    )
+
+    if max_backlogs is not None:
+        try:
+            max_backlogs = int(max_backlogs)
+        except (ValueError, TypeError):
+            max_backlogs = None
+
+    if max_backlogs is not None and student_backlogs is not None:
+        try:
+            student_backlogs = int(student_backlogs)
+            if student_backlogs > max_backlogs:
+                reasons.append(f"Maximum allowed backlogs is {max_backlogs} (Your Active Backlogs: {student_backlogs}).")
+                missing_requirements.append(f"Active Backlogs <= {max_backlogs}")
+        except (ValueError, TypeError):
+            pass
 
     is_eligible = len(reasons) == 0
     return is_eligible, reasons, missing_requirements
+

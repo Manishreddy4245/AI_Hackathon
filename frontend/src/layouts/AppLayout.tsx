@@ -21,6 +21,7 @@ import {
   ShieldCheck,
   FileCheck,
   CheckCircle2,
+  BrainCircuit,
 } from 'lucide-react';
 import { TopNavbar } from '../components/navigation/TopNavbar';
 import { useAuth } from '../context/AuthContext';
@@ -63,10 +64,15 @@ export const AppLayout: React.FC = () => {
 
     // Student routes
     if (path.startsWith('/student')) {
-      if (path.includes('/resume')) return 'AI Resume Analyzer & Match';
+      if (path.includes('/dashboard')) return 'Student Career & Placement Workspace';
+      if (path.includes('/resume')) return 'AI Resume Analyzer & Profile';
       if (path.includes('/drives')) return 'Eligible Placement Drives';
+      if (path.includes('/assessment')) return 'AI Placement Assessment & PrepBot';
+      if (path.includes('/assessments')) return 'My Placement Assessments';
+      if (path.includes('/applications')) return 'My Submitted Applications';
       if (path.includes('/interviews')) return 'My Scheduled Interviews';
-      if (path.includes('/skills')) return 'My Skill Gaps & Action Plan';
+      if (path.includes('/notifications')) return 'Candidate Notifications & Alerts';
+      if (path.includes('/profile')) return 'My Student Profile & Credentials';
       if (path.includes('/copilot')) return 'Student Placement Copilot';
       return 'Student Career & Placement Workspace';
     }
@@ -89,12 +95,16 @@ export const AppLayout: React.FC = () => {
     {
       label: 'STUDENT WORKSPACE',
       items: [
-        { path: '/student/dashboard', label: 'My Dashboard', icon: <UserCheck className="w-4 h-4" /> },
+        { path: '/student/dashboard', label: 'Dashboard', icon: <UserCheck className="w-4 h-4" /> },
+        { path: '/student/resume', label: 'Resume Analyzer', icon: <Sparkles className="w-4 h-4" /> },
         { path: '/student/drives', label: 'Placement Drives', icon: <Briefcase className="w-4 h-4" /> },
-        { path: '/student/resume', label: 'AI Resume Analyzer', icon: <Sparkles className="w-4 h-4" /> },
+        { path: '/student/community', label: 'Communities', icon: <Users className="w-4 h-4" /> },
+        { path: '/student/assessment', label: 'AI Assessment', icon: <BrainCircuit className="w-4 h-4" /> },
+        { path: '/student/assessments', label: 'My Assessments', icon: <BarChart3 className="w-4 h-4" /> },
+        { path: '/student/applications', label: 'My Applications', icon: <FileCheck className="w-4 h-4" /> },
         { path: '/student/interviews', label: 'My Interviews', icon: <GraduationCap className="w-4 h-4" /> },
-        { path: '/student/skills', label: 'My Skill Gaps', icon: <BookOpen className="w-4 h-4" /> },
-        { path: '/student/copilot', label: 'Placement Copilot', icon: <Bot className="w-4 h-4" /> },
+        { path: '/student/notifications', label: 'Notifications', icon: <Bell className="w-4 h-4" /> },
+        { path: '/student/profile', label: 'Profile', icon: <BookOpen className="w-4 h-4" /> },
       ],
     },
   ];

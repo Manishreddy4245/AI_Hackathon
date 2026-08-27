@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Sparkles,
@@ -16,23 +16,33 @@ import {
   XCircle,
   FolderGit2,
   Check,
+  Users,
 } from 'lucide-react';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { Card, CardHeader, CardTitle, CardContent } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { MatchScore } from '../../components/ui/MatchScore';
 import { usePlacement } from '../../context/PlacementContext';
-import { mockMatches } from '../../data/mockData';
-import { CandidateMatch } from '../../types';
+import { apiService } from '../../services/api';
 import { CandidateComparisonModal } from '../../components/candidates/CandidateComparisonModal';
 import { EligibilityModal } from '../../components/candidates/EligibilityModal';
+import { ShortlistInterviewModal } from '../../components/candidates/ShortlistInterviewModal';
 
 export const AIMatching: React.FC = () => {
   const navigate = useNavigate();
-  const { drives, isShortlisted, toggleShortlist, toastNotice } = usePlacement();
+  const { drives, triggerToast } = usePlacement();
 
-  const [selectedDriveId, setSelectedDriveId] = useState('technova-backend');
+  const [selectedDriveId, setSelectedDriveId] = useState(drives[0]?.id || '');
   const selectedDrive = drives.find((d) => d.id === selectedDriveId) || drives[0];
+
+  useEffect(() => {
+    if (!selectedDriveId && drives.length > 0) {
+      setSelectedDriveId(drives[0].id);
+    }
+  }, [drives, selectedDriveId]);
+
+  const [poolCandidates, setPoolCandidates] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
 
   // AI Matching Processing Execution State
   const [isMatching, setIsMatching] = useState(false);
@@ -40,20 +50,44 @@ export const AIMatching: React.FC = () => {
   const [hasRunMatching, setHasRunMatching] = useState(true);
 
   // Expandable "Why this candidate?" state map
-  const [expandedCandidateIds, setExpandedCandidateIds] = useState<Record<string, boolean>>({
-    'rahul-verma': true,
-  });
+  const [expandedCandidateIds, setExpandedCandidateIds] = useState<Record<string, boolean>>({});
 
-  // Candidate Selection for Comparison
+  // Candidate Selection for Comparison & Shortlisting
   const [selectedForComparison, setSelectedForComparison] = useState<string[]>([]);
   const [isComparisonModalOpen, setIsComparisonModalOpen] = useState(false);
   const [isEligibilityModalOpen, setIsEligibilityModalOpen] = useState(false);
+  const [selectedForShortlist, setSelectedForShortlist] = useState<any | null>(null);
+
+  const [isRefreshingCandidates, setIsRefreshingCandidates] = useState(false);
 
   // Filters State
   const [scoreFilter, setScoreFilter] = useState('all');
   const [branchFilter, setBranchFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
   const [skillFilter, setSkillFilter] = useState('all');
+
+  const fetchDriveCandidates = async (isInitial: boolean = false) => {
+    if (isInitial) {
+      setLoading(true);
+    } else {
+      setIsRefreshingCandidates(true);
+    }
+    try {
+      const data = await apiService.getCandidatePool(selectedDriveId);
+      if (data !== null) {
+        setPoolCandidates(data || []);
+      }
+    } catch (err) {
+      console.error('Error fetching drive pool:', err);
+    } finally {
+      setLoading(false);
+      setIsRefreshingCandidates(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchDriveCandidates(true);
+  }, [selectedDriveId]);
 
   const handleRunMatching = () => {
     setIsMatching(true);
@@ -66,6 +100,7 @@ export const AIMatching: React.FC = () => {
     setTimeout(() => {
       setIsMatching(false);
       setHasRunMatching(true);
+      fetchDriveCandidates(false);
     }, 2200);
   };
 
@@ -88,29 +123,48 @@ export const AIMatching: React.FC = () => {
     }
   };
 
-  // Filter candidates list
-  const filteredMatches = mockMatches.filter((match) => {
+  const handleShortlistSuccess = async (payload: any) => {
+    if (!selectedForShortlist) return;
+    const candId = selectedForShortlist.id;
+    // In-place optimistic update
+    setPoolCandidates((prev) =>
+      prev.map((c) => (c.id === candId ? { ...c, status: 'SHORTLISTED' } : c))
+    );
+    try {
+      await apiService.shortlistApplication(candId, payload);
+      triggerToast(`Successfully shortlisted ${selectedForShortlist.student_name}!`, 'success');
+      fetchDriveCandidates(false);
+    } catch (err) {
+      triggerToast('Failed to shortlist candidate.', 'error');
+      fetchDriveCandidates(false);
+    }
+  };
+
+  // Filter real candidates list
+  const filteredMatches = poolCandidates.filter((match) => {
+    const score = match.match_score || match.readiness_score || 0;
     const matchesScore =
       scoreFilter === 'all' ||
-      (scoreFilter === '90+' && match.matchScore >= 90) ||
-      (scoreFilter === '80+' && match.matchScore >= 80) ||
-      (scoreFilter === '70+' && match.matchScore >= 70);
+      (scoreFilter === '90+' && score >= 90) ||
+      (scoreFilter === '80+' && score >= 80) ||
+      (scoreFilter === '70+' && score >= 70);
 
-    const matchesBranch = branchFilter === 'all' || match.branch.toUpperCase() === branchFilter.toUpperCase();
+    const matchesBranch = branchFilter === 'all' || (match.branch || '').toUpperCase() === branchFilter.toUpperCase();
 
-    const shortlisted = isShortlisted(match.studentId, selectedDriveId);
+    const isShortlisted = match.status === 'SHORTLISTED';
     const matchesStatus =
       statusFilter === 'all' ||
-      (statusFilter === 'shortlisted' && shortlisted) ||
-      (statusFilter === 'eligible' && !shortlisted);
+      (statusFilter === 'shortlisted' && isShortlisted) ||
+      (statusFilter === 'eligible' && !isShortlisted);
 
     const matchesSkill =
-      skillFilter === 'all' || (match.matchedSkills && match.matchedSkills.some((s: string) => s.toLowerCase().includes(skillFilter.toLowerCase())));
+      skillFilter === 'all' ||
+      (match.skills && match.skills.some((s: string) => s.toLowerCase().includes(skillFilter.toLowerCase())));
 
     return matchesScore && matchesBranch && matchesStatus && matchesSkill;
   });
 
-  const selectedMatches = mockMatches.filter((m) => selectedForComparison.includes(m.studentId));
+  const selectedMatches = poolCandidates.filter((m) => selectedForComparison.includes(m.student_id));
 
   return (
     <div className="space-y-6 pb-12">
@@ -142,118 +196,67 @@ export const AIMatching: React.FC = () => {
         }
       />
 
-      {/* Human Control Advisory Disclaimer */}
-      <div className="p-3.5 bg-[rgba(245,158,11,0.10)] border border-[rgba(245,158,11,0.25)] rounded-xl flex items-center justify-between text-xs text-[#FCD34D] font-semibold">
-        <div className="flex items-center gap-2">
-          <ShieldCheck className="w-4 h-4 text-[#F59E0B]" />
-          <span>AI recommendation — Human Placement Officer retains final candidate shortlisting authority.</span>
-        </div>
-        <span className="text-[10px] uppercase font-bold bg-[rgba(245,158,11,0.20)] text-[#FCD34D] px-2 py-0.5 rounded border border-[rgba(245,158,11,0.30)]">
-          Human-in-the-Loop
-        </span>
-      </div>
-
-      {/* Dynamic Toast Feedback */}
-      {toastNotice && (
-        <div className="p-4 rounded-xl bg-[#101D31] text-[#F8FAFC] border border-[#243650] flex items-center justify-between shadow-3d-md animate-in fade-in slide-in-from-top-2">
-          <div className="flex items-center gap-2.5 text-xs font-semibold">
-            <Sparkles className="w-4 h-4 text-[#3B82F6]" />
-            <span>{toastNotice}</span>
-          </div>
-        </div>
-      )}
-
-      {/* DRIVE SELECTOR & ACTION STRIP */}
-      <Card className="p-5 border-[#243650] bg-[#101D31] shadow-[0_12px_35px_rgba(0,0,0,0.22)]">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="space-y-1">
-            <label className="block text-xs font-bold text-[#94A3B8] uppercase tracking-wider">
-              Select Placement Drive
-            </label>
+      {/* DRIVE SELECTOR & AI RUN ACTION CARD */}
+      <Card className="p-6 bg-[#101D31] border-[#243650]">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+          <div className="space-y-2 max-w-xl">
+            <span className="text-xs font-bold text-[#60A5FA] uppercase tracking-wider block">
+              Active Placement Drive Target
+            </span>
             <div className="flex items-center gap-3">
               <select
                 value={selectedDriveId}
                 onChange={(e) => setSelectedDriveId(e.target.value)}
-                className="text-sm font-bold bg-[#0B1628] border border-[#243650] text-[#F8FAFC] rounded-xl px-3.5 py-2 focus:outline-none focus:border-[#3B82F6] cursor-pointer shadow-xs"
+                className="text-base font-bold bg-[#0B1628] border border-[#243650] text-[#F8FAFC] rounded-xl px-4 py-2.5 focus:outline-none focus:border-[#3B82F6] cursor-pointer"
               >
                 {drives.map((d) => (
                   <option key={d.id} value={d.id}>
-                    {d.companyName} — {d.roleTitle} (₹{d.packageLpa} LPA)
+                    {d.companyName} — {d.roleTitle}
                   </option>
                 ))}
               </select>
-              <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-[rgba(34,197,94,0.10)] text-[#86EFAC] border border-[rgba(34,197,94,0.25)]">
-                286 eligible candidates
-              </span>
             </div>
+            <p className="text-xs text-[#CBD5E1] leading-relaxed">
+              Evaluating candidates against required competencies: {selectedDrive?.preferredSkills?.join(', ') || (selectedDrive as any)?.eligibilityCriteria?.skills?.join(', ') || 'Core Skills'}.
+            </p>
           </div>
 
-          <Button
-            variant="primary"
-            size="lg"
-            icon={<Sparkles className="w-4 h-4 text-white" />}
-            onClick={handleRunMatching}
-            disabled={isMatching}
-          >
-            {isMatching ? 'Analyzing Roster...' : 'Run AI Matching'}
-          </Button>
-        </div>
-      </Card>
-
-      {/* PROCESSING STATE INTERFACE */}
-      {isMatching && (
-        <Card className="p-6 border-[#243650] bg-[#101D31]">
-          <h4 className="text-sm font-bold text-[#F8FAFC] mb-4 flex items-center gap-2">
-            <Bot className="w-4 h-4 text-[#3B82F6] animate-bounce" /> Executing AI Matching Pipeline
-          </h4>
-          <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 text-xs font-semibold">
-            <div className={`p-3 rounded-lg border flex items-center gap-2 ${matchingStep >= 1 ? 'bg-[rgba(34,197,94,0.10)] border-[rgba(34,197,94,0.25)] text-[#86EFAC]' : 'bg-[#14243B] border-[#243650] text-[#64748B]'}`}>
-              {matchingStep >= 1 ? <CheckCircle2 className="w-4 h-4 text-[#22C55E]" /> : <div className="w-4 h-4 rounded-full border-2 border-[#64748B]" />}
-              <span>1. Eligibility verified</span>
-            </div>
-            <div className={`p-3 rounded-lg border flex items-center gap-2 ${matchingStep >= 2 ? 'bg-[rgba(34,197,94,0.10)] border-[rgba(34,197,94,0.25)] text-[#86EFAC]' : 'bg-[#14243B] border-[#243650] text-[#64748B]'}`}>
-              {matchingStep >= 2 ? <CheckCircle2 className="w-4 h-4 text-[#22C55E]" /> : <div className="w-4 h-4 rounded-full border-2 border-[#64748B]" />}
-              <span>2. Profiles loaded</span>
-            </div>
-            <div className={`p-3 rounded-lg border flex items-center gap-2 ${matchingStep >= 3 ? 'bg-[rgba(59,130,246,0.15)] border-[rgba(59,130,246,0.30)] text-[#60A5FA] animate-pulse' : 'bg-[#14243B] border-[#243650] text-[#64748B]'}`}>
-              {matchingStep >= 3 ? <Sparkles className="w-4 h-4 text-[#3B82F6]" /> : <div className="w-4 h-4 rounded-full border-2 border-[#64748B]" />}
-              <span>3. Analyzing skill alignment</span>
-            </div>
-            <div className={`p-3 rounded-lg border flex items-center gap-2 ${matchingStep >= 4 ? 'bg-[rgba(34,197,94,0.10)] border-[rgba(34,197,94,0.25)] text-[#86EFAC]' : 'bg-[#14243B] border-[#243650] text-[#64748B]'}`}>
-              {matchingStep >= 4 ? <CheckCircle2 className="w-4 h-4 text-[#22C55E]" /> : <div className="w-4 h-4 rounded-full border-2 border-[#64748B]" />}
-              <span>4. Generating recommendations</span>
-            </div>
-          </div>
-        </Card>
-      )}
-
-      {/* AI INSIGHTS SUMMARY CARD */}
-      {hasRunMatching && (
-        <Card className="p-5 ai-card-surface text-[#F8FAFC]">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div className="space-y-2">
-              <div className="flex items-center gap-2">
-                <Sparkles className="w-4 h-4 text-[#06B6D4]" />
-                <h3 className="text-sm font-bold text-[#F8FAFC] uppercase tracking-wider">AI Candidate Insights &amp; Synthesis</h3>
-              </div>
-              <ul className="text-xs text-[#CBD5E1] space-y-1 list-disc list-inside">
-                <li><span className="font-semibold text-white">Python and SQL</span> are the strongest skill matches across candidates.</li>
-                <li>8 eligible candidates have strong technical alignment but lack <span className="text-[#FCD34D]">Docker</span> experience.</li>
-                <li>3 candidates have excellent project relevance matching TechNova backend APIs.</li>
-              </ul>
-            </div>
+          <div className="flex items-center gap-3 shrink-0">
             <Button
-              variant="outline"
-              size="sm"
-              className="bg-[#101D31] border-[#243650] text-[#CBD5E1] hover:text-white shrink-0 self-start md:self-center"
-              icon={<BookOpen className="w-3.5 h-3.5" />}
-              onClick={() => navigate('/analytics')}
+              variant="primary"
+              size="lg"
+              icon={<Bot className="w-5 h-5" />}
+              onClick={handleRunMatching}
+              disabled={isMatching}
+              className="shadow-lg shadow-[#3B82F6]/20 font-bold"
             >
-              View Skill Gaps
+              {isMatching ? 'Running Neural Matching...' : 'Re-Evaluate Drive Candidates'}
             </Button>
           </div>
-        </Card>
-      )}
+        </div>
+
+        {/* Dynamic AI Execution Stepper */}
+        {isMatching && (
+          <div className="mt-6 pt-6 border-t border-[#1B2A40] space-y-3 animate-in fade-in duration-300">
+            <div className="flex items-center justify-between text-xs font-semibold text-[#CBD5E1]">
+              <span>Neural Processing Pipeline</span>
+              <span className="text-[#3B82F6]">Phase {matchingStep} of 4</span>
+            </div>
+            <div className="w-full h-2 bg-[#0B1628] rounded-full overflow-hidden">
+              <div
+                className="h-full bg-gradient-to-r from-[#3B82F6] to-[#06B6D4] transition-all duration-500 rounded-full"
+                style={{ width: `${(matchingStep / 4) * 100}%` }}
+              />
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-[11px] text-[#94A3B8]">
+              <span className={matchingStep >= 1 ? 'text-[#86EFAC] font-medium' : ''}>1. Parsing Resume Profiles</span>
+              <span className={matchingStep >= 2 ? 'text-[#86EFAC] font-medium' : ''}>2. Semantic Skill Alignment</span>
+              <span className={matchingStep >= 3 ? 'text-[#86EFAC] font-medium' : ''}>3. Academic Verification</span>
+              <span className={matchingStep >= 4 ? 'text-[#86EFAC] font-medium' : ''}>4. Ranking Fit Index</span>
+            </div>
+          </div>
+        )}
+      </Card>
 
       {/* FILTER CONTROLS BAR */}
       <Card className="p-4 bg-[#101D31] border-[#243650]">
@@ -300,18 +303,14 @@ export const AIMatching: React.FC = () => {
           </div>
 
           <div>
-            <label className="block text-[10px] font-bold uppercase text-[#94A3B8] mb-1">Required Skill</label>
-            <select
-              value={skillFilter}
-              onChange={(e) => setSkillFilter(e.target.value)}
-              className="w-full text-xs p-2 bg-[#0B1628] border border-[#243650] text-[#F8FAFC] rounded-lg focus:outline-none focus:border-[#3B82F6] cursor-pointer font-medium"
-            >
-              <option value="all">All Skills</option>
-              <option value="Python">Python</option>
-              <option value="SQL">SQL</option>
-              <option value="REST APIs">REST APIs</option>
-              <option value="FastAPI">FastAPI</option>
-            </select>
+            <label className="block text-[10px] font-bold uppercase text-[#94A3B8] mb-1">Skill Filter</label>
+            <input
+              type="text"
+              placeholder="Search skill (e.g. Python, SQL)..."
+              value={skillFilter === 'all' ? '' : skillFilter}
+              onChange={(e) => setSkillFilter(e.target.value || 'all')}
+              className="w-full text-xs p-2 bg-[#0B1628] border border-[#243650] text-[#F8FAFC] placeholder-[#64748B] rounded-lg focus:outline-none focus:border-[#3B82F6]"
+            />
           </div>
         </div>
       </Card>
@@ -323,122 +322,135 @@ export const AIMatching: React.FC = () => {
           <span className="text-xs text-[#94A3B8] font-medium">Showing {filteredMatches.length} candidates</span>
         </div>
 
-        {filteredMatches.map((m, idx) => {
-          const shortlisted = isShortlisted(m.studentId, selectedDriveId);
-          const isExpanded = expandedCandidateIds[m.studentId];
-          const isSelectedForComp = selectedForComparison.includes(m.studentId);
+        {filteredMatches.length === 0 ? (
+          <Card className="p-12 text-center text-[#94A3B8] bg-[#101D31] border-[#243650] space-y-2">
+            <Users className="w-8 h-8 text-[#64748B] mx-auto opacity-50" />
+            <p className="text-sm font-bold text-[#F8FAFC]">No applicants for this placement drive yet</p>
+            <p className="text-xs text-[#64748B]">When students submit applications, neural matching and ranking will evaluate them here.</p>
+          </Card>
+        ) : (
+          filteredMatches.map((m, idx) => {
+            const isShortlisted = m.status === 'SHORTLISTED';
+            const isExpanded = expandedCandidateIds[m.student_id];
+            const isSelectedForComp = selectedForComparison.includes(m.student_id);
+            const score = m.match_score || m.readiness_score || 88;
 
-          return (
-            <Card key={m.studentId} className={`p-5 transition-all bg-[#101D31] border-[#243650] ${shortlisted ? 'bg-[#3B82F6]/10 border-[#3B82F6]/40' : ''}`}>
-              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                {/* Checkbox & Student Basic Info */}
-                <div className="flex items-start gap-4">
-                  <input
-                    type="checkbox"
-                    checked={isSelectedForComp}
-                    onChange={() => toggleSelectForComparison(m.studentId)}
-                    className="mt-2.5 w-4 h-4 rounded border-[#243650] text-[#3B82F6] focus:ring-[#3B82F6] cursor-pointer"
-                    title="Select to compare"
-                  />
-                  <div className="w-7 h-7 rounded-full bg-[#14243B] text-[#F8FAFC] border border-[#243650] font-bold text-xs flex items-center justify-center shrink-0 mt-0.5">
-                    #{idx + 1}
-                  </div>
-                  <img
-                    src={m.studentAvatar}
-                    alt={m.studentName}
-                    className="w-12 h-12 rounded-full object-cover border border-[#243650] shrink-0"
-                  />
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <h4 className="text-base font-bold text-[#F8FAFC]">{m.studentName}</h4>
-                      <span className="text-xs font-semibold px-2 py-0.5 rounded bg-[#14243B] text-[#CBD5E1] border border-[#243650]">
-                        {m.branch} &bull; CGPA {m.cgpa}
-                      </span>
+            return (
+              <Card key={m.id || m.student_id} className={`p-5 transition-all bg-[#101D31] border-[#243650] ${isShortlisted ? 'bg-[#3B82F6]/10 border-[#3B82F6]/40' : ''}`}>
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                  {/* Checkbox & Student Basic Info */}
+                  <div className="flex items-start gap-4">
+                    <input
+                      type="checkbox"
+                      checked={isSelectedForComp}
+                      onChange={() => toggleSelectForComparison(m.student_id)}
+                      className="mt-2.5 w-4 h-4 rounded border-[#243650] text-[#3B82F6] focus:ring-[#3B82F6] cursor-pointer"
+                      title="Select to compare"
+                    />
+                    <div className="w-7 h-7 rounded-full bg-[#14243B] text-[#F8FAFC] border border-[#243650] font-bold text-xs flex items-center justify-center shrink-0 mt-0.5">
+                      #{idx + 1}
                     </div>
-
-                    <div className="flex flex-wrap gap-1.5 mt-2">
-                      {m.matchedSkills.map((s: string, i: number) => (
-                        <span key={i} className="px-2 py-0.5 rounded bg-[#0B1628] text-[#CBD5E1] border border-[#243650] text-[11px] font-medium">
-                          {s}
+                    <div className="w-12 h-12 rounded-full bg-gradient-to-tr from-[#3B82F6] to-[#8B5CF6] flex items-center justify-center font-bold text-white text-base shadow-sm shrink-0">
+                      {m.student_name?.charAt(0) || 'S'}
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h4 className="text-base font-bold text-[#F8FAFC]">{m.student_name}</h4>
+                        <span className="text-xs font-semibold px-2 py-0.5 rounded bg-[#14243B] text-[#CBD5E1] border border-[#243650]">
+                          {m.branch} &bull; CGPA {m.cgpa}
                         </span>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Score & Actions */}
-                <div className="flex items-center gap-4 shrink-0">
-                  <MatchScore score={m.matchScore} />
-
-                  <div className="flex items-center gap-2">
-                    <Button
-                      variant={shortlisted ? 'emerald' : 'primary'}
-                      size="sm"
-                      onClick={() => toggleShortlist(m.studentId, selectedDriveId)}
-                    >
-                      {shortlisted ? '✓ Shortlisted' : 'Shortlist Candidate'}
-                    </Button>
-
-                    <button
-                      onClick={() => toggleExpandWhy(m.studentId)}
-                      className="p-2 rounded-xl text-[#94A3B8] hover:text-white hover:bg-[#14243B] transition-colors cursor-pointer"
-                      title="Toggle match breakdown"
-                    >
-                      {isExpanded ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              {/* EXPANDABLE "WHY THIS CANDIDATE?" BREAKDOWN */}
-              {isExpanded && (
-                <div className="mt-4 pt-4 border-t border-[#1B2A40] space-y-3 text-xs animate-in fade-in duration-150">
-                  <div className="p-3.5 ai-recommendation-box rounded-xl space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="font-bold text-[#3B82F6] flex items-center gap-1.5">
-                        <Bot className="w-4 h-4" /> AI Match Rationale &amp; Synthesis
-                      </span>
-                      <span className="text-[10px] text-[#CBD5E1] font-semibold">
-                        Overall Similarity: {m.matchScore}%
-                      </span>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
-                      {/* Technical Fit */}
-                      <div className="p-2.5 bg-[#0B1628] rounded-lg border border-[#243650] space-y-1">
-                        <span className="font-bold text-[#86EFAC] block">✓ Technical Capability Fit ({m.skillMatchPercent}%)</span>
-                        <p className="text-[11px] text-[#CBD5E1] leading-relaxed">
-                          Demonstrates high proficiency in required stack items: {m.matchedSkills.join(', ')}.
-                        </p>
+                        {isShortlisted && (
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-[rgba(34,197,94,0.15)] text-[#4ADE80] border border-[rgba(34,197,94,0.30)]">
+                            Shortlisted
+                          </span>
+                        )}
                       </div>
 
-                      {/* Project Relevance */}
-                      <div className="p-2.5 bg-[#0B1628] rounded-lg border border-[#243650] space-y-1">
-                        <span className="font-bold text-[#60A5FA] block">✓ Project Relevance ({m.whyDetails?.projectRelevanceCount || 2} Projects)</span>
-                        <p className="text-[11px] text-[#CBD5E1] flex items-center gap-1">
-                          <FolderGit2 className="w-3.5 h-3.5 text-[#3B82F6]" /> Relevant Projects Matched
-                        </p>
+                      <div className="flex flex-wrap gap-1.5 mt-2">
+                        {(m.skills || []).map((s: string, i: number) => (
+                          <span key={i} className="px-2 py-0.5 rounded bg-[#0B1628] text-[#CBD5E1] border border-[#243650] text-[11px] font-medium">
+                            {s}
+                          </span>
+                        ))}
                       </div>
                     </div>
                   </div>
+
+                  {/* Score & Actions */}
+                  <div className="flex items-center gap-4 shrink-0">
+                    <MatchScore score={score} size="md" />
+
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant={isShortlisted ? 'outline' : 'primary'}
+                        size="sm"
+                        onClick={() => setSelectedForShortlist(m)}
+                        icon={isShortlisted ? <Check className="w-4 h-4 text-[#22C55E]" /> : undefined}
+                      >
+                        {isShortlisted ? 'Update Shortlist' : 'Shortlist'}
+                      </Button>
+
+                      <button
+                        onClick={() => toggleExpandWhy(m.student_id)}
+                        className="p-1.5 text-[#94A3B8] hover:text-[#F8FAFC] hover:bg-[#192B45] rounded-lg transition-colors cursor-pointer"
+                        title="View AI Analysis Breakdown"
+                      >
+                        {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                      </button>
+                    </div>
+                  </div>
                 </div>
-              )}
-            </Card>
-          );
-        })}
+
+                {/* Expanded "Why this candidate?" Section */}
+                {isExpanded && (
+                  <div className="mt-4 pt-4 border-t border-[#1B2A40] grid grid-cols-1 md:grid-cols-2 gap-4 text-xs animate-in fade-in duration-200">
+                    <div className="p-3 bg-[#0B1628] rounded-xl border border-[#243650] space-y-1.5">
+                      <span className="font-bold text-[#86EFAC] flex items-center gap-1">
+                        <CheckCircle2 className="w-3.5 h-3.5" /> Technical Strengths
+                      </span>
+                      <p className="text-[#CBD5E1] text-[11px]">
+                        Strong alignment in {(m.skills || []).slice(0, 4).join(', ')}. Verified CGPA of {m.cgpa}.
+                      </p>
+                    </div>
+
+                    <div className="p-3 bg-[#0B1628] rounded-xl border border-[#243650] space-y-1.5">
+                      <span className="font-bold text-[#60A5FA] flex items-center gap-1">
+                        <FolderGit2 className="w-3.5 h-3.5" /> Projects Evaluated
+                      </span>
+                      <p className="text-[#CBD5E1] text-[11px]">
+                        {(m.projects || []).length > 0
+                          ? m.projects.map((p: any) => p.name || p.title || p).join(', ')
+                          : 'Demonstrated core capabilities during resume evaluation.'}
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </Card>
+            );
+          })
+        )}
       </div>
 
-      {/* MODALS */}
+      {/* Candidate Comparison Modal */}
       <CandidateComparisonModal
         isOpen={isComparisonModalOpen}
         onClose={() => setIsComparisonModalOpen(false)}
-        candidates={selectedMatches}
+        candidates={selectedMatches as any}
       />
 
+      {/* Eligibility Rules Modal */}
       <EligibilityModal
         isOpen={isEligibilityModalOpen}
         onClose={() => setIsEligibilityModalOpen(false)}
-        drive={selectedDrive}
+        drive={selectedDrive as any}
+      />
+
+      {/* Shortlist & Interview Scheduling Modal */}
+      <ShortlistInterviewModal
+        isOpen={!!selectedForShortlist}
+        onClose={() => setSelectedForShortlist(null)}
+        candidate={selectedForShortlist}
+        onShortlistSuccess={handleShortlistSuccess}
       />
     </div>
   );

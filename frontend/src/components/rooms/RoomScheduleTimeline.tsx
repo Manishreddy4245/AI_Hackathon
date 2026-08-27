@@ -9,11 +9,11 @@ interface RoomScheduleTimelineProps {
 export const RoomScheduleTimeline: React.FC<RoomScheduleTimelineProps> = ({ room }) => {
   const defaultBookings = room.bookings || [
     { time: '09:00 AM', status: 'free' },
-    { time: '10:00 AM', status: 'occupied', driveName: 'TechNova Technical Interview' },
+    { time: '10:00 AM', status: 'free' },
     { time: '11:00 AM', status: 'free' },
-    { time: '12:00 PM', status: 'occupied', driveName: 'DataSphere Candidate Evaluation' },
+    { time: '12:00 PM', status: 'free' },
     { time: '01:00 PM', status: 'free' },
-    { time: '02:00 PM', status: 'occupied', driveName: 'FinEdge Assessment' },
+    { time: '02:00 PM', status: 'free' },
     { time: '03:00 PM', status: 'free' },
     { time: '04:00 PM', status: 'free' },
   ];

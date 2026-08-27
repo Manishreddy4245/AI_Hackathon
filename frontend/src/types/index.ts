@@ -6,9 +6,25 @@ export interface AuthUser {
   email: string;
   role: UserRole;
   companyId?: string;
+  companyName?: string;
 }
 
-export type DriveStatus = 'draft' | 'open' | 'shortlisting' | 'interview' | 'closed' | 'completed' | 'ongoing' | 'upcoming';
+export type DriveStatus =
+  | 'PENDING_ANNOUNCEMENT'
+  | 'PENDING_APPROVAL'
+  | 'CHANGES_PENDING_REVIEW'
+  | 'ANNOUNCED'
+  | 'ACTIVE'
+  | 'CHANGES_REQUESTED'
+  | 'REJECTED'
+  | 'draft'
+  | 'open'
+  | 'shortlisting'
+  | 'interview'
+  | 'closed'
+  | 'completed'
+  | 'ongoing'
+  | 'upcoming';
 
 export type CandidateStatus = 'registered' | 'eligible' | 'applied' | 'shortlisted' | 'interview' | 'selected' | 'rejected';
 
@@ -39,9 +55,21 @@ export interface Company {
 }
 
 export interface ProjectItem {
-  name: string;
+  title: string;
+  name?: string;
   description: string;
-  techStack: string[];
+  technologies: string[];
+  techStack?: string[];
+  githubUrl?: string;
+  liveUrl?: string;
+}
+
+
+export interface ExperienceItem {
+  company: string;
+  role: string;
+  duration: string;
+  description: string;
 }
 
 export interface CertificationItem {
@@ -75,7 +103,9 @@ export interface PlacementDrive {
   employmentType: 'Full-time' | 'Internship' | 'PPO';
   eligibleBranches: string[];
   minCgpa: number;
+  maxBacklogs?: number;
   graduationYear: number;
+  graduationYears?: number[];
   driveDate: string;
   status: DriveStatus;
   registeredCount: number;
@@ -83,12 +113,80 @@ export interface PlacementDrive {
   selectedCount: number;
   deadline: string;
   description: string;
+  rawText?: string;
   requiredSkills: string[];
   preferredSkills: string[];
   aiExplanation?: string;
   aiConfirmed?: boolean;
   pipeline?: DrivePipelineStats;
   aiInsights?: DriveAIInsights;
+  recruiter_id?: string;
+  recruiter_email?: string;
+  created_at?: string;
+  approved_by?: string;
+  approved_at?: string;
+  rejection_reason?: string;
+  changes_feedback?: string;
+}
+
+export interface CandidateRoundDetail {
+  application_id: string;
+  student_id: string;
+  student_name: string;
+  student_email: string;
+  rollNumber: string;
+  branch: string;
+  cgpa: number;
+  skills: string[];
+  resume_url?: string;
+  application_status: string;
+  round_status: 'PASSED' | 'REJECTED' | 'PENDING' | string;
+  notes?: string;
+}
+
+export interface RecruitmentRound {
+  id: string;
+  drive_id: string;
+  name: string;
+  round_type: string;
+  order: number;
+  is_final: boolean;
+  date?: string;
+  time?: string;
+  venue?: string;
+  panel_name?: string;
+  description?: string;
+  candidates_count?: number;
+  passed_count?: number;
+  rejected_count?: number;
+  pending_count?: number;
+  candidates?: CandidateRoundDetail[];
+}
+
+export interface DriveRecruiterMetrics {
+  roleTitle: string;
+  packageLpa?: number;
+  packageText: string;
+  location: string;
+  registeredCount: number;
+  shortlistedCount: number;
+  selectedCount: number;
+}
+
+export interface DriveRecruiterDashboardData {
+  drive: PlacementDrive;
+  metrics: DriveRecruiterMetrics;
+  rounds: RecruitmentRound[];
+  interviews: Array<{
+    id: string;
+    candidateName: string;
+    candidateRoll: string;
+    round: string;
+    timeSlot: string;
+    roomName: string;
+    panelName: string;
+    status: string;
+  }>;
 }
 
 export interface Student {
@@ -171,8 +269,12 @@ export interface Room {
 
 export interface Interview {
   id: string;
+  driveId?: string;
+  applicationId?: string;
   candidateId?: string;
   candidateName: string;
+
+
   candidateRoll: string;
   companyName: string;
   roleTitle: string;
@@ -208,9 +310,20 @@ export interface NotificationItem {
   timestamp: string;
   read: boolean;
   important: boolean;
-  type: NotificationType;
-  recipientRole: RecipientRole;
+  type: NotificationType | string;
+  recipientRole: RecipientRole | string;
   recipientName: string;
+  recipient_user_id?: string;
+  created_at?: string;
+  scheduled?: boolean;
+  scheduledAt?: string;
+  status?: string;
+  priority?: string;
+  company_name?: string;
+  job_title?: string;
+  drive_id?: string;
+  application_id?: string;
+  student_id?: string;
   relatedRoute?: string;
   relatedDriveName?: string;
   relatedCandidateName?: string;

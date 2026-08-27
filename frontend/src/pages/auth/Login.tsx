@@ -20,19 +20,6 @@ export const Login: React.FC = () => {
   const handleRoleSelect = (role: UserRole) => {
     setSelectedRole(role);
     setError(null);
-    if (role === 'placement_officer') {
-      setEmail('admin@placemind.local');
-      setPassword('password123');
-    } else if (role === 'student') {
-      setEmail('student@placemind.local');
-      setPassword('password123');
-    } else if (role === 'recruiter') {
-      setEmail('recruiter@placemind.local');
-      setPassword('password123');
-    } else if (role === 'panel_member') {
-      setEmail('panel@placemind.local');
-      setPassword('password123');
-    }
   };
 
   const executeLogin = async (e?: React.FormEvent) => {
@@ -171,13 +158,7 @@ export const Login: React.FC = () => {
                 <Mail className="w-4 h-4 absolute left-3 top-3 text-[#64748B]" />
                 <input
                   type="email"
-                  placeholder={
-                    selectedRole === 'placement_officer'
-                      ? 'placement@demo.com'
-                      : selectedRole === 'student'
-                      ? 'student@demo.com'
-                      : 'recruiter@demo.com'
-                  }
+                  placeholder="name@example.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   className="w-full pl-9 pr-3 py-2 bg-[#0B1628] border border-[#243650] rounded-xl text-sm text-[#F8FAFC] placeholder-[#64748B] focus:outline-none focus:border-[#3B82F6] focus:ring-2 focus:ring-[#3B82F6]/20 transition-all font-medium"
@@ -188,9 +169,6 @@ export const Login: React.FC = () => {
             <div>
               <div className="flex items-center justify-between mb-1">
                 <label className="block text-xs font-bold text-[#E2E8F0]">Password</label>
-                <span className="text-[11px] text-[#94A3B8] cursor-pointer hover:text-[#CBD5E1]">
-                  Demo pass: password123
-                </span>
               </div>
               <div className="relative">
                 <Lock className="w-4 h-4 absolute left-3 top-3 text-[#64748B]" />
