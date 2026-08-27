@@ -30,12 +30,12 @@ class PlacementDriveCreate(BaseModel):
     companyLogo: Optional[str] = "https://images.unsplash.com/photo-1549923746-c502d488b3ea?w=100&auto=format&fit=crop&q=80"
     roleTitle: str
     packageLpa: float
-    location: Optional[str] = "Bengaluru / Hybrid"
+    location: Optional[str] = None
     employmentType: Optional[str] = "Full Time"
-    eligibleBranches: List[str] = ["CSE", "IT", "ECE"]
-    minCgpa: float = 7.0
-    graduationYear: Optional[int] = 2027
-    graduationYears: Optional[List[int]] = Field(default_factory=lambda: [2027])
+    eligibleBranches: List[str] = Field(default_factory=list)
+    minCgpa: Optional[float] = None
+    graduationYear: Optional[int] = None
+    graduationYears: List[int] = Field(default_factory=list)
     maxBacklogs: Optional[int] = 0
     driveDate: Optional[str] = "2026-10-31"
     deadline: Optional[str] = "2026-10-31"
@@ -79,13 +79,13 @@ class PlacementDriveSchema(BaseModel):
     companyName: str
     companyLogo: Optional[str] = "https://images.unsplash.com/photo-1549923746-c502d488b3ea?w=100&auto=format&fit=crop&q=80"
     roleTitle: str
-    packageLpa: Optional[float] = 12.0
-    location: Optional[str] = "Bengaluru / Hybrid"
+    packageLpa: Optional[float] = None
+    location: Optional[str] = None
     employmentType: Optional[str] = "Full Time"
-    eligibleBranches: Optional[List[str]] = ["CSE", "IT", "ECE"]
-    minCgpa: Optional[float] = 7.0
-    graduationYear: Optional[int] = 2027
-    graduationYears: Optional[List[int]] = [2027]
+    eligibleBranches: Optional[List[str]] = Field(default_factory=list)
+    minCgpa: Optional[float] = None
+    graduationYear: Optional[int] = None
+    graduationYears: Optional[List[int]] = Field(default_factory=list)
     maxBacklogs: Optional[int] = 0
     driveDate: Optional[str] = "2026-10-31"
     status: Optional[str] = "ANNOUNCED"

@@ -114,3 +114,29 @@ def test_api_endpoint_analyze_job_alias():
     })
     assert resp2.status_code == 200
     assert "FastAPI" in resp2.json()["requiredSkills"] or "Python" in resp2.json()["requiredSkills"]
+
+def test_dynamic_graduation_years_and_absence():
+    """Test dynamic graduation year extraction, integer CGPA, and absence of fields."""
+    # Test 1: Single year 2027 and integer CGPA 7
+    raw1 = "Backend Developer. Minimum CGPA 7. Eligible branches: CSE, IT. Graduation batch: 2027. Required skills: Python, FastAPI. Package: 12 LPA."
+    res1 = dynamic_fallback_jd_extractor(raw1, "Corp1")
+    assert res1.graduationYears == [2027]
+    assert res1.minCgpa == 7.0
+    assert res1.packageLpa == 12.0
+    assert res1.location is None
+
+    # Test 2: Multiple graduation years 2026 and 2027
+    raw2 = "Data Analyst in Hyderabad. Graduating batches 2026 and 2027. Minimum CGPA 7.5. SQL and Python required."
+    res2 = dynamic_fallback_jd_extractor(raw2, "Corp2")
+    assert res2.graduationYears == [2026, 2027]
+    assert res2.minCgpa == 7.5
+    assert res2.location == "Hyderabad"
+
+    # Test 3: Absence test - No year, no CGPA, no branches, no skills
+    raw3 = "Software Engineer position."
+    res3 = dynamic_fallback_jd_extractor(raw3, "Corp3")
+    assert res3.graduationYears == []
+    assert res3.minCgpa is None
+    assert res3.eligibleBranches == []
+    assert res3.packageLpa is None
+    assert res3.location is None

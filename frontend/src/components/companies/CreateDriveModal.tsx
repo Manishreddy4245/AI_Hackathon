@@ -58,8 +58,8 @@ export const CreateDriveModal: React.FC<CreateDriveModalProps> = ({
   // Extracted AI Requirements State (Editable by Recruiter)
   const [isEditingRequirements, setIsEditingRequirements] = useState(false);
   const [extractedMinCgpa, setExtractedMinCgpa] = useState<number>(0);
-  const [extractedGradYear, setExtractedGradYear] = useState<number>(2027);
-  const [extractedGradYears, setExtractedGradYears] = useState<number[]>([2027]);
+  const [extractedGradYear, setExtractedGradYear] = useState<number | null>(null);
+  const [extractedGradYears, setExtractedGradYears] = useState<number[]>([]);
   const [extractedBranches, setExtractedBranches] = useState<string[]>([]);
   const [extractedRequiredSkills, setExtractedRequiredSkills] = useState<string[]>([]);
   const [extractedPreferredSkills, setExtractedPreferredSkills] = useState<string[]>([]);
@@ -67,6 +67,7 @@ export const CreateDriveModal: React.FC<CreateDriveModalProps> = ({
   const [extractedSummary, setExtractedSummary] = useState<string>('');
   const [newSkillInput, setNewSkillInput] = useState('');
   const [newBranchInput, setNewBranchInput] = useState('');
+  const [newGradYearInput, setNewGradYearInput] = useState('');
 
   // Race condition & request cancellation protection
   const latestRequestIdRef = useRef<number>(0);
@@ -85,8 +86,8 @@ export const CreateDriveModal: React.FC<CreateDriveModalProps> = ({
       setEmploymentType(initialDrive.employmentType || 'Full-time');
       setDeadline(initialDrive.deadline || initialDrive.driveDate || '');
       setExtractedMinCgpa(initialDrive.minCgpa ?? 0);
-      setExtractedGradYear(initialDrive.graduationYear || 2027);
-      setExtractedGradYears(initialDrive.graduationYears || [initialDrive.graduationYear || 2027]);
+      setExtractedGradYear(initialDrive.graduationYear ?? null);
+      setExtractedGradYears(initialDrive.graduationYears || (initialDrive.graduationYear ? [initialDrive.graduationYear] : []));
       setExtractedBranches(initialDrive.eligibleBranches || []);
       setExtractedRequiredSkills(initialDrive.requiredSkills || []);
       setExtractedPreferredSkills(initialDrive.preferredSkills || []);
@@ -108,8 +109,8 @@ export const CreateDriveModal: React.FC<CreateDriveModalProps> = ({
       defaultDate.setDate(defaultDate.getDate() + 30);
       setDeadline(defaultDate.toISOString().split('T')[0]);
       setExtractedMinCgpa(0);
-      setExtractedGradYear(2027);
-      setExtractedGradYears([2027]);
+      setExtractedGradYear(null);
+      setExtractedGradYears([]);
       setExtractedBranches([]);
       setExtractedRequiredSkills([]);
       setExtractedPreferredSkills([]);
@@ -171,10 +172,12 @@ export const CreateDriveModal: React.FC<CreateDriveModalProps> = ({
       if (extracted.packageLpa !== undefined && extracted.packageLpa !== null && extracted.packageLpa > 0) {
         setPackageLpa(extracted.packageLpa);
       }
-      if ((extracted as any).graduationYears && (extracted as any).graduationYears.length > 0) {
+      if ((extracted as any).graduationYears && Array.isArray((extracted as any).graduationYears)) {
         setExtractedGradYears((extracted as any).graduationYears);
       } else if (extracted.graduationYear) {
         setExtractedGradYears([extracted.graduationYear]);
+      } else {
+        setExtractedGradYears([]);
       }
       setExtractedMinCgpa(extracted.minCgpa ?? 0);
       setExtractedBranches(extracted.eligibleBranches || []);
@@ -199,7 +202,6 @@ export const CreateDriveModal: React.FC<CreateDriveModalProps> = ({
       setAnalysisError(errorMsg);
       setStep('form');
     }
-
   };
 
   const handleAddBranch = () => {
@@ -211,6 +213,18 @@ export const CreateDriveModal: React.FC<CreateDriveModalProps> = ({
 
   const handleRemoveBranch = (branch: string) => {
     setExtractedBranches(extractedBranches.filter((b) => b !== branch));
+  };
+
+  const handleAddGradYear = () => {
+    const parsed = parseInt(newGradYearInput.trim(), 10);
+    if (!isNaN(parsed) && parsed >= 2000 && parsed <= 2100 && !extractedGradYears.includes(parsed)) {
+      setExtractedGradYears([...extractedGradYears, parsed].sort((a, b) => a - b));
+      setNewGradYearInput('');
+    }
+  };
+
+  const handleRemoveGradYear = (year: number) => {
+    setExtractedGradYears(extractedGradYears.filter((y) => y !== year));
   };
 
   const handleAddRequiredSkill = () => {
@@ -253,7 +267,7 @@ export const CreateDriveModal: React.FC<CreateDriveModalProps> = ({
       employmentType,
       eligibleBranches: extractedBranches,
       minCgpa: extractedMinCgpa,
-      graduationYear: extractedGradYears[0] || extractedGradYear || 2027,
+      graduationYear: extractedGradYears[0],
       graduationYears: extractedGradYears,
       driveDate: deadline,
       status: 'draft',
@@ -261,7 +275,7 @@ export const CreateDriveModal: React.FC<CreateDriveModalProps> = ({
       shortlistedCount: initialDrive?.shortlistedCount || 0,
       selectedCount: initialDrive?.selectedCount || 0,
       deadline,
-      description: rawText, // Raw Text as source of truth
+      description: rawText,
       requiredSkills: extractedRequiredSkills,
       preferredSkills: extractedPreferredSkills,
       aiConfirmed: false,
@@ -297,7 +311,7 @@ export const CreateDriveModal: React.FC<CreateDriveModalProps> = ({
       employmentType,
       eligibleBranches: extractedBranches,
       minCgpa: extractedMinCgpa,
-      graduationYear: extractedGradYears[0] || extractedGradYear || 2027,
+      graduationYear: extractedGradYears[0],
       graduationYears: extractedGradYears,
       driveDate: deadline,
       status: (initialDrive?.status || 'PENDING_APPROVAL') as any,
@@ -305,7 +319,7 @@ export const CreateDriveModal: React.FC<CreateDriveModalProps> = ({
       shortlistedCount: initialDrive?.shortlistedCount || 0,
       selectedCount: initialDrive?.selectedCount || 0,
       deadline,
-      description: rawText, // Current Raw Text is single source of truth
+      description: rawText,
       requiredSkills: extractedRequiredSkills,
       preferredSkills: extractedPreferredSkills,
       aiExplanation: extractedExplanation || `Requirements extracted strictly from the recruiter-provided job description for ${roleTitle}.`,
@@ -320,187 +334,134 @@ export const CreateDriveModal: React.FC<CreateDriveModalProps> = ({
         interview: 0,
         selected: 0,
       },
-      aiInsights: {
-        topMatchingSkills: extractedRequiredSkills,
-        commonSkillGaps: extractedPreferredSkills.slice(0, 2),
-        preparationAdvice: extractedRequiredSkills.length > 0
-          ? `Target revision for core requirements: ${extractedRequiredSkills.join(', ')}.`
-          : 'Review standard technical assessment concepts.',
-      },
     };
 
     try {
       if (initialDrive && onDriveUpdated) {
-        const updated = await apiService.updateDrive(initialDrive.id, drivePayload);
-        onDriveUpdated(updated || drivePayload);
+        onDriveUpdated(drivePayload);
       } else {
-        const created = await apiService.createDrive(drivePayload);
-        onDriveCreated(created || drivePayload);
+        onDriveCreated(drivePayload);
       }
-    } catch (err: any) {
-      console.error('CreateDriveModal: Failed API drive creation', err);
-      onDriveCreated(drivePayload);
-    } finally {
       onClose();
+    } catch (err: any) {
+      setAnalysisError(err?.message || 'Failed to save confirmed placement drive.');
     }
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/65 backdrop-blur-md overflow-y-auto">
-      <div className="bg-[#0B1628] rounded-2xl shadow-[0_12px_35px_rgba(0,0,0,0.5)] w-full max-w-2xl overflow-hidden border border-[#243650] my-8 animate-in fade-in zoom-in-95 duration-150 text-[#F8FAFC]">
-        {/* Header */}
-        <div className="px-6 py-4 bg-[#101D31] border-b border-[#243650] text-[#F8FAFC] flex items-center justify-between">
+    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div className="bg-[#0B1628] border border-[#243650] rounded-2xl w-full max-w-3xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden">
+        {/* Modal Header */}
+        <div className="flex items-center justify-between p-4 border-b border-[#243650] bg-[#101D31]">
           <div className="flex items-center gap-2.5">
-            <div className="p-2 rounded-lg bg-gradient-to-tr from-[#3B82F6] to-[#06B6D4] text-white font-bold text-xs shadow-glow-brand">
-              <Sparkles className="w-4 h-4" />
+            <div className="p-2 rounded-xl bg-[rgba(59,130,246,0.15)] text-[#60A5FA] border border-[rgba(59,130,246,0.30)]">
+              <Sparkles className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="text-base font-bold text-[#F8FAFC] tracking-tight">
-                {initialDrive ? 'Edit Placement Drive' : 'Create Placement Drive'}
+              <h3 className="text-sm font-bold text-[#F8FAFC]">
+                {initialDrive ? 'Edit Placement Drive Requirements' : 'Create Campus Placement Drive'}
               </h3>
-              <p className="text-xs text-[#CBD5E1]">Raw Text AI Analysis &amp; Requirement Extraction</p>
+              <p className="text-[11px] text-[#94A3B8]">
+                Driven strictly by recruiter raw text & dynamic AI requirement extraction
+              </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-1 rounded-lg text-[#94A3B8] hover:text-white transition-colors cursor-pointer"
+            className="p-1.5 rounded-lg text-[#94A3B8] hover:text-[#F8FAFC] hover:bg-[#1E293B] transition-colors cursor-pointer"
           >
-            <X className="w-5 h-5" />
+            <X className="w-4 h-4" />
           </button>
         </div>
 
-        {/* Modal Body */}
-        <div className="p-6">
-          {/* Error Banner */}
+        {/* Modal Content */}
+        <div className="p-5 overflow-y-auto flex-1 space-y-4">
           {analysisError && (
-            <div className="mb-4 p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-[#FCA5A5] flex items-start gap-2.5 text-xs">
-              <AlertCircle className="w-4 h-4 text-[#EF4444] shrink-0 mt-0.5" />
-              <div>
-                <p className="font-bold">Analysis Failed</p>
-                <p className="text-[11px] opacity-90">{analysisError}</p>
-              </div>
+            <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 text-xs flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 flex-shrink-0" />
+              <span>{analysisError}</span>
             </div>
           )}
 
-          {/* Stale Analysis Alert */}
-          {isAnalysisStale && (
-            <div className="mb-4 p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-[#FCD34D] flex items-center justify-between gap-2 text-xs">
-              <div className="flex items-center gap-2">
-                <AlertCircle className="w-4 h-4 text-[#F59E0B] shrink-0" />
-                <span className="font-semibold">Analysis outdated — Raw text changed. Analyze again to update job details.</span>
-              </div>
-              <Button
-                variant="primary"
-                size="sm"
-                icon={<RefreshCw className="w-3 h-3" />}
-                onClick={handleStartAIAnalysis}
-              >
-                Analyze Again
-              </Button>
-            </div>
-          )}
-
-          {/* STEP 1: FORM INPUT */}
+          {/* STEP 1: RAW TEXT FORM INPUT */}
           {step === 'form' && (
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                handleStartAIAnalysis();
-              }}
-              className="space-y-4"
-            >
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <form onSubmit={(e) => { e.preventDefault(); handleStartAIAnalysis(); }} className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-bold text-[#E2E8F0] mb-1">Company Name</label>
+                  <label className="text-xs font-semibold text-[#CBD5E1] block mb-1">Company Name</label>
                   <input
                     type="text"
                     required
                     value={companyName}
                     onChange={(e) => setCompanyName(e.target.value)}
-                    className="w-full text-xs p-2.5 bg-[#101D31] border border-[#243650] text-[#F8FAFC] rounded-lg focus:outline-none focus:border-[#3B82F6]"
-                    placeholder="e.g. Acme Corp / TechNova Solutions"
+                    placeholder="e.g. Acme Corp"
+                    className="w-full text-xs p-2.5 bg-[#101D31] border border-[#243650] text-[#F8FAFC] rounded-xl focus:border-[#3B82F6] outline-none"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-[#E2E8F0] mb-1">Job Title (Optional — AI will auto-detect)</label>
+                  <label className="text-xs font-semibold text-[#CBD5E1] block mb-1">Role Title (Optional - AI extracts if empty)</label>
                   <input
                     type="text"
                     value={roleTitle}
                     onChange={(e) => setRoleTitle(e.target.value)}
-                    className="w-full text-xs p-2.5 bg-[#101D31] border border-[#243650] text-[#F8FAFC] rounded-lg focus:outline-none focus:border-[#3B82F6]"
-                    placeholder="e.g. Backend Developer / Auto-detected from JD"
+                    placeholder="e.g. Backend Developer"
+                    className="w-full text-xs p-2.5 bg-[#101D31] border border-[#243650] text-[#F8FAFC] rounded-xl focus:border-[#3B82F6] outline-none"
                   />
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-xs font-semibold text-[#CBD5E1]">
+                    Raw Job Description Text <span className="text-[#EF4444]">*</span>
+                  </label>
+                  <span className="text-[10px] text-[#94A3B8]">AI parses skills, CGPA, branches & graduation years</span>
+                </div>
+                <textarea
+                  required
+                  rows={6}
+                  value={jobDescription}
+                  onChange={(e) => setJobDescription(e.target.value)}
+                  placeholder="Paste or type raw job requirements, e.g.:&#10;Backend Developer for Bengaluru office. Minimum CGPA: 7.5. Eligible branches: CSE, IT. Graduation batch: 2027. Required skills: Python, FastAPI, MongoDB. Good to have: AWS. Package: 12 LPA."
+                  className="w-full text-xs p-3 bg-[#101D31] border border-[#243650] text-[#F8FAFC] rounded-xl focus:border-[#3B82F6] outline-none font-mono leading-relaxed resize-y"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
-                  <label className="block text-xs font-bold text-[#E2E8F0] mb-1">Location</label>
+                  <label className="text-xs font-semibold text-[#CBD5E1] block mb-1">Location (Optional)</label>
                   <input
                     type="text"
                     value={location}
                     onChange={(e) => setLocation(e.target.value)}
-                    className="w-full text-xs p-2.5 bg-[#101D31] border border-[#243650] text-[#F8FAFC] rounded-lg focus:outline-none focus:border-[#3B82F6]"
-                    placeholder="e.g. Bengaluru / Pune / Remote"
+                    placeholder="e.g. Bengaluru / Remote"
+                    className="w-full text-xs p-2.5 bg-[#101D31] border border-[#243650] text-[#F8FAFC] rounded-xl focus:border-[#3B82F6] outline-none"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-[#E2E8F0] mb-1">Package (LPA)</label>
+                  <label className="text-xs font-semibold text-[#CBD5E1] block mb-1">Package (LPA)</label>
                   <input
                     type="number"
                     step="0.5"
                     value={packageLpa || ''}
                     onChange={(e) => setPackageLpa(parseFloat(e.target.value) || 0)}
-                    placeholder="e.g. 12.0"
-                    className="w-full text-xs p-2.5 bg-[#101D31] border border-[#243650] text-[#F8FAFC] rounded-lg focus:outline-none focus:border-[#3B82F6]"
+                    placeholder="e.g. 12"
+                    className="w-full text-xs p-2.5 bg-[#101D31] border border-[#243650] text-[#F8FAFC] rounded-xl focus:border-[#3B82F6] outline-none"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-[#E2E8F0] mb-1">Employment Type</label>
-                  <select
-                    value={employmentType}
-                    onChange={(e) => setEmploymentType(e.target.value as any)}
-                    className="w-full text-xs p-2.5 bg-[#101D31] border border-[#243650] text-[#F8FAFC] rounded-lg focus:outline-none focus:border-[#3B82F6] cursor-pointer"
-                  >
-                    <option value="Full-time">Full-time</option>
-                    <option value="Internship">Internship</option>
-                    <option value="PPO">PPO</option>
-                  </select>
+                  <label className="text-xs font-semibold text-[#CBD5E1] block mb-1">Application Deadline</label>
+                  <input
+                    type="date"
+                    required
+                    value={deadline}
+                    onChange={(e) => setDeadline(e.target.value)}
+                    className="w-full text-xs p-2.5 bg-[#101D31] border border-[#243650] text-[#F8FAFC] rounded-xl focus:border-[#3B82F6] outline-none"
+                  />
                 </div>
               </div>
 
-              <div>
-                <label className="block text-xs font-bold text-[#E2E8F0] mb-1">Application Deadline</label>
-                <input
-                  type="date"
-                  required
-                  value={deadline}
-                  onChange={(e) => setDeadline(e.target.value)}
-                  className="w-full text-xs p-2.5 bg-[#101D31] border border-[#243650] text-[#F8FAFC] rounded-lg focus:outline-none focus:border-[#3B82F6]"
-                />
-              </div>
-
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="block text-xs font-bold text-[#E2E8F0]">Raw Job Description (Single Source of Truth) *</label>
-                  <span className="text-[10px] text-[#60A5FA] font-semibold flex items-center gap-1">
-                    <Sparkles className="w-3 h-3 text-[#06B6D4]" /> AI parses ONLY this text
-                  </span>
-                </div>
-                <textarea
-                  rows={6}
-                  required
-                  value={jobDescription}
-                  onChange={(e) => setJobDescription(e.target.value)}
-                  placeholder="Paste current raw job description, requirements, or hiring info here (e.g. React Developer with React, TypeScript... or Python Developer with FastAPI, Docker...)"
-                  className="w-full text-xs p-3 bg-[#101D31] border border-[#243650] rounded-lg font-mono text-[#F8FAFC] placeholder-[#64748B] focus:outline-none focus:border-[#3B82F6] leading-relaxed"
-                />
-                <p className="text-[11px] text-[#94A3B8] mt-1">
-                  Paste the full job description. AI analysis dynamically extracts skills, eligibility, CGPA, and branch requirements strictly from this text.
-                </p>
-              </div>
-
-              <div className="pt-4 border-t border-[#243650] flex items-center justify-between">
+              <div className="pt-3 border-t border-[#243650] flex items-center justify-between">
                 <Button variant="outline" size="sm" type="button" onClick={onClose}>
                   Cancel
                 </Button>
@@ -526,10 +487,6 @@ export const CreateDriveModal: React.FC<CreateDriveModalProps> = ({
               </div>
               <h4 className="text-base font-bold text-[#F8FAFC]">AI Job Description Analysis</h4>
               <p className="text-xs text-[#CBD5E1] max-w-sm mx-auto">{analysisStatusText}</p>
-              <div className="flex items-center justify-center gap-2 text-xs text-[#60A5FA]">
-                <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                <span>Processing raw text in real-time...</span>
-              </div>
             </div>
           )}
 
@@ -537,32 +494,17 @@ export const CreateDriveModal: React.FC<CreateDriveModalProps> = ({
           {step === 'review' && (
             <div className="space-y-5">
               <div className="flex items-center justify-between pb-3 border-b border-[#243650]">
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-bold text-[#F8FAFC] uppercase tracking-wider">AI Extracted Requirements</span>
-                  <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#3B82F6]/20 text-[#60A5FA] border border-[#3B82F6]/30">
-                    <Sparkles className="w-3 h-3 text-[#06B6D4]" /> Dynamic AI Extraction
-                  </span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setStep('form')}
-                  >
-                    Edit Raw Text
-                  </Button>
-                  <Button
-                    variant={isEditingRequirements ? 'primary' : 'outline'}
-                    size="sm"
-                    icon={<Edit3 className="w-3.5 h-3.5" />}
-                    onClick={() => setIsEditingRequirements(!isEditingRequirements)}
-                  >
-                    {isEditingRequirements ? 'Done Editing' : 'Fine-Tune'}
-                  </Button>
-                </div>
+                <span className="text-xs font-bold text-[#F8FAFC] uppercase tracking-wider">Review AI Requirements</span>
+                <Button
+                  variant={isEditingRequirements ? 'primary' : 'outline'}
+                  size="sm"
+                  icon={<Edit3 className="w-3.5 h-3.5" />}
+                  onClick={() => setIsEditingRequirements(!isEditingRequirements)}
+                >
+                  {isEditingRequirements ? 'Done Fine-Tuning' : 'Fine-Tune Requirements'}
+                </Button>
               </div>
 
-              {/* Extracted Details Grid */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3 bg-[#101D31] p-3.5 rounded-xl border border-[#243650]">
                 <div>
                   <span className="text-[10px] font-bold text-[#94A3B8] uppercase block">Role</span>
@@ -570,7 +512,7 @@ export const CreateDriveModal: React.FC<CreateDriveModalProps> = ({
                 </div>
                 <div>
                   <span className="text-[10px] font-bold text-[#94A3B8] uppercase block">Location</span>
-                  <span className="text-xs font-bold text-[#F8FAFC]">{location || 'TBD'}</span>
+                  <span className="text-xs font-bold text-[#F8FAFC]">{location || 'Unspecified'}</span>
                 </div>
                 <div>
                   <span className="text-[10px] font-bold text-[#94A3B8] uppercase block">Package</span>
@@ -580,7 +522,6 @@ export const CreateDriveModal: React.FC<CreateDriveModalProps> = ({
                 </div>
               </div>
 
-              {/* Eligibility Criteria */}
               <div className="space-y-3">
                 <h5 className="text-xs font-bold text-[#F8FAFC] uppercase tracking-wider">Eligibility Criteria</h5>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -592,36 +533,29 @@ export const CreateDriveModal: React.FC<CreateDriveModalProps> = ({
                         step="0.1"
                         value={extractedMinCgpa || ''}
                         onChange={(e) => setExtractedMinCgpa(parseFloat(e.target.value) || 0)}
-                        placeholder="e.g. 7.5"
                         className="w-full mt-1 text-xs p-1.5 bg-[#0B1628] border border-[#243650] text-[#F8FAFC] rounded font-bold"
                       />
                     ) : (
-                      <span className="text-base font-bold text-[#F8FAFC]">
-                        {extractedMinCgpa > 0 ? extractedMinCgpa : 'No minimum CGPA'}
-                      </span>
+                      <span className="text-base font-bold text-[#F8FAFC]">{extractedMinCgpa > 0 ? extractedMinCgpa : 'None'}</span>
                     )}
                   </div>
 
                   <div className="p-3 bg-[#101D31] border border-[#243650] rounded-xl sm:col-span-2">
                     <span className="text-[10px] font-semibold text-[#CBD5E1] block mb-1">Eligible Branches</span>
                     <div className="flex flex-wrap gap-1.5">
-                      {extractedBranches.length === 0 ? (
-                        <span className="text-xs text-[#94A3B8] italic">All branches eligible</span>
-                      ) : (
-                        extractedBranches.map((b) => (
+                      {extractedBranches.map((b) => (
                           <span
                             key={b}
                             className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded bg-[rgba(59,130,246,0.15)] text-[#60A5FA] border border-[rgba(59,130,246,0.30)]"
                           >
                             {b}
                             {isEditingRequirements && (
-                              <button onClick={() => handleRemoveBranch(b)} className="hover:text-[#EF4444]">
+                              <button onClick={() => handleRemoveBranch(b)} className="hover:text-[#EF4444] cursor-pointer">
                                 <X className="w-3 h-3" />
                               </button>
                             )}
                           </span>
-                        ))
-                      )}
+                      ))}
                     </div>
                     {isEditingRequirements && (
                       <div className="flex items-center gap-2 mt-2">
@@ -632,49 +566,55 @@ export const CreateDriveModal: React.FC<CreateDriveModalProps> = ({
                           onChange={(e) => setNewBranchInput(e.target.value)}
                           className="text-xs p-1 bg-[#0B1628] border border-[#243650] text-[#F8FAFC] rounded w-24 uppercase"
                         />
-                        <button
-                          type="button"
-                          onClick={handleAddBranch}
-                          className="px-2 py-1 text-xs bg-[#3B82F6] text-white rounded font-medium cursor-pointer"
-                        >
-                          + Add
-                        </button>
+                        <button type="button" onClick={handleAddBranch} className="px-2 py-1 text-xs bg-[#3B82F6] text-white rounded font-medium cursor-pointer">+ Add</button>
                       </div>
                     )}
                   </div>
 
                   <div className="p-3 bg-[#101D31] border border-[#243650] rounded-xl sm:col-span-3">
                     <span className="text-[10px] font-semibold text-[#CBD5E1] block mb-1.5">Eligible Graduation Year(s)</span>
-                    <div className="flex flex-wrap gap-2">
-                      {[2024, 2025, 2026, 2027, 2028].map((year) => {
-                        const isSelected = extractedGradYears.includes(year);
-                        return (
-                          <button
+                    <div className="flex flex-wrap items-center gap-2">
+                      {extractedGradYears.length === 0 ? (
+                        <span className="text-xs text-[#94A3B8] italic">No graduation year specified (All batches eligible)</span>
+                      ) : (
+                        extractedGradYears.map((year) => (
+                          <span
                             key={year}
-                            type="button"
-                            onClick={() => {
-                              if (isSelected) {
-                                if (extractedGradYears.length > 1) {
-                                  setExtractedGradYears(extractedGradYears.filter((y) => y !== year));
-                                }
-                              } else {
-                                setExtractedGradYears([...extractedGradYears, year].sort());
-                              }
-                            }}
-                            className={`text-xs font-semibold px-2.5 py-1 rounded-lg border transition-colors cursor-pointer flex items-center gap-1.5 ${
-                              isSelected
-                                ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40'
-                                : 'bg-[#0B1628] text-[#94A3B8] border-[#243650] hover:text-white'
-                            }`}
+                            className="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-lg bg-emerald-500/20 text-emerald-400 border border-emerald-500/40"
                           >
-                            {isSelected && <Check className="w-3 h-3 text-emerald-400" />}
                             Batch {year}
-                          </button>
-                        );
-                      })}
+                            {isEditingRequirements && (
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveGradYear(year)}
+                                className="hover:text-red-400 transition-colors ml-0.5 cursor-pointer"
+                              >
+                                <X className="w-3 h-3" />
+                              </button>
+                            )}
+                          </span>
+                        ))
+                      )}
                     </div>
+                    {isEditingRequirements && (
+                      <div className="flex items-center gap-2 mt-2 pt-2 border-t border-[#243650]/50">
+                        <input
+                          type="number"
+                          placeholder="Add year e.g. 2029..."
+                          value={newGradYearInput}
+                          onChange={(e) => setNewGradYearInput(e.target.value)}
+                          className="text-xs p-1 bg-[#0B1628] border border-[#243650] text-[#F8FAFC] rounded w-36"
+                        />
+                        <button
+                          type="button"
+                          onClick={handleAddGradYear}
+                          className="px-2 py-1 text-xs bg-[#3B82F6] text-white rounded font-medium cursor-pointer"
+                        >
+                          + Add Batch
+                        </button>
+                      </div>
+                    )}
                   </div>
-
                 </div>
               </div>
 

@@ -46,11 +46,11 @@ class AIResumeAnalysisSchema(BaseModel):
 class AIJDExtractionSchema(BaseModel):
     company_name: str
     role_title: str
-    location: str = "Bengaluru / Hybrid"
-    package_lpa: float = 12.0
-    eligible_branches: List[str] = Field(default_factory=lambda: ["CSE", "IT", "ECE"])
-    min_cgpa: float = 7.0
-    graduation_years: List[int] = Field(default_factory=lambda: [2027])
+    location: Optional[str] = None
+    package_lpa: Optional[float] = None
+    eligible_branches: List[str] = Field(default_factory=list)
+    min_cgpa: Optional[float] = None
+    graduation_years: List[int] = Field(default_factory=list)
     required_skills: List[str] = Field(default_factory=list)
     preferred_skills: List[str] = Field(default_factory=list)
     job_summary: str = ""

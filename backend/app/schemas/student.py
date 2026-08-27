@@ -34,7 +34,7 @@ class StudentSchema(BaseModel):
 
 class ShortlistRequest(BaseModel):
     studentId: str
-    driveId: str = "technova-backend"
+    driveId: str
 
 class ApplyDriveRequest(BaseModel):
     studentId: Optional[str] = None
@@ -48,16 +48,4 @@ class ApplyDriveRequest(BaseModel):
     company_id: Optional[str] = None
     source: Optional[str] = None
     application_url: Optional[str] = None
-
-class ExternalApplyStartRequest(BaseModel):
-    drive_id: str
-    company_name: Optional[str] = None
-    job_title: Optional[str] = None
-    company_id: Optional[str] = None
-    application_url: str
-
-class ExternalApplyConfirmRequest(BaseModel):
-    drive_id: str
-    token: Optional[str] = None
-    completed: bool = True
 

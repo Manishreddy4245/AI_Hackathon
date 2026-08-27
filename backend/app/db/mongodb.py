@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from typing import Optional, Any, List, Dict
 import mongomock
@@ -114,62 +115,117 @@ class AsyncMockDatabase:
         return AsyncMockCollection(self._db[name])
 
 class MongoDBManager:
-    client: Optional[Any] = None
-    db: Optional[Any] = None
+    _clients: Dict[int, Any] = {}
+    _custom_db: Optional[Any] = None
     is_mock: bool = False
+
+    def _get_loop_id(self) -> int:
+        try:
+            return id(asyncio.get_running_loop())
+        except RuntimeError:
+            return 0
+
+    @property
+    def client(self) -> Optional[Any]:
+        lid = self._get_loop_id()
+        if lid in self._clients:
+            return self._clients[lid]
+        # If a client exists across event loops, obtain client for current loop
+        if self._clients and not self.is_mock:
+            try:
+                c = AsyncMongoClient(settings.MONGODB_URI, serverSelectionTimeoutMS=5000)
+                self._clients[lid] = c
+                return c
+            except Exception:
+                pass
+            return next(iter(self._clients.values()), None)
+        return None
+
+    @client.setter
+    def client(self, val: Optional[Any]) -> None:
+        lid = self._get_loop_id()
+        if val is None:
+            self._clients.clear()
+        else:
+            self._clients[lid] = val
+
+    @property
+    def db(self) -> Optional[Any]:
+        if self._custom_db is not None:
+            return self._custom_db
+        c = self.client
+        if c is not None:
+            return c[settings.MONGODB_DATABASE]
+        return None
+
+    @db.setter
+    def db(self, val: Optional[Any]) -> None:
+        if val is None:
+            self._custom_db = None
+            self.is_mock = False
+        elif isinstance(val, AsyncMockDatabase):
+            self._custom_db = val
+            self.is_mock = True
+        else:
+            self._custom_db = val
+
+    async def close_all(self) -> None:
+        for c in list(self._clients.values()):
+            try:
+                if hasattr(c, "close"):
+                    await c.close()
+            except Exception:
+                pass
+        self._clients.clear()
+        self._custom_db = None
+        self.is_mock = False
+
 
 db_manager = MongoDBManager()
 
 async def connect_to_mongo() -> None:
-    """Initialize PyMongo AsyncMongoClient connection to live MongoDB Atlas."""
+    """
+    Initialize PyMongo AsyncMongoClient connection to MongoDB.
+    Fails fast if connection is unavailable. In-memory mock database fallback
+    is strictly forbidden during normal application runtime and production.
+    """
     logger.info("Initializing PyMongo AsyncMongoClient connection to %s", settings.MONGODB_URI)
     try:
         real_client = AsyncMongoClient(
             settings.MONGODB_URI,
             serverSelectionTimeoutMS=5000
         )
-        # Test ping to confirm server is up
+        # Test ping to confirm server is up and responsive
         await real_client.admin.command("ping")
         db_manager.client = real_client
-        db_manager.db = real_client[settings.MONGODB_DATABASE]
         db_manager.is_mock = False
         logger.info("=========================================================================")
-        logger.info("  LIVE DATABASE CONFIRMED: Connected to MongoDB Atlas '%s'", settings.MONGODB_DATABASE)
+        logger.info("  LIVE DATABASE CONFIRMED: Connected to MongoDB '%s'", settings.MONGODB_DATABASE)
         logger.info("=========================================================================")
     except Exception as e:
-        allow_mock = getattr(settings, "TESTING", False) or getattr(settings, "ALLOW_MOCK_DB", False)
-        if allow_mock:
-            logger.warning("Test mode active: Live MongoDB connection failed (%s). Fallback to in-memory test DB.", str(e))
-            db_manager.client = None
-            db_manager.db = AsyncMockDatabase(settings.MONGODB_DATABASE)
-            db_manager.is_mock = True
-        else:
-            db_manager.client = None
-            db_manager.db = None
-            db_manager.is_mock = False
-            logger.critical("=========================================================================")
-            logger.critical("  CRITICAL ERROR: LIVE MONGODB ATLAS CONNECTION FAILED!")
-            logger.critical("  Reason: %s", str(e))
-            logger.critical("  Silent fallback to in-memory mock DB is DISABLED in production mode.")
-            logger.critical("=========================================================================")
-            raise ConnectionError(f"CRITICAL: Failed to connect to live MongoDB Atlas database '{settings.MONGODB_DATABASE}': {str(e)}")
+        await db_manager.close_all()
+        logger.critical("=========================================================================")
+        logger.critical("  CRITICAL ERROR: MONGODB DATABASE CONNECTION FAILED!")
+        logger.critical("  URI: %s", settings.MONGODB_URI)
+        logger.critical("  Database: %s", settings.MONGODB_DATABASE)
+        logger.critical("  Reason: %s", str(e))
+        logger.critical("  Application startup aborted. Persistent MongoDB is required.")
+        logger.critical("=========================================================================")
+        raise ConnectionError(
+            f"CRITICAL: Failed to connect to MongoDB database '{settings.MONGODB_DATABASE}' at '{settings.MONGODB_URI}': {str(e)}"
+        )
 
 async def close_mongo_connection() -> None:
-    """Close MongoDB connection."""
-    if db_manager.client and not db_manager.is_mock:
-        logger.info("Closing PyMongo AsyncMongoClient connection...")
-        await db_manager.client.close()
-    db_manager.client = None
-    db_manager.db = None
+    """Close active MongoDB client connection on application shutdown."""
+    logger.info("Closing PyMongo AsyncMongoClient connection...")
+    await db_manager.close_all()
 
 def get_database() -> Optional[Any]:
     """Retrieve active Database instance."""
     return db_manager.db
 
 async def ping_database() -> bool:
-    """Ping MongoDB server or check mock status."""
-    if db_manager.is_mock:
-        return True
+    """Ping MongoDB server to verify live database responsiveness."""
     if not db_manager.client:
         return False
     try:
@@ -178,4 +234,6 @@ async def ping_database() -> bool:
     except Exception as e:
         logger.warning("MongoDB ping check failed: %s", str(e))
         return False
+
+
 

@@ -211,12 +211,23 @@ def dynamic_fallback_jd_extractor(raw_text: str, company_name: str = "Company") 
                 branches.append(val)
 
     # 4. Dynamic CGPA Extraction (None if not mentioned)
-    cgpa_match = re.search(r"(\d\.\d+)\s*(?:cgpa|gpa|\+)?", text_lower)
-    min_cgpa = float(cgpa_match.group(1)) if cgpa_match and 4.0 <= float(cgpa_match.group(1)) <= 10.0 else None
+    cgpa_match = re.search(
+        r"(?:cgpa|gpa)\s*(?:of|:\s*|>=\s*|minimum\s*|min\s*|is\s*|above\s*)?\s*(\d+(?:\.\d+)?)|(\d+(?:\.\d+)?)\s*(?:cgpa|gpa)",
+        text_lower
+    )
+    min_cgpa = None
+    if cgpa_match:
+        val_str = cgpa_match.group(1) or cgpa_match.group(2)
+        try:
+            val = float(val_str)
+            if 4.0 <= val <= 10.0:
+                min_cgpa = val
+        except ValueError:
+            pass
 
-    # 4b. Dynamic Graduation Years Extraction
+    # 4b. Dynamic Graduation Years Extraction (empty list if none mentioned)
     grad_years: List[int] = []
-    year_matches = re.findall(r"\b(202[3-9])\b", text_lower)
+    year_matches = re.findall(r"\b(202[0-9]|203[0-9])\b", text_lower)
     for y in year_matches:
         yi = int(y)
         if yi not in grad_years:
@@ -224,7 +235,9 @@ def dynamic_fallback_jd_extractor(raw_text: str, company_name: str = "Company") 
     single_grad_year = grad_years[0] if grad_years else None
 
     # 5. Dynamic Package Extraction (None if not mentioned)
-    pkg_match = re.search(r"(\d+\.?\d*)\s*(?:lpa|lakhs|lakh|inr|₹|ctc)", text_lower)
+    pkg_match = re.search(r"(?:₹|ctc|package|salary)?\s*(\d+\.?\d*)\s*(?:lpa|lakhs|lakh|inr|₹|ctc)", text_lower)
+    if not pkg_match:
+        pkg_match = re.search(r"(\d+\.?\d*)\s*(?:lpa|lakhs|lakh)", text_lower)
     package_lpa = float(pkg_match.group(1)) if pkg_match and 1.0 <= float(pkg_match.group(1)) <= 150.0 else None
 
     # 6. Dynamic Location Extraction (None if not mentioned)
@@ -269,11 +282,10 @@ def dynamic_fallback_jd_extractor(raw_text: str, company_name: str = "Company") 
         preferredSkills=pref_skills,
         responsibilities=responsibilities[:5],
         qualifications=[f"B.Tech / B.E in {', '.join(branches)}"] if branches else [],
-
         experience=experience or "Fresher / Entry Level",
         rounds=["Online Assessment", "Technical Interview", "HR Evaluation"],
-        location=location or "Location as per raw text",
-        packageLpa=package_lpa or 0.0,
+        location=location,
+        packageLpa=package_lpa,
         openings=openings,
         summary=summary,
         aiExplanation=ai_explanation,
@@ -301,6 +313,7 @@ Return a valid JSON object matching this structure EXACTLY:
   "eligibleBranches": ["List of eligible engineering branches mentioned in text, e.g. CSE, IT, ECE - empty array if none"],
   "minCgpa": null,
   "maxBacklogs": 0,
+  "graduationYears": [2026, 2027],
   "requiredSkills": ["Mandatory skills strictly mentioned in raw text - empty array if none"],
   "preferredSkills": ["Secondary/good-to-have skills mentioned in raw text - empty array if none"],
   "responsibilities": ["Key responsibilities mentioned in raw text - empty array if none"],
@@ -323,7 +336,6 @@ Return a valid JSON object matching this structure EXACTLY:
         }
         try:
             async with httpx.AsyncClient(timeout=5.0) as client:
-
                 response = await client.post(url, json=payload)
                 if response.status_code == 200:
                     result_json = response.json()
@@ -336,6 +348,11 @@ Return a valid JSON object matching this structure EXACTLY:
                     branches = data.get("eligibleBranches") or []
                     min_cgpa = float(data["minCgpa"]) if data.get("minCgpa") is not None else None
                     max_backlogs = int(data.get("maxBacklogs", 0)) if data.get("maxBacklogs") is not None else 0
+                    
+                    raw_years = data.get("graduationYears") or []
+                    grad_years = [int(y) for y in raw_years if str(y).isdigit()]
+                    single_grad_year = grad_years[0] if grad_years else None
+
                     req_skills = data.get("requiredSkills") or []
                     pref_skills = data.get("preferredSkills") or []
                     responsibilities = data.get("responsibilities") or []
@@ -354,14 +371,16 @@ Return a valid JSON object matching this structure EXACTLY:
                         eligibleBranches=branches,
                         minCgpa=min_cgpa,
                         maxBacklogs=max_backlogs,
+                        graduationYear=single_grad_year,
+                        graduationYears=grad_years,
                         requiredSkills=req_skills,
                         preferredSkills=pref_skills,
                         responsibilities=responsibilities,
                         qualifications=qualifications,
                         experience=experience,
                         rounds=rounds,
-                        location=location or "Bengaluru",
-                        packageLpa=package_lpa or 0.0,
+                        location=location,
+                        packageLpa=package_lpa,
                         openings=openings,
                         summary=summary,
                         aiExplanation=ai_explanation,

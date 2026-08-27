@@ -26,9 +26,7 @@ class Settings(BaseSettings):
     SECURITY_SALT: str = "dev-security-salt-2026"
     AI_API_KEY: str = ""
     GEMINI_API_KEY: str = ""
-    ALLOW_MOCK_DB: bool = True
-    SEED_DEMO_DATA: bool = True
-    ENABLE_DB_SEED: bool = True
+    ALLOW_MOCK_DB: bool = False
     APTITUDE_PASS_PERCENTAGE: float = 60.0
     TECHNICAL_PASS_PERCENTAGE: float = 60.0
 
@@ -65,10 +63,6 @@ class Settings(BaseSettings):
             # 5. Disable mock database
             if self.ALLOW_MOCK_DB:
                 errors.append("ALLOW_MOCK_DB must be set to False in production/staging.")
-
-            # 6. Disable demo database seeding
-            if self.SEED_DEMO_DATA or self.ENABLE_DB_SEED:
-                errors.append("SEED_DEMO_DATA and ENABLE_DB_SEED must be set to False in production/staging.")
 
             if errors:
                 error_msg = f"CRITICAL PRODUCTION CONFIGURATION ERROR ({env_mode.upper()} MODE):\n" + "\n".join(f"- {err}" for err in errors)

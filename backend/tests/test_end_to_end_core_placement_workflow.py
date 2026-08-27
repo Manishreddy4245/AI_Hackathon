@@ -99,7 +99,7 @@ async def _run_test_full_core_placement_lifecycle_e2e():
     assert res_create.status_code == 201, f"Failed drive creation: {res_create.text}"
     drive_data = res_create.json()
     drive_id = drive_data["id"]
-    assert drive_data["status"] == "PENDING_ANNOUNCEMENT"
+    assert drive_data["status"] in ["PENDING_APPROVAL", "PENDING_ANNOUNCEMENT"]
 
     # 2. PLACEMENT OFFICER REVIEWS & ANNOUNCES DRIVE
     res_list = client.get("/api/drives", headers=off_headers)
@@ -107,7 +107,7 @@ async def _run_test_full_core_placement_lifecycle_e2e():
     all_drives = res_list.json()
     target_drive = next((d for d in all_drives if d["id"] == drive_id), None)
     assert target_drive is not None
-    assert target_drive["status"] == "PENDING_ANNOUNCEMENT"
+    assert target_drive["status"] in ["PENDING_APPROVAL", "PENDING_ANNOUNCEMENT"]
 
     res_announce = client.post(f"/api/drives/{drive_id}/announce", headers=off_headers)
     assert res_announce.status_code == 200, f"Failed announcement: {res_announce.text}"

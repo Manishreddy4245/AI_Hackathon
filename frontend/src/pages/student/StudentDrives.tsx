@@ -111,43 +111,6 @@ export const StudentDrives: React.FC = () => {
     });
   };
 
-  const [startingExtDriveId, setStartingExtDriveId] = useState<string | null>(null);
-
-  const handleExternalApply = async (opp: PlacementRecommendation) => {
-    const driveId = opp.drive_id || (opp as any).id;
-    const appUrl = opp.application_url || opp.source_url;
-    if (!appUrl) {
-      triggerToast('External application link is unavailable for this opportunity.', 'error');
-      return;
-    }
-
-    setStartingExtDriveId(driveId);
-    try {
-      const res = await apiService.startExternalApplication({
-        drive_id: driveId,
-        company_name: opp.company,
-        job_title: opp.role,
-        application_url: appUrl,
-      });
-
-      if (res.already_applied) {
-        triggerToast(`You have already applied for ${opp.company}.`, 'info');
-        navigate(`/student/application-return?drive_id=${encodeURIComponent(driveId)}&token=${encodeURIComponent(res.return_token || '')}`);
-        return;
-      }
-
-      // Open external company career page in a new window/tab
-      window.open(res.redirect_url || appUrl, '_blank');
-
-      // Navigate current student tab to PlaceMind Return Flow page
-      const returnPath = `/student/application-return?drive_id=${encodeURIComponent(driveId)}&token=${encodeURIComponent(res.return_token || '')}`;
-      navigate(returnPath);
-    } catch (err: any) {
-      triggerToast(err?.response?.data?.detail || 'Failed to start external application.', 'error');
-    } finally {
-      setStartingExtDriveId(null);
-    }
-  };
 
   const isProfileComplete = Boolean(studentProfile?.isProfileComplete);
   const completionPercentage = studentProfile?.profileCompletion ?? 0;
@@ -352,64 +315,31 @@ export const StudentDrives: React.FC = () => {
             )}
 
             {/* Application Handlers */}
-            {isCollege ? (
-              applied ? (
-                <span className="text-xs font-bold text-[#60A5FA] bg-[rgba(59,130,246,0.15)] px-3 py-2 rounded-xl border border-[rgba(59,130,246,0.30)] flex items-center justify-center gap-1.5 shadow-sm">
-                  <CheckCircle2 className="w-4 h-4 text-[#3B82F6]" /> Applied
-                </span>
-              ) : !hasResume ? (
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  className="text-xs py-2 px-3 bg-[#1E293B] border-[#334155] text-[#FCD34D] hover:bg-[#334155] flex items-center justify-center gap-1.5"
-                  icon={<Lock className="w-3.5 h-3.5 text-[#F59E0B]" />}
-                  onClick={() => navigate('/student/resume')}
-                >
-                  Upload Resume
-                </Button>
-              ) : isEligible ? (
-                <Button
-                  variant="primary"
-                  size="sm"
-                  className="text-xs py-2 px-4 shadow-md font-bold"
-                  icon={<CheckCircle2 className="w-4 h-4" />}
-                  onClick={() => setApplyingDrive(opp)}
-                >
-                  Apply / Register
-                </Button>
-              ) : null
-            ) : (
-              applied ? (
-                <span className="text-xs font-bold text-[#86EFAC] bg-[rgba(34,197,94,0.15)] py-2 px-3.5 rounded-lg border border-[rgba(34,197,94,0.30)] flex items-center justify-center gap-1.5 shadow-sm">
-                  <CheckCircle2 className="w-3.5 h-3.5 text-[#22C55E]" /> Applied
-                </span>
-              ) : !hasResume ? (
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  className="text-xs py-2 px-3 bg-[#1E293B] border-[#334155] text-[#FCD34D] hover:bg-[#334155] flex items-center justify-center gap-1.5"
-                  icon={<Lock className="w-3.5 h-3.5 text-[#F59E0B]" />}
-                  onClick={() => navigate('/student/resume')}
-                >
-                  Upload Resume
-                </Button>
-              ) : isEligible && opp.application_url ? (
-                <Button
-                  variant="primary"
-                  size="sm"
-                  onClick={() => handleExternalApply(opp)}
-                  disabled={startingExtDriveId === opp.drive_id}
-                  className="text-xs py-2 px-4 bg-[#8B5CF6] hover:bg-[#7C3AED] text-white font-bold rounded-lg shadow-md flex items-center justify-center gap-1.5 transition-colors border-0"
-                  icon={startingExtDriveId === opp.drive_id ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <ExternalLink className="w-3.5 h-3.5" />}
-                >
-                  {startingExtDriveId === opp.drive_id ? 'Redirecting...' : 'Apply'}
-                </Button>
-              ) : isEligible ? (
-                <span className="text-xs text-[#94A3B8] font-medium py-2 px-3">
-                  Direct Link Unavailable
-                </span>
-              ) : null
-            )}
+            {applied ? (
+              <span className="text-xs font-bold text-[#60A5FA] bg-[rgba(59,130,246,0.15)] px-3 py-2 rounded-xl border border-[rgba(59,130,246,0.30)] flex items-center justify-center gap-1.5 shadow-sm">
+                <CheckCircle2 className="w-4 h-4 text-[#3B82F6]" /> Applied
+              </span>
+            ) : !hasResume ? (
+              <Button
+                variant="secondary"
+                size="sm"
+                className="text-xs py-2 px-3 bg-[#1E293B] border-[#334155] text-[#FCD34D] hover:bg-[#334155] flex items-center justify-center gap-1.5"
+                icon={<Lock className="w-3.5 h-3.5 text-[#F59E0B]" />}
+                onClick={() => navigate('/student/resume')}
+              >
+                Upload Resume
+              </Button>
+            ) : isEligible ? (
+              <Button
+                variant="primary"
+                size="sm"
+                className="text-xs py-2 px-4 shadow-md font-bold"
+                icon={<CheckCircle2 className="w-4 h-4" />}
+                onClick={() => setApplyingDrive(opp)}
+              >
+                Apply / Register
+              </Button>
+            ) : null}
           </div>
         </div>
       </Card>
@@ -419,8 +349,8 @@ export const StudentDrives: React.FC = () => {
   return (
     <div className="space-y-6 pb-12">
       <PageHeader
-        title="Placement Opportunities Discovery"
-        subtitle="Explore all available campus drives and live tech opportunities matched against your resume."
+        title="Campus Placement Drives"
+        subtitle="Explore active campus placement drives matched against your resume profile."
         icon={<Briefcase className="w-5 h-5 text-white" />}
         action={
           <Button variant="outline" icon={<ArrowLeft className="w-4 h-4" />} onClick={() => navigate('/student')}>
@@ -467,7 +397,7 @@ export const StudentDrives: React.FC = () => {
       <div className="p-4 rounded-2xl bg-[#101D31] border border-[#243650] flex flex-wrap items-center justify-between gap-4">
         <div className="flex flex-wrap items-center gap-4 text-xs">
           <div>
-            <span className="text-[#94A3B8] block text-[11px] font-semibold">Total Relevant Opportunities</span>
+            <span className="text-[#94A3B8] block text-[11px] font-semibold">Total Drives</span>
             <span className="text-base font-black text-[#F8FAFC]">{totalOpps}</span>
           </div>
           <div className="h-7 w-[1px] bg-[#243650]" />
@@ -507,7 +437,7 @@ export const StudentDrives: React.FC = () => {
                 : 'text-[#94A3B8] hover:text-[#F8FAFC]'
             }`}
           >
-            <ListFilter className="w-3.5 h-3.5" /> All Opportunities List
+            <ListFilter className="w-3.5 h-3.5" /> All Drives List
           </button>
         </div>
       </div>
@@ -529,7 +459,7 @@ export const StudentDrives: React.FC = () => {
                   : 'text-[#94A3B8] hover:text-[#F8FAFC] hover:bg-[#14243B]'
               }`}
             >
-              All Opportunities ({totalOpps})
+              All Drives ({totalOpps})
             </button>
 
             <button
@@ -575,20 +505,6 @@ export const StudentDrives: React.FC = () => {
               <GraduationCap className="w-3.5 h-3.5" /> Campus Drives
             </button>
 
-            <button
-              onClick={() => {
-                setSourceFilter('external');
-                setEligibilityFilter('all');
-                setPage(1);
-              }}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors ${
-                sourceFilter === 'external' && eligibilityFilter === 'all'
-                  ? 'bg-[#8B5CF6] text-white shadow-sm'
-                  : 'text-[#94A3B8] hover:text-[#F8FAFC] hover:bg-[#14243B]'
-              }`}
-            >
-              <Globe className="w-3.5 h-3.5" /> External Jobs
-            </button>
           </div>
 
           {/* Search Input */}
@@ -612,13 +528,13 @@ export const StudentDrives: React.FC = () => {
       {loading ? (
         <div className="min-h-[40vh] flex flex-col items-center justify-center gap-3 text-[#94A3B8]">
           <Loader2 className="w-8 h-8 animate-spin text-[#3B82F6]" />
-          <p className="text-xs font-semibold">Discovering all available placement drives and external tech opportunities...</p>
+          <p className="text-xs font-semibold">Discovering active campus placement drives...</p>
         </div>
       ) : totalOpps === 0 ? (
         <Card className="p-8 text-center text-[#94A3B8] bg-[#101D31] border-[#243650]">
           <Briefcase className="w-8 h-8 text-[#64748B] mx-auto mb-2" />
-          <p className="text-sm font-bold text-[#F8FAFC]">No opportunities match your filter</p>
-          <p className="text-xs text-[#94A3B8] mt-1">Try switching tabs to view all opportunities or adjust your search.</p>
+          <p className="text-sm font-bold text-[#F8FAFC]">No placement drives match your filter</p>
+          <p className="text-xs text-[#94A3B8] mt-1">Try switching tabs to view all drives or adjust your search.</p>
         </Card>
       ) : viewMode === 'company' && dataResponse?.company_groups ? (
         /* ================= GROUPED BY COMPANY VIEW ================= */
@@ -660,7 +576,7 @@ export const StudentDrives: React.FC = () => {
                       </div>
 
                       <p className="text-xs text-[#94A3B8] font-medium mt-1 flex items-center gap-2">
-                        <span>{group.total_jobs} {group.total_jobs === 1 ? 'Opportunity' : 'Opportunities'}</span>
+                        <span>{group.total_jobs} {group.total_jobs === 1 ? 'Drive' : 'Drives'}</span>
                         <span>&bull;</span>
                         {hasResume ? (
                           <>
@@ -720,7 +636,7 @@ export const StudentDrives: React.FC = () => {
       {totalPages > 1 && (
         <div className="flex items-center justify-between pt-4 border-t border-[#243650] text-xs text-[#94A3B8]">
           <span>
-            Showing page <strong className="text-[#F8FAFC]">{page}</strong> of <strong className="text-[#F8FAFC]">{totalPages}</strong> ({totalOpps} total opportunities)
+            Showing page <strong className="text-[#F8FAFC]">{page}</strong> of <strong className="text-[#F8FAFC]">{totalPages}</strong> ({totalOpps} total drives)
           </span>
 
           <div className="flex items-center gap-2">

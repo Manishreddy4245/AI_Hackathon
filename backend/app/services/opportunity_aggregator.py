@@ -1,51 +1,9 @@
 import time
-import httpx
 import re
 from typing import List, Dict, Any, Optional
 from app.db.mongodb import db_manager
 from app.services.skill_matching_engine import calculate_skill_match, normalize_skill
 from app.services.eligibility_engine import evaluate_drive_eligibility
-
-# Tech skill vocabulary for automatic tag extraction from external job descriptions
-TECH_SKILLS_VOCAB = [
-    "python", "javascript", "typescript", "react", "next.js", "vue", "angular", "node.js",
-    "express", "fastapi", "django", "flask", "java", "spring boot", "c++", "c#", ".net",
-    "golang", "go", "rust", "sql", "postgresql", "mysql", "mongodb", "redis", "elasticsearch",
-    "docker", "kubernetes", "aws", "azure", "gcp", "cloud", "git", "linux", "ci/cd",
-    "terraform", "graphql", "rest api", "rest apis", "html5", "css3", "tailwind",
-    "machine learning", "deep learning", "nlp", "data analysis", "pandas", "pytorch", "tensorflow"
-]
-
-TECH_ROLE_KEYWORDS = [
-    "software", "developer", "engineer", "engineering", "programmer", "coder",
-    "backend", "frontend", "full stack", "fullstack", "web", "mobile", "ios", "android",
-    "data", "analyst", "analytics", "scientist", "machine learning", "ai", "ml", "nlp",
-    "devops", "cloud", "sre", "infrastructure", "systems", "security", "cyber",
-    "architect", "qa", "quality assurance", "tester", "testing", "database", "dba",
-    "product", "technical", "tech", "intern", "internship", "graduate", "trainee",
-    "computer", "network", "linux", "python", "java", "react", "golang", "c++", "rust",
-    "platform", "embedded", "firmware", "solutions architect", "support engineer"
-]
-
-NON_RELEVANT_KEYWORDS = [
-    "nurse", "nursing", "dentist", "dental", "doctor", "physician", "therapist",
-    "accountant", "auditor", "attorney", "paralegal",
-    "real estate", "realtor", "driver", "truck", "warehouse", "cashier", "cook", "chef",
-    "janitor", "housekeeping", "plumber", "electrician", "mechanic", "flight attendant"
-]
-
-def is_tech_or_software_relevant(title: str, description: str = "") -> bool:
-    """Filter to ensure discovered jobs are relevant to computer science/tech students."""
-    full_text = (title + " " + description).lower()
-    title_lower = title.lower()
-
-    # If explicitly non-relevant occupation
-    if any(re.search(r'\b' + re.escape(w) + r'\b', title_lower) for w in NON_RELEVANT_KEYWORDS):
-        return False
-    # If explicitly tech related
-    if any(w in full_text for w in TECH_ROLE_KEYWORDS):
-        return True
-    return False
 
 def normalize_company_name(name: str) -> str:
     """Normalizes company name for comparison while preserving brand identity."""
@@ -93,23 +51,19 @@ def normalize_location(loc: str) -> str:
     return ' '.join(l.split())
 
 def build_dedup_key(job: Dict[str, Any]) -> str:
-    """Constructs the canonical composite deduplication key: company + role + location."""
+    """Constructs canonical composite deduplication key: company + role + location."""
     comp = normalize_company_name(job.get("company", ""))
     role = normalize_role_title(job.get("role", ""))
     loc = normalize_location(job.get("location", ""))
     return f"{comp}::{role}::{loc}"
 
 def deduplicate_opportunities(job_list: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """
-    Deduplicates a merged list of opportunities based on Company + Role + Location,
-    plus unique source job IDs. When duplicates are encountered, prioritizes the most complete record.
-    """
+    """Deduplicates internal placement drives based on Company + Role + Location."""
     unique_jobs: List[Dict[str, Any]] = []
     seen_keys: Dict[str, int] = {}
     seen_source_ids: set = set()
 
     for job in job_list:
-        # Check source + external ID if present
         source_id = f"{job.get('source', '')}::{job.get('id', '')}"
         if source_id in seen_source_ids and job.get('id'):
             continue
@@ -119,15 +73,7 @@ def deduplicate_opportunities(job_list: List[Dict[str, Any]]) -> List[Dict[str, 
         if dedup_key in seen_keys:
             existing_idx = seen_keys[dedup_key]
             existing_job = unique_jobs[existing_idx]
-
-            # Priority 1: College drives take precedence
-            if job.get("source_type") == "college" and existing_job.get("source_type") != "college":
-                unique_jobs[existing_idx] = job
-            # Priority 2: Keep the record with a valid direct application URL
-            elif not existing_job.get("application_url") and job.get("application_url"):
-                unique_jobs[existing_idx] = job
-            # Priority 3: Keep the record with richer required skills list
-            elif len(job.get("required_skills", [])) > len(existing_job.get("required_skills", [])):
+            if len(job.get("required_skills", [])) > len(existing_job.get("required_skills", [])):
                 unique_jobs[existing_idx] = job
         else:
             seen_keys[dedup_key] = len(unique_jobs)
@@ -136,216 +82,16 @@ def deduplicate_opportunities(job_list: List[Dict[str, Any]]) -> List[Dict[str, 
 
     return unique_jobs
 
-class OpportunityCache:
-    def __init__(self, ttl_seconds: int = 900):  # 15 minutes default TTL
-        self.cached_external_jobs: List[Dict[str, Any]] = []
-        self.last_fetched: float = 0
-        self.ttl_seconds = ttl_seconds
-
-    def is_valid(self) -> bool:
-        return len(self.cached_external_jobs) > 0 and (time.time() - self.last_fetched) < self.ttl_seconds
-
-    def set(self, jobs: List[Dict[str, Any]]):
-        self.cached_external_jobs = jobs
-        self.last_fetched = time.time()
-
-opportunity_cache = OpportunityCache()
-
-def extract_skills_from_text(text: str) -> List[str]:
-    """Extract known technical skills from text content."""
-    if not text:
-        return []
-    lowered = text.lower()
-    detected = []
-    for skill in TECH_SKILLS_VOCAB:
-        pattern = r'\b' + re.escape(skill) + r'\b'
-        if re.search(pattern, lowered):
-            detected.append(skill.title() if len(skill) > 3 else skill.upper())
-    return list(dict.fromkeys(detected))[:8]
-
-async def fetch_greenhouse_board(client: httpx.AsyncClient, board_name: str, company_name: str) -> List[Dict[str, Any]]:
-    """Fetch all open public jobs from a Greenhouse board without artificial limits."""
-    jobs = []
-    try:
-        url = f"https://boards-api.greenhouse.io/v1/boards/{board_name}/jobs"
-        resp = await client.get(url, timeout=7.0)
-        if resp.status_code == 200:
-            data = resp.json()
-            raw_jobs = data.get("jobs", [])
-            for item in raw_jobs:
-                title = item.get("title", "Software Engineer")
-                # Filter for tech/software relevance
-                if not is_tech_or_software_relevant(title):
-                    continue
-
-                loc = item.get("location", {}).get("name", "Remote / Global")
-                req_skills = extract_skills_from_text(title)
-                if not req_skills:
-                    req_skills = ["Software Engineering", "Problem Solving", "Git"]
-
-                jobs.append({
-                    "id": f"gh-{board_name}-{item.get('id')}",
-                    "source": "greenhouse",
-                    "source_type": "external",
-                    "source_label": f"Greenhouse • {company_name}",
-                    "company": company_name,
-                    "role": title,
-                    "company_logo": company_name[:2].upper(),
-                    "location": loc,
-                    "package_lpa": None,
-                    "salary_text": "Competitive Industry Standard",
-                    "employment_type": "Full-time",
-                    "description": f"Active role at {company_name}. View complete requirements on the official careers page.",
-                    "required_skills": req_skills,
-                    "preferred_skills": ["Docker", "Cloud", "CI/CD"],
-                    "eligible_branches": ["CSE", "IT", "ECE", "All Branches"],
-                    "min_cgpa": None,
-                    "graduation_year": None,
-                    "deadline": "Open Application",
-                    "application_url": item.get("absolute_url", f"https://boards.greenhouse.io/{board_name}"),
-                    "source_url": item.get("absolute_url", f"https://boards.greenhouse.io/{board_name}"),
-                    "posted_at": item.get("updated_at", "")[:10] if item.get("updated_at") else "Recently Active"
-                })
-    except Exception as e:
-        print(f"[OpportunityAggregator] Greenhouse ({board_name}) fetch notice: {e}")
-    return jobs
-
-async def fetch_remotive_jobs(client: httpx.AsyncClient) -> List[Dict[str, Any]]:
-    """Fetch all open tech jobs from Remotive public API."""
-    jobs = []
-    try:
-        url = "https://remotive.com/api/remote-jobs?category=software-dev"
-        resp = await client.get(url, timeout=8.0)
-        if resp.status_code == 200:
-            data = resp.json()
-            raw_jobs = data.get("jobs", [])
-            for item in raw_jobs:
-                title = item.get("title", "Software Developer")
-                if not is_tech_or_software_relevant(title, item.get("description", "")):
-                    continue
-
-                company = item.get("company_name", "Tech Startup")
-                tags = item.get("tags", [])
-                extracted = [t.title() for t in tags if len(t) < 20][:6]
-                if not extracted:
-                    extracted = extract_skills_from_text(title + " " + item.get("description", ""))
-                if not extracted:
-                    extracted = ["Software Engineering", "Problem Solving", "Git"]
-
-                jobs.append({
-                    "id": f"remotive-{item.get('id')}",
-                    "source": "remotive",
-                    "source_type": "external",
-                    "source_label": "Remotive Global Tech Feed",
-                    "company": company,
-                    "role": title,
-                    "company_logo": company[:2].upper(),
-                    "location": item.get("candidate_required_location", "Remote / Global"),
-                    "package_lpa": None,
-                    "salary_text": item.get("salary") or "Competitive",
-                    "employment_type": item.get("job_type", "Full-time").replace("_", " ").title(),
-                    "description": item.get("description", "")[:280] + "...",
-                    "required_skills": extracted,
-                    "preferred_skills": ["Communication", "Agile", "Linux"],
-                    "eligible_branches": ["All Branches"],
-                    "min_cgpa": None,
-                    "graduation_year": None,
-                    "deadline": "Open Application",
-                    "application_url": item.get("url"),
-                    "source_url": item.get("url"),
-                    "posted_at": item.get("publication_date", "")[:10] if item.get("publication_date") else "Live Feed"
-                })
-    except Exception as e:
-        print(f"[OpportunityAggregator] Remotive fetch notice: {e}")
-    return jobs
-
-async def fetch_arbeitnow_jobs(client: httpx.AsyncClient) -> List[Dict[str, Any]]:
-    """Fetch tech developer jobs from Arbeitnow public API across available pages."""
-    jobs = []
-    try:
-        # Fetch page 1
-        url = "https://www.arbeitnow.com/api/job-board-api"
-        resp = await client.get(url, timeout=8.0)
-        if resp.status_code == 200:
-            data = resp.json()
-            raw_jobs = data.get("data", [])
-            for item in raw_jobs:
-                title = item.get("title", "Developer")
-                if not is_tech_or_software_relevant(title, item.get("description", "")):
-                    continue
-
-                company = item.get("company_name", "Global Firm")
-                tags = item.get("tags", [])
-                skills = [t.title() for t in tags if len(t) < 20][:6]
-                if not skills:
-                    skills = extract_skills_from_text(title)
-                if not skills:
-                    skills = ["Python", "React", "Cloud"]
-
-                jobs.append({
-                    "id": f"arbeitnow-{item.get('slug', item.get('id', '1'))}",
-                    "source": "arbeitnow",
-                    "source_type": "external",
-                    "source_label": "Arbeitnow Career Feed",
-                    "company": company,
-                    "role": title,
-                    "company_logo": company[:2].upper(),
-                    "location": item.get("location", "Remote / Hybrid"),
-                    "package_lpa": None,
-                    "salary_text": "Industry Standard",
-                    "employment_type": "Full-time",
-                    "description": f"External opportunity at {company}. View full role on Arbeitnow.",
-                    "required_skills": skills,
-                    "preferred_skills": ["Git", "Teamwork"],
-                    "eligible_branches": ["All Branches"],
-                    "min_cgpa": None,
-                    "graduation_year": None,
-                    "deadline": "Open Application",
-                    "application_url": item.get("url"),
-                    "source_url": item.get("url"),
-                    "posted_at": "Live Posting"
-                })
-    except Exception as e:
-        print(f"[OpportunityAggregator] Arbeitnow fetch notice: {e}")
-    return jobs
-
-async def get_all_external_jobs() -> List[Dict[str, Any]]:
-    """Fetches and caches live external tech opportunities from all configured feeds."""
-    if opportunity_cache.is_valid():
-        return opportunity_cache.cached_external_jobs
-
-    raw_list: List[Dict[str, Any]] = []
-    async with httpx.AsyncClient(headers={"User-Agent": "PlaceMind-PlacementAgent/1.0"}) as client:
-        # Fetch from configured greenhouse public boards
-        gh_cloudflare = await fetch_greenhouse_board(client, "cloudflare", "Cloudflare")
-        gh_postman = await fetch_greenhouse_board(client, "postman", "Postman")
-        gh_automattic = await fetch_greenhouse_board(client, "automattic", "Automattic")
-        gh_canonical = await fetch_greenhouse_board(client, "canonical", "Canonical")
-        gh_elastic = await fetch_greenhouse_board(client, "elastic", "Elastic")
-        remotive_jobs = await fetch_remotive_jobs(client)
-        arbeitnow_jobs = await fetch_arbeitnow_jobs(client)
-
-        raw_list = (
-            gh_cloudflare +
-            gh_postman +
-            gh_automattic +
-            gh_canonical +
-            gh_elastic +
-            remotive_jobs +
-            arbeitnow_jobs
-        )
-
-    aggregated = deduplicate_opportunities(raw_list)
-    opportunity_cache.set(aggregated)
-    return aggregated
-
 async def get_college_placement_drives() -> List[Dict[str, Any]]:
-    """Fetches official college placement drives from MongoDB."""
+    """Fetches official internal campus placement drives from MongoDB drives collection."""
     db = db_manager.db
     if db is None:
         return []
 
-    drives = await db.drives.find({"status": {"$in": ["ANNOUNCED", "announced", "open", "active", "ACTIVE", "shortlisting", "interview"]}}, {"_id": 0}).to_list(length=200)
+    drives = await db.drives.find(
+        {"status": {"$in": ["ANNOUNCED", "announced", "APPROVED", "approved", "open", "active", "ACTIVE", "shortlisting", "interview"]}},
+        {"_id": 0}
+    ).to_list(length=500)
 
     college_opportunities = []
     for d in drives:
@@ -375,10 +121,7 @@ async def get_college_placement_drives() -> List[Dict[str, Any]]:
     return deduplicate_opportunities(college_opportunities)
 
 def group_opportunities_by_company(opportunities: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """
-    Groups opportunities by company, preserving distinct roles under each company
-    and computing summary statistics.
-    """
+    """Groups internal campus placement drives by company."""
     groups_dict: Dict[str, Dict[str, Any]] = {}
 
     for opp in opportunities:
@@ -391,7 +134,7 @@ def group_opportunities_by_company(opportunities: List[Dict[str, Any]]) -> List[
                 "company_logo": opp.get("company_logo") or comp_name[:2].upper(),
                 "source": opp.get("source", "placemind"),
                 "source_type": opp.get("source_type", "college"),
-                "source_label": opp.get("source_label", "Placement Opportunity"),
+                "source_label": opp.get("source_label", "Campus Placement Drive"),
                 "total_jobs": 0,
                 "eligible_jobs": 0,
                 "ineligible_jobs": 0,
@@ -412,7 +155,6 @@ def group_opportunities_by_company(opportunities: List[Dict[str, Any]]) -> List[
 
         group["opportunities"].append(opp)
 
-    # Sort groups: Companies with eligible opportunities first, then highest best match score
     groups_list = list(groups_dict.values())
     groups_list.sort(
         key=lambda g: (1 if g["eligible_jobs"] > 0 else 0, g["best_match_score"]),
@@ -422,14 +164,13 @@ def group_opportunities_by_company(opportunities: List[Dict[str, Any]]) -> List[
 
 async def get_ranked_opportunities_for_student(
     student_id: Optional[str] = None,
-    source_filter: str = "all",        # "all" | "college" | "external"
+    source_filter: str = "college",    # Kept for backward compatibility; always serves internal drives
     eligibility_filter: str = "all",   # "all" | "eligible" | "ineligible" | "high_match"
     search_query: str = ""
 ) -> List[Dict[str, Any]]:
     """
-    Combines MongoDB college placement drives + all live public job postings,
-    performs unified cross-source deduplication, matches against authenticated student's real resume data,
-    and returns categorized opportunities (both eligible and not-eligible).
+    Fetches official internal campus placement drives from MongoDB, matches against
+    the authenticated student's real profile/resume data, and returns evaluated campus drives.
     """
     db = db_manager.db
 
@@ -462,24 +203,14 @@ async def get_ranked_opportunities_for_student(
         if prof.get("raw_skills"):
             student_data["skills"] = list(set(student_data["skills"] + prof["raw_skills"]))
 
-    # 2. Gather opportunities from all configured sources
+    # 2. Gather internal campus placement drives strictly from MongoDB
     college_jobs = await get_college_placement_drives()
-    external_jobs = await get_all_external_jobs()
-
-    all_raw_jobs: List[Dict[str, Any]] = []
-    if source_filter in ("all", "college"):
-        all_raw_jobs.extend(college_jobs)
-    if source_filter in ("all", "external"):
-        all_raw_jobs.extend(external_jobs)
-
-    # 3. Final unified cross-source deduplication pass
-    deduped_raw_jobs = deduplicate_opportunities(all_raw_jobs)
+    deduped_raw_jobs = deduplicate_opportunities(college_jobs)
 
     ranked: List[Dict[str, Any]] = []
 
     for opp in deduped_raw_jobs:
         if not has_resume or len(student_data.get("skills", [])) == 0:
-            # NO RESUME / INCOMPLETE STATE
             ranked.append({
                 "drive_id": opp["id"],
                 "company": opp["company"],
@@ -502,42 +233,33 @@ async def get_ranked_opportunities_for_student(
                 "deadline": opp["deadline"],
                 "match_score": 0,
                 "eligible": False,
-                "eligibility_reasons": ["Upload your resume to analyze your skills and discover your skill gaps."],
+                "eligibility_reasons": ["Upload your resume to analyze your skills and evaluate eligibility."],
                 "missing_requirements": ["Resume Upload Required"],
                 "matched_skills": [],
                 "skill_gaps": opp["required_skills"],
                 "matched_preferred_skills": [],
                 "missing_preferred_skills": opp["preferred_skills"],
-                "recommendation": "Upload your resume to discover placement opportunities you are eligible for."
+                "recommendation": "Upload your resume to evaluate eligibility for this placement drive."
             })
             continue
 
-        # Real Skill Matching
         match_score, matched_req, missing_req, matched_pref, missing_pref = calculate_skill_match(
             student_data.get("skills", []),
             opp
         )
 
-        is_college = opp["source_type"] == "college"
-        if is_college:
-            hard_eligible, hard_reasons, missing_reqs = evaluate_drive_eligibility(student_data, opp)
-            if missing_req:
-                missing_reqs = missing_reqs + [f"Missing required skills: {', '.join(missing_req)}"]
-            
-            eligible = hard_eligible and (match_score >= 40 or len(matched_req) > 0)
-            reasons = hard_reasons.copy()
-            if not hard_eligible:
-                reasons = hard_reasons
-            elif missing_req and not eligible:
-                reasons.append(f"Missing mandatory technical skills: {', '.join(missing_req)}")
-        else:
-            eligible = match_score >= 40 or (len(matched_req) > 0 and len(missing_req) <= 2)
-            reasons = [] if eligible else [f"Missing required skills: {', '.join(missing_req)}"]
-            missing_reqs = missing_req
+        hard_eligible, hard_reasons, missing_reqs = evaluate_drive_eligibility(student_data, opp)
+        if missing_req:
+            missing_reqs = missing_reqs + [f"Missing required skills: {', '.join(missing_req)}"]
+
+        eligible = hard_eligible and (match_score >= 40 or len(matched_req) > 0)
+        reasons = hard_reasons.copy()
+        if missing_req and not eligible:
+            reasons.append(f"Missing mandatory technical skills: {', '.join(missing_req)}")
 
         rec_text = (
             f"Strong profile match ({match_score}%). Matched skills: {', '.join(matched_req[:3])}."
-            if matched_req else f"Opportunity match score: {match_score}%."
+            if matched_req else f"Drive match score: {match_score}%."
         )
 
         ranked.append({
@@ -592,27 +314,16 @@ async def get_ranked_opportunities_for_student(
     elif eligibility_filter == "high_match":
         ranked = [o for o in ranked if o["match_score"] >= 65]
 
-    # Default Ranking:
-    # 1. Eligible + Highest match
-    # 2. Eligible + Lower match
-    # 3. Not Eligible + Highest match
-    # 4. Not Eligible + Lower match
     ranked.sort(
-        key=lambda x: (
-            1 if (x["source_type"] == "college" and x["eligible"]) else (0.8 if x["eligible"] else 0),
-            x["match_score"]
-        ),
+        key=lambda x: (1 if x["eligible"] else 0, x["match_score"]),
         reverse=True
     )
     return ranked
 
 async def get_opportunity_skill_gap_analysis(opportunity_id: str, student_id: Optional[str] = None) -> Dict[str, Any]:
-    """
-    Computes detailed company-specific skill gap and roadmap for the authenticated student.
-    """
+    """Computes detailed company-specific skill gap for an internal placement drive."""
     db = db_manager.db
 
-    # 1. Fetch student data
     student = None
     latest_resume = None
     if db is not None and student_id:
@@ -646,35 +357,21 @@ async def get_opportunity_skill_gap_analysis(opportunity_id: str, student_id: Op
         "graduationYear": student_grad_year
     }
 
-    # 2. Find opportunity from deduplicated list
     college_jobs = await get_college_placement_drives()
-    external_jobs = await get_all_external_jobs()
-    all_jobs = deduplicate_opportunities(college_jobs + external_jobs)
-
-    target_job = next((j for j in all_jobs if j["id"] == opportunity_id), None)
+    target_job = next((j for j in college_jobs if j["id"] == opportunity_id), None)
     if not target_job:
-        target_job = next((j for j in all_jobs if opportunity_id in j["id"] or j["id"] in opportunity_id), None)
+        target_job = next((j for j in college_jobs if opportunity_id in j["id"] or j["id"] in opportunity_id), None)
 
     if not target_job:
-        return {"error": "Opportunity not found", "drive_id": opportunity_id}
+        return {"error": "Placement drive not found", "drive_id": opportunity_id}
 
     req_skills = target_job.get("required_skills", [])
     pref_skills = target_job.get("preferred_skills", [])
 
     match_score, matched_req, missing_req, matched_pref, missing_pref = calculate_skill_match(student_skills, target_job)
+    hard_eligible, hard_reasons, missing_reqs = evaluate_drive_eligibility(student_data, target_job)
+    eligible = hard_eligible and (match_score >= 40 or len(matched_req) > 0)
 
-    # Check non-skill criteria
-    is_college = target_job["source_type"] == "college"
-    if is_college:
-        hard_eligible, hard_reasons, missing_reqs = evaluate_drive_eligibility(student_data, target_job)
-        eligible = hard_eligible and (match_score >= 40 or len(matched_req) > 0)
-        reasons = hard_reasons
-    else:
-        eligible = match_score >= 40 or len(matched_req) > 0
-        reasons = [] if eligible else [f"Missing required skills: {', '.join(missing_req)}"]
-        missing_reqs = missing_req
-
-    # Generate Actionable Learning Steps
     roadmap = []
     for idx, skill in enumerate(missing_req, start=1):
         roadmap.append({
@@ -729,7 +426,7 @@ async def get_opportunity_skill_gap_analysis(opportunity_id: str, student_id: Op
                 "satisfied": (student_grad_year == target_job.get("graduation_year")) if target_job.get("graduation_year") else True
             }
         },
-        "eligibility_reasons": reasons,
+        "eligibility_reasons": hard_reasons,
         "roadmap_steps": roadmap,
         "application_url": target_job.get("application_url"),
         "source_url": target_job.get("source_url")

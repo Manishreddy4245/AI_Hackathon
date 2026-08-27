@@ -45,6 +45,14 @@ class RegisterRecruiterRequest(BaseModel):
     designation: str
     phone: Optional[str] = None
 
+class RegisterPlacementOfficerRequest(BaseModel):
+    name: str
+    email: str
+    password: str
+    college: str = "Campus University"
+    designation: Optional[str] = "Placement Officer"
+    phone: Optional[str] = None
+
 class ForgotPasswordRequest(BaseModel):
     email: str
     portalRole: Optional[str] = None
@@ -352,6 +360,71 @@ async def register_recruiter(req: RegisterRecruiterRequest, response: Response):
             "email": clean_email,
             "role": "recruiter",
             "companyId": comp_id,
+        }
+    }
+
+@router.post("/register/placement-officer", status_code=status.HTTP_201_CREATED)
+@router.post("/register/placement_officer", status_code=status.HTTP_201_CREATED)
+@router.post("/register/officer", status_code=status.HTTP_201_CREATED)
+async def register_placement_officer(req: RegisterPlacementOfficerRequest, response: Response):
+    db = db_manager.db
+    if db is None:
+        raise HTTPException(status_code=503, detail="Database unavailable")
+
+    clean_email = req.email.strip().lower()
+    existing = await db.users.find_one({"email": clean_email})
+    if existing:
+        raise HTTPException(status_code=400, detail="This official email is already registered in the platform.")
+
+    user_id = f"usr-off-{int(datetime.now().timestamp())}"
+    pass_hash = hash_password(req.password)  # Argon2id
+
+    user_doc = {
+        "id": user_id,
+        "name": req.name,
+        "email": clean_email,
+        "password_hash": pass_hash,
+        "role": "placement_officer",
+        "college": req.college or "Campus University",
+        "designation": req.designation or "Placement Officer",
+        "phone": req.phone,
+        "is_active": True,
+        "created_at": datetime.now().isoformat()
+    }
+    await db.users.insert_one(user_doc)
+
+    token_payload = {
+        "sub": user_id,
+        "email": clean_email,
+        "role": "placement_officer",
+        "name": req.name,
+        "college": req.college or "Campus University"
+    }
+    access_token = create_access_token(token_payload)
+    refresh_token, jti, session_id, exp_ts = create_refresh_token(user_id)
+
+    await db.sessions.insert_one({
+        "id": session_id,
+        "userId": user_id,
+        "refreshJti": jti,
+        "expiresAt": exp_ts,
+        "isRevoked": False,
+        "createdAt": datetime.now().isoformat()
+    })
+
+    _set_auth_cookies(response, access_token, refresh_token)
+
+    return {
+        "access_token": access_token,
+        "refresh_token": refresh_token,
+        "token_type": "bearer",
+        "user": {
+            "id": user_id,
+            "name": req.name,
+            "email": clean_email,
+            "role": "placement_officer",
+            "college": req.college or "Campus University",
+            "designation": req.designation or "Placement Officer",
         }
     }
 

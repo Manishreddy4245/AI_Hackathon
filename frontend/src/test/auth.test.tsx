@@ -35,4 +35,9 @@ describe('Authentication & Session Security Tests', () => {
 
     expect(isAuthenticated).toBe(false);
   });
+
+  it('verifies student and recruiter registration methods exist and are isolated', () => {
+    expect(typeof apiService.registerStudent).toBe('function');
+    expect(typeof apiService.registerRecruiter).toBe('function');
+  });
 });

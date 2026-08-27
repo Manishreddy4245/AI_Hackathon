@@ -243,7 +243,7 @@ export const StudentApplications: React.FC = () => {
           <Briefcase className="w-10 h-10 text-[#64748B] mx-auto" />
           <h3 className="text-base font-bold text-[#F8FAFC]">No applications submitted yet</h3>
           <p className="text-xs text-[#94A3B8] max-w-md mx-auto">
-            Discover campus placement drives and external tech opportunities matched against your resume profile.
+            Discover active campus placement drives matched against your resume profile.
           </p>
           <Button
             variant="primary"

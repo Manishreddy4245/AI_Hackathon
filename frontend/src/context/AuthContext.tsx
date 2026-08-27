@@ -11,6 +11,7 @@ interface AuthContextType {
   logout: () => Promise<void>;
   registerStudent: (data: any) => Promise<{ success: boolean; error?: string }>;
   registerRecruiter: (data: any) => Promise<{ success: boolean; error?: string }>;
+  registerPlacementOfficer: (data: any) => Promise<{ success: boolean; error?: string }>;
   forgotPassword: (email: string, portalRole?: UserRole) => Promise<{ success: boolean; message: string }>;
   getPortalDashboardUrl: (role?: UserRole) => string;
   getPortalLoginUrl: (role?: UserRole) => string;
@@ -150,6 +151,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const registerPlacementOfficer = async (data: any): Promise<{ success: boolean; error?: string }> => {
+    try {
+      const res = await apiService.registerPlacementOfficer(data);
+      if (res.access_token) {
+        localStorage.setItem('placemind_token', res.access_token);
+        setToken(res.access_token);
+        setUser(res.user);
+      }
+      return { success: true };
+    } catch (err: any) {
+      return { success: false, error: err.response?.data?.detail || 'Placement Officer registration failed.' };
+    }
+  };
+
   const forgotPassword = async (email: string, portalRole?: UserRole): Promise<{ success: boolean; message: string }> => {
     try {
       const res = await apiService.forgotPassword({
@@ -188,6 +203,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         logout,
         registerStudent,
         registerRecruiter,
+        registerPlacementOfficer,
         forgotPassword,
         getPortalDashboardUrl,
         getPortalLoginUrl,

@@ -20,6 +20,8 @@ import {
 import { useAuth, getPortalDashboardUrl } from '../../context/AuthContext';
 import { UserRole } from '../../types';
 import { SignupModal } from '../../components/auth/SignupModal';
+import { RecruiterSignupModal } from '../../components/auth/RecruiterSignupModal';
+import { PlacementOfficerSignupModal } from '../../components/auth/PlacementOfficerSignupModal';
 
 interface PortalConfig {
   portalRole: UserRole;
@@ -95,8 +97,8 @@ export const PortalLogin: React.FC = () => {
           badgeClass: 'bg-[rgba(34,197,94,0.15)] text-[#86EFAC] border-[rgba(34,197,94,0.30)]',
           demoEmail: 'placement@demo.com',
           demoPass: 'password123',
-          canRegister: false,
-          restrictedNotice: 'Placement Officer administrative access is restricted to verified campus coordinators.',
+          canRegister: true,
+          registerLabel: 'New placement officer? Register institutional account',
         };
     }
   };
@@ -113,6 +115,8 @@ export const PortalLogin: React.FC = () => {
 
   // Modals
   const [studentSignupOpen, setStudentSignupOpen] = useState(false);
+  const [recruiterSignupOpen, setRecruiterSignupOpen] = useState(false);
+  const [officerSignupOpen, setOfficerSignupOpen] = useState(false);
   const [forgotModalOpen, setForgotModalOpen] = useState(false);
   const [forgotEmail, setForgotEmail] = useState('');
   const [forgotLoading, setForgotLoading] = useState(false);
@@ -247,20 +251,6 @@ export const PortalLogin: React.FC = () => {
             </div>
           )}
 
-          {/* Quick Demo Credentials Helper */}
-          <div className="p-3 bg-[#0B1628] rounded-xl border border-[#243650] flex items-center justify-between text-xs">
-            <div className="flex items-center gap-2 text-[#94A3B8]">
-              <Sparkles className="w-3.5 h-3.5 text-[#60A5FA]" />
-              <span className="font-semibold">Demo: {config.demoEmail}</span>
-            </div>
-            <button
-              type="button"
-              onClick={handleFillDemo}
-              className="px-2.5 py-1 rounded-lg bg-[#14243B] hover:bg-[#1E3A5F] border border-[#3B82F6]/30 text-[#60A5FA] text-[11px] font-bold cursor-pointer transition-colors"
-            >
-              Auto Fill
-            </button>
-          </div>
 
           {/* Login Form */}
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -360,7 +350,13 @@ export const PortalLogin: React.FC = () => {
                   onClick={() => {
                     setError(null);
                     setSuccessNotice(null);
-                    setStudentSignupOpen(true);
+                    if (config.portalRole === 'recruiter') {
+                      setRecruiterSignupOpen(true);
+                    } else if (config.portalRole === 'placement_officer') {
+                      setOfficerSignupOpen(true);
+                    } else {
+                      setStudentSignupOpen(true);
+                    }
                   }}
                   className="text-xs font-bold text-[#60A5FA] hover:underline cursor-pointer"
                 >
@@ -447,6 +443,38 @@ export const PortalLogin: React.FC = () => {
           setEmail(regEmail);
           setPassword('');
           setSuccessNotice('Account created successfully. Please sign in.');
+        }}
+      />
+
+      {/* Recruiter Signup Modal */}
+      <RecruiterSignupModal
+        isOpen={recruiterSignupOpen}
+        onClose={() => {
+          setError(null);
+          setRecruiterSignupOpen(false);
+        }}
+        onSuccess={(regEmail) => {
+          setError(null);
+          setRecruiterSignupOpen(false);
+          setEmail(regEmail);
+          setPassword('');
+          setSuccessNotice('Recruiter account created successfully. Please sign in.');
+        }}
+      />
+
+      {/* Placement Officer Signup Modal */}
+      <PlacementOfficerSignupModal
+        isOpen={officerSignupOpen}
+        onClose={() => {
+          setError(null);
+          setOfficerSignupOpen(false);
+        }}
+        onSuccess={(regEmail) => {
+          setError(null);
+          setOfficerSignupOpen(false);
+          setEmail(regEmail);
+          setPassword('');
+          setSuccessNotice('Placement Officer account created successfully. Please sign in.');
         }}
       />
 

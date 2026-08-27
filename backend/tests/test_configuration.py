@@ -10,13 +10,10 @@ def test_development_configuration_defaults():
         MONGODB_DATABASE="placemind_dev",
         FRONTEND_URL="http://localhost:5173",
         JWT_SECRET="dev-secret-key-12345",
-        ALLOW_MOCK_DB=True,
-        SEED_DEMO_DATA=True,
-        ENABLE_DB_SEED=True
+        ALLOW_MOCK_DB=True
     )
     assert s.ENV == "development"
     assert s.ALLOW_MOCK_DB is True
-    assert s.SEED_DEMO_DATA is True
 
 def test_test_environment_configuration():
     """Verify test mode setting validation."""
@@ -26,13 +23,10 @@ def test_test_environment_configuration():
         MONGODB_DATABASE="placemind_test",
         FRONTEND_URL="http://localhost:5173",
         JWT_SECRET="test-secret-key-67890",
-        ALLOW_MOCK_DB=True,
-        SEED_DEMO_DATA=False,
-        ENABLE_DB_SEED=False
+        ALLOW_MOCK_DB=True
     )
     assert s.ENV == "test"
     assert s.ALLOW_MOCK_DB is True
-    assert s.SEED_DEMO_DATA is False
 
 def test_production_configuration_fail_fast_on_missing_secrets():
     """Verify production fails fast if required secrets or production URLs are missing/invalid."""
@@ -42,8 +36,7 @@ def test_production_configuration_fail_fast_on_missing_secrets():
             MONGODB_URI="mongodb://localhost:27017",  # Insecure localhost
             JWT_SECRET="dev-jwt-secret-key-change-in-prod-2026",  # Weak default secret
             FRONTEND_URL="http://localhost:5173",  # Insecure localhost
-            ALLOW_MOCK_DB=True,  # Insecure mock DB in prod
-            SEED_DEMO_DATA=True  # Insecure seeding in prod
+            ALLOW_MOCK_DB=True  # Insecure mock DB in prod
         )
     
     err_str = str(exc_info.value)
@@ -64,11 +57,8 @@ def test_production_configuration_passes_with_valid_secrets():
         JWT_SECRET="x8f9a7b6c5d4e3f2a1b0c9d8e7f6a5b4c3d2e1f0a9b8c7d6e5f4a3b2c1d0e9f8",
         SECURITY_SALT="s9f8e7d6c5b4a3f2e1d0c9b8a7f6e5d4c3b2a1f0e9d8c7b6a5f4e3d2c1b0a9f8",
         GEMINI_API_KEY="AIzaSySampleProductionGeminiKey987654321",
-        ALLOW_MOCK_DB=False,
-        SEED_DEMO_DATA=False,
-        ENABLE_DB_SEED=False
+        ALLOW_MOCK_DB=False
     )
     assert s.ENV == "production"
     assert s.ALLOW_MOCK_DB is False
-    assert s.SEED_DEMO_DATA is False
     assert s.FRONTEND_URL == "https://placemind.university.edu"

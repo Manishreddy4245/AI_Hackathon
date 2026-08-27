@@ -131,13 +131,13 @@ async def create_drive(
     company_id = current_user.get("companyId") or current_user.get("company_id") or "comp-default"
     now_iso = datetime.now().isoformat()
 
-    grad_years = drive_in.graduationYears or ([drive_in.graduationYear] if drive_in.graduationYear else [2027])
-    single_grad = grad_years[0] if grad_years else (drive_in.graduationYear or 2027)
+    grad_years = drive_in.graduationYears if drive_in.graduationYears is not None else ([drive_in.graduationYear] if drive_in.graduationYear is not None else [])
+    single_grad = grad_years[0] if grad_years else drive_in.graduationYear
 
     drive_dict = drive_in.model_dump()
     drive_dict.update({
         "id": new_id,
-        "status": "PENDING_ANNOUNCEMENT",
+        "status": "PENDING_APPROVAL",
         "graduationYear": single_grad,
         "graduationYears": grad_years,
         "recruiter_id": recruiter_id,
@@ -548,7 +548,13 @@ async def approve_drive(
     drive_id: str,
     current_user: Optional[Dict[str, Any]] = Depends(get_optional_current_user)
 ):
-    """Legacy endpoint: kept for backward compatibility."""
+    """
+    Placement Officer approves a pending campus drive.
+    Drive status: PENDING_APPROVAL → ACTIVE
+    - Sends notification to the recruiter
+    - Sends notifications to all students
+    - Creates a Placement Community for the drive
+    """
     db = db_manager.db
     if db is None:
         raise HTTPException(status_code=503, detail="Database unavailable")
@@ -557,7 +563,17 @@ async def approve_drive(
     if not drive:
         raise HTTPException(status_code=404, detail="Placement drive not found")
 
+    # State guard: only allow approval from valid pending states
+    current_status = (drive.get("status") or "").upper()
+    non_approvable = {"ACTIVE", "ANNOUNCED", "CLOSED", "COMPLETED", "REJECTED"}
+    if current_status in non_approvable:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Drive cannot be approved from its current status: {drive.get('status')}"
+        )
+
     officer_name = current_user.get("name", "Placement Officer") if current_user else "Placement Officer"
+    officer_id = current_user.get("id", "officer") if current_user else "officer"
     now_iso = datetime.now().isoformat()
 
     await db.drives.update_one(

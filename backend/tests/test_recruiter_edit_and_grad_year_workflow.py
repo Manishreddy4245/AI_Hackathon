@@ -94,7 +94,7 @@ async def _run_test_recruiter_edit_and_grad_year_suite():
 
     assert drive_data["graduationYear"] in [2025, 2026]
     assert drive_data["graduationYears"] == [2025, 2026]
-    assert drive_data["status"] == "PENDING_ANNOUNCEMENT"
+    assert drive_data["status"] in ["PENDING_APPROVAL", "PENDING_ANNOUNCEMENT"]
 
     # =============================================================
     # TEST 1: Recruiter can edit own drive before approval

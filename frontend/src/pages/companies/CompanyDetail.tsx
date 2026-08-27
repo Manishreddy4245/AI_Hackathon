@@ -204,11 +204,12 @@ export const CompanyDetail: React.FC = () => {
   const handleApprove = async () => {
     if (!drive) return;
     try {
-      await approveDrive(drive.id);
-      setDrive((prev) => prev ? ({ ...prev, status: 'ACTIVE' as any, aiConfirmed: true }) : undefined);
+      const updated = await approveDrive(drive.id);
+      setDrive((prev) => prev ? ({ ...prev, ...updated, status: 'ACTIVE' as any, aiConfirmed: true }) : undefined);
       triggerAction('Placement drive approved and published to eligible students!');
-    } catch {
-      triggerAction('Drive approved.');
+    } catch (err: any) {
+      const detail = err?.response?.data?.detail || err?.message || 'Approval failed. Please try again.';
+      triggerAction(`Error: ${detail}`);
     }
   };
 

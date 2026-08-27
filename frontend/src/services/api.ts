@@ -331,6 +331,24 @@ export const apiService = {
     return res.data;
   },
 
+  async registerPlacementOfficer(payload: {
+    name: string;
+    email: string;
+    password: string;
+    college: string;
+    designation?: string;
+    phone?: string;
+  }) {
+    const res = await apiClient.post('/auth/register/placement-officer', payload);
+    if (res.data?.access_token) {
+      localStorage.setItem('placemind_token', res.data.access_token);
+    }
+    if (res.data?.refresh_token) {
+      localStorage.setItem('placemind_refresh_token', res.data.refresh_token);
+    }
+    return res.data;
+  },
+
   async refreshToken(refreshToken?: string) {
     const stored = refreshToken || localStorage.getItem('placemind_refresh_token') || undefined;
     const res = await apiClient.post('/auth/refresh', { refreshToken: stored });
@@ -406,11 +424,13 @@ export const apiService = {
   },
 
   async approveDrive(driveId: string): Promise<PlacementDrive> {
-    const res = await apiClient.post<PlacementDrive>(`/drives/${driveId}/announce`);
+    // POST /drives/{id}/approve — sets status ACTIVE, notifies recruiter & students
+    const res = await apiClient.post<PlacementDrive>(`/drives/${driveId}/approve`);
     return res.data;
   },
 
   async announceDrive(driveId: string): Promise<PlacementDrive> {
+    // POST /drives/{id}/announce — used to notify students about an already-approved drive
     const res = await apiClient.post<PlacementDrive>(`/drives/${driveId}/announce`);
     return res.data;
   },
@@ -820,49 +840,6 @@ export const apiService = {
     return res.data;
   },
 
-  // External Application Lifecycle
-  async startExternalApplication(data: {
-    drive_id: string;
-    company_name?: string;
-    job_title?: string;
-    company_id?: string;
-    application_url: string;
-  }): Promise<{
-    status: string;
-    already_applied: boolean;
-    message: string;
-    redirect_url: string;
-    return_token?: string;
-    drive_id: string;
-    company_name?: string;
-    job_title?: string;
-  }> {
-    const res = await apiClient.post<any>('/students/external-apply/start', data);
-    return res.data;
-  },
-
-  async getExternalApplicationStatus(driveId: string, token?: string): Promise<any> {
-    const params = new URLSearchParams();
-    params.append('drive_id', driveId);
-    if (token) params.append('token', token);
-    const res = await apiClient.get<any>(`/students/external-apply/status?${params.toString()}`);
-    return res.data;
-  },
-
-  async confirmExternalApplication(data: {
-    drive_id: string;
-    token?: string;
-    completed: boolean;
-  }): Promise<{
-    status: string;
-    is_completed: boolean;
-    message: string;
-    company_name?: string;
-    job_title?: string;
-  }> {
-    const res = await apiClient.post<any>('/students/external-apply/confirm', data);
-    return res.data;
-  },
 
   async getDashboardSummary(): Promise<{
     active_drives: number;

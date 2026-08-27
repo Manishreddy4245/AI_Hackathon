@@ -25,9 +25,9 @@ async def list_opportunities(
     current_user: Optional[Dict[str, Any]] = Depends(get_optional_current_user)
 ):
     """
-    Unified Opportunity Discovery & Aggregator endpoint:
-    Fetches all available opportunities across configured sources without artificial slice limits,
-    evaluates every opportunity against the authenticated student's real profile,
+    Campus Placement Drives Discovery endpoint:
+    Fetches all available internal campus placement drives from MongoDB,
+    evaluates every drive against the authenticated student's real profile,
     and returns rich counts, company-grouped representations, and paginated results.
     """
     student_id = current_user.get("id") if current_user else None

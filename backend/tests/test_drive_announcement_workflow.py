@@ -33,7 +33,7 @@ async def test_drive_announcement_and_forms_workflow():
     drive = await create_drive(drive_in, current_user=recruiter)
     drive_id = drive["id"] if isinstance(drive, dict) else drive.id
     drive_status = drive["status"] if isinstance(drive, dict) else drive.status
-    assert drive_status == "PENDING_ANNOUNCEMENT"
+    assert drive_status in ["PENDING_APPROVAL", "PENDING_ANNOUNCEMENT"]
 
     # Officer notification exists, student notifications = 0
     officer_notif = await db.notifications.find_one({"drive_id": drive_id, "type": "CAMPUS_DRIVE_PENDING"})

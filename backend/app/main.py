@@ -9,7 +9,6 @@ from fastapi.responses import JSONResponse
 
 from app.core.config import settings
 from app.db.mongodb import connect_to_mongo, close_mongo_connection, ping_database, db_manager
-from app.db.seed import seed_database
 from app.db.integrity import setup_data_integrity, generate_data_integrity_report
 from app.middleware.observability import RequestObservabilityMiddleware
 from app.middleware.rate_limiter import RateLimitingAndBodySizeMiddleware
@@ -50,9 +49,8 @@ async def lifespan(app: FastAPI):
     """Lifespan context manager handling application startup and shutdown events."""
     logger.info("Starting PlaceMind API server...")
     await connect_to_mongo()
-    asyncio.create_task(setup_data_integrity(db_manager.db))
-    if settings.ENABLE_DB_SEED or settings.SEED_DEMO_DATA:
-        asyncio.create_task(seed_database())
+    await setup_data_integrity(db_manager.db)
+    # Automatic demo seeding on startup disabled. Fresh database state enforced.
     yield
     logger.info("Shutting down PlaceMind API server...")
     await close_mongo_connection()
