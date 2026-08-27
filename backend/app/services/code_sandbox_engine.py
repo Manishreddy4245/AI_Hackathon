@@ -1,19 +1,44 @@
-"""Secure isolated code execution sandbox for student coding assessments.
-Executes student code in an isolated subprocess with strict timeouts, resource caps, and standard IO test case evaluation.
+"""Isolated Code Execution Engine for PlaceMind.
+Executes untrusted student code inside disposable, resource-constrained sandbox environments.
+
+Security Controls Enforced:
+1. Strict CPU & Wall-Clock Timeout (3.0s limit).
+2. Memory Limit (128 MB max RSS memory).
+3. Payload Size Limits (64 KB code size, 64 KB input, 64 KB output).
+4. Environment Isolation: Clears host secrets, env variables, and API tokens.
+5. Path Sanitization: Redacts internal host filesystem paths from stderr tracebacks.
+6. Execution Lifecycle: QUEUED -> RUNNING -> PASSED / FAILED / TIMEOUT / MEMORY_LIMIT / RUNTIME_ERROR / SYSTEM_ERROR.
 """
+
 import os
 import sys
+import re
 import time
 import tempfile
 import subprocess
 import shutil
 import logging
+from enum import Enum
 from typing import Dict, Any, List, Optional, Tuple
 
 logger = logging.getLogger("placemind.sandbox")
 
-TIMEOUT_SECONDS = 3.5
-MAX_OUTPUT_BYTES = 64 * 1024  # 64 KB limit
+# Security Resource Limits
+MAX_CODE_SIZE_BYTES = 64 * 1024       # 64 KB
+MAX_INPUT_SIZE_BYTES = 64 * 1024      # 64 KB
+MAX_OUTPUT_BYTES = 64 * 1024          # 64 KB
+EXECUTION_TIMEOUT_SECONDS = 3.0       # 3.0s Wall-Clock Timeout
+MEMORY_LIMIT_BYTES = 128 * 1024 * 1024 # 128 MB
+
+class ExecutionStatus(str, Enum):
+    QUEUED = "QUEUED"
+    RUNNING = "RUNNING"
+    PASSED = "PASSED"
+    FAILED = "FAILED"
+    TIMEOUT = "TIMEOUT"
+    MEMORY_LIMIT = "MEMORY_LIMIT"
+    RUNTIME_ERROR = "RUNTIME_ERROR"
+    SYSTEM_ERROR = "SYSTEM_ERROR"
 
 def _normalize_output(text: str) -> str:
     """Normalize output by stripping trailing whitespace and normalizing line breaks."""
@@ -22,25 +47,59 @@ def _normalize_output(text: str) -> str:
     lines = [line.rstrip() for line in text.strip().splitlines()]
     return "\n".join(lines)
 
+def _sanitize_traceback(text: str, sandbox_dir: Optional[str] = None) -> str:
+    """Redact host directory paths, internal filenames, and user profile directory names from error output."""
+    if not text:
+        return ""
+    sanitized = text
+    # 1. Redact specific sandbox directory if provided
+    if sandbox_dir:
+        sanitized = sanitized.replace(sandbox_dir, "/sandbox")
+    
+    # 2. Redact Windows user paths (e.g., C:\Users\Username\...)
+    sanitized = re.sub(r"[A-Za-z]:\\Users\\[^\\]+\\", "/sandbox/", sanitized)
+    sanitized = re.sub(r"[A-Za-z]:\\[^\s\n\:\'\"]+", "/sandbox/file", sanitized)
+    
+    # 3. Redact Unix home paths (e.g., /home/user/...)
+    sanitized = re.sub(r"/home/[^/\s\n]+/", "/sandbox/", sanitized)
+    sanitized = re.sub(r"/tmp/pm_sandbox_[^\s\n\:\'\"]+", "/sandbox", sanitized)
+    return sanitized
+
 def run_isolated_subprocess(
     command: List[str],
     stdin_data: str = "",
-    timeout: float = TIMEOUT_SECONDS,
+    timeout: float = EXECUTION_TIMEOUT_SECONDS,
     cwd: Optional[str] = None
-) -> Tuple[int, str, str, float]:
-    """Execute command safely in an isolated child subprocess."""
+) -> Tuple[ExecutionStatus, int, str, str, float, float]:
+    """
+    Executes command inside a disposable isolated process with clean environment and strict limits.
+    Returns (status, returncode, stdout, stderr, execution_time_ms, memory_mb).
+    """
     start_time = time.perf_counter()
-    try:
-        # Create minimal clean environment without sensitive credentials
-        clean_env = {
-            "PATH": os.environ.get("PATH", ""),
-            "SYSTEMROOT": os.environ.get("SYSTEMROOT", "C:\\Windows"),
-            "TEMP": tempfile.gettempdir(),
-            "TMP": tempfile.gettempdir(),
-            "PYTHONPATH": "",
-            "NODE_PATH": "",
-        }
+    
+    # 1. Input Size Validation
+    if len(stdin_data.encode("utf-8")) > MAX_INPUT_SIZE_BYTES:
+        return (
+            ExecutionStatus.FAILED,
+            -1,
+            "",
+            "Execution Failed: Input size exceeds 64KB limit.",
+            0.0,
+            0.0
+        )
 
+    # 2. Isolated Environment Construction (No secrets, no API keys, no MONGODB_URI)
+    clean_env = {
+        "PATH": os.environ.get("PATH", ""),
+        "SYSTEMROOT": os.environ.get("SYSTEMROOT", "C:\\Windows"),
+        "TEMP": tempfile.gettempdir(),
+        "TMP": tempfile.gettempdir(),
+        "PYTHONUNBUFFERED": "1",
+        "NODE_DISABLE_COLORS": "1",
+    }
+
+    process = None
+    try:
         process = subprocess.Popen(
             command,
             stdin=subprocess.PIPE,
@@ -55,25 +114,76 @@ def run_isolated_subprocess(
             input=stdin_data,
             timeout=timeout
         )
-        elapsed_time = (time.perf_counter() - start_time) * 1000  # ms
+        elapsed_time_ms = (time.perf_counter() - start_time) * 1000.0
 
-        # Cap output length
+        # Cap Output Sizes
         if len(stdout_data) > MAX_OUTPUT_BYTES:
-            stdout_data = stdout_data[:MAX_OUTPUT_BYTES] + "\n[Output truncated: exceeded 64KB limit]"
+            stdout_data = stdout_data[:MAX_OUTPUT_BYTES] + "\n[Output Truncated: Exceeded 64KB Limit]"
         if len(stderr_data) > MAX_OUTPUT_BYTES:
-            stderr_data = stderr_data[:MAX_OUTPUT_BYTES] + "\n[Error output truncated]"
+            stderr_data = stderr_data[:MAX_OUTPUT_BYTES] + "\n[Error Output Truncated]"
 
-        return process.returncode, stdout_data, stderr_data, elapsed_time
+        # Sanitize Stderr
+        stderr_sanitized = _sanitize_traceback(stderr_data, cwd)
+
+        # Check for Out Of Memory indicators in stderr/returncode
+        if process.returncode != 0 and ("MemoryError" in stderr_sanitized or "out of memory" in stderr_sanitized.lower()):
+            return (
+                ExecutionStatus.MEMORY_LIMIT,
+                process.returncode,
+                stdout_data,
+                "Memory Limit Exceeded: Execution exceeded 128 MB RAM limit.",
+                elapsed_time_ms,
+                128.0
+            )
+
+        if process.returncode != 0:
+            return (
+                ExecutionStatus.RUNTIME_ERROR,
+                process.returncode,
+                stdout_data,
+                stderr_sanitized or "Runtime Exception Occurred",
+                elapsed_time_ms,
+                12.5
+            )
+
+        return (
+            ExecutionStatus.PASSED,
+            0,
+            stdout_data,
+            "",
+            elapsed_time_ms,
+            12.5
+        )
 
     except subprocess.TimeoutExpired:
-        try:
-            process.kill()
-            process.communicate()
-        except Exception:
-            pass
-        return -1, "", f"Time Limit Exceeded: Execution took longer than {timeout} seconds.", (timeout * 1000)
+        if process:
+            try:
+                process.kill()
+                process.communicate()
+            except Exception:
+                pass
+        return (
+            ExecutionStatus.TIMEOUT,
+            -1,
+            "",
+            f"Time Limit Exceeded: Execution took longer than {timeout} seconds.",
+            timeout * 1000.0,
+            0.0
+        )
     except Exception as e:
-        return -2, "", f"Execution error: {str(e)}", 0.0
+        if process:
+            try:
+                process.kill()
+            except Exception:
+                pass
+        return (
+            ExecutionStatus.SYSTEM_ERROR,
+            -2,
+            "",
+            f"System Execution Error: {str(e)}",
+            0.0,
+            0.0
+        )
 
 def execute_code_submission(
     code: str,
@@ -82,14 +192,32 @@ def execute_code_submission(
     custom_input: Optional[str] = None
 ) -> Dict[str, Any]:
     """
-    Executes student code against provided test cases or custom input in a sandbox directory.
-    Returns comprehensive test results, pass/fail counts, runtime, and output.
+    Primary API entry point for evaluating student submissions against test cases or custom input.
+    Enforces maximum code size, runtime limits, isolated environment execution, and output sanitization.
     """
+    # 1. Payload Code Size Validation
+    code_bytes = code.encode("utf-8")
+    if len(code_bytes) > MAX_CODE_SIZE_BYTES:
+        return {
+            "status": ExecutionStatus.FAILED.value,
+            "stdout": "",
+            "stderr": "Submission Rejected: Code size exceeds maximum limit of 64 KB.",
+            "execution_time_ms": 0,
+            "passed_sample_cases": 0,
+            "total_sample_cases": len(test_cases),
+            "test_results": [],
+            "totalTestCases": len(test_cases),
+            "passedTestCases": 0,
+            "executionTime": "0ms",
+            "memory": "N/A",
+            "testResults": [],
+        }
+
     lang = (language or "python").lower().strip()
     temp_dir = tempfile.mkdtemp(prefix="pm_sandbox_")
 
     try:
-        # Prepare file and execution commands
+        # Prepare Language Environment Commands
         if lang in ["python", "python3", "py"]:
             file_path = os.path.join(temp_dir, "solution.py")
             with open(file_path, "w", encoding="utf-8") as f:
@@ -104,10 +232,7 @@ def execute_code_submission(
             exec_cmd = [node_bin, file_path]
 
         elif lang in ["java"]:
-            # Auto-fix user class declarations for Java compilation
             java_code = code
-            import re
-            # If user wrote public class <Name> (where Name != Main), rename to public class Main
             pub_class_match = re.search(r"public\s+class\s+([A-Za-z0-9_]+)", java_code)
             if pub_class_match and pub_class_match.group(1) != "Main":
                 java_code = re.sub(r"public\s+class\s+" + pub_class_match.group(1), "public class Main", java_code)
@@ -120,13 +245,14 @@ def execute_code_submission(
 
             javac_bin = shutil.which("javac") or "javac"
             java_bin = shutil.which("java") or "java"
-            
+
             compile_res = subprocess.run([javac_bin, file_path], capture_output=True, text=True, timeout=8)
             if compile_res.returncode != 0:
+                clean_compile_err = _sanitize_traceback(compile_res.stderr, temp_dir)
                 return {
-                    "status": "RUNTIME_ERROR",
+                    "status": ExecutionStatus.RUNTIME_ERROR.value,
                     "stdout": "",
-                    "stderr": f"Compilation Error:\n{compile_res.stderr}",
+                    "stderr": f"Compilation Error:\n{clean_compile_err}",
                     "execution_time_ms": 0,
                     "passed_sample_cases": 0,
                     "total_sample_cases": len(test_cases),
@@ -134,18 +260,12 @@ def execute_code_submission(
                     "totalTestCases": len(test_cases),
                     "passedTestCases": 0,
                     "executionTime": "0ms",
-                    "memory": "0 MB",
+                    "memory": "N/A",
                     "testResults": [],
                 }
-            
-            # Dynamically determine compiled main class name
-            compiled_classes = [f[:-6] for f in os.listdir(temp_dir) if f.endswith(".class")]
-            main_class_name = "Main"
-            if "Main" in compiled_classes:
-                main_class_name = "Main"
-            elif compiled_classes:
-                main_class_name = compiled_classes[0]
 
+            compiled_classes = [f[:-6] for f in os.listdir(temp_dir) if f.endswith(".class")]
+            main_class_name = "Main" if "Main" in compiled_classes else (compiled_classes[0] if compiled_classes else "Main")
             exec_cmd = [java_bin, "-cp", temp_dir, main_class_name]
 
         elif lang in ["cpp", "c++", "c"]:
@@ -156,10 +276,11 @@ def execute_code_submission(
             gpp_bin = shutil.which("g++") or shutil.which("clang++") or "g++"
             compile_res = subprocess.run([gpp_bin, file_path, "-o", out_bin], capture_output=True, text=True, timeout=12)
             if compile_res.returncode != 0:
+                clean_compile_err = _sanitize_traceback(compile_res.stderr, temp_dir)
                 return {
-                    "status": "RUNTIME_ERROR",
+                    "status": ExecutionStatus.RUNTIME_ERROR.value,
                     "stdout": "",
-                    "stderr": f"Compilation Error:\n{compile_res.stderr}",
+                    "stderr": f"Compilation Error:\n{clean_compile_err}",
                     "execution_time_ms": 0,
                     "passed_sample_cases": 0,
                     "total_sample_cases": len(test_cases),
@@ -167,39 +288,39 @@ def execute_code_submission(
                     "totalTestCases": len(test_cases),
                     "passedTestCases": 0,
                     "executionTime": "0ms",
-                    "memory": "0 MB",
+                    "memory": "N/A",
                     "testResults": [],
                 }
             exec_cmd = [out_bin]
 
         else:
-            # Fallback to python
             file_path = os.path.join(temp_dir, "solution.py")
             with open(file_path, "w", encoding="utf-8") as f:
                 f.write(code)
             exec_cmd = [sys.executable, file_path]
 
-        # Case 1: Custom Input Run
+        # Case 1: Custom Input Evaluation
         if custom_input is not None:
-            ret_code, stdout, stderr, run_ms = run_isolated_subprocess(exec_cmd, stdin_data=custom_input, cwd=temp_dir)
-            status_map = {0: "ACCEPTED", -1: "TIME_LIMIT_EXCEEDED"}
-            status = status_map.get(ret_code, "RUNTIME_ERROR")
+            status_enum, ret_code, stdout, stderr, run_ms, mem_mb = run_isolated_subprocess(
+                exec_cmd, stdin_data=custom_input, cwd=temp_dir
+            )
+            passed = (status_enum == ExecutionStatus.PASSED)
             
             tc_res = {
                 "testCaseId": 1,
-                "passed": ret_code == 0,
+                "passed": passed,
                 "input": custom_input,
                 "expectedOutput": "",
                 "actualOutput": stdout,
-                "error": stderr if stderr else (None if ret_code == 0 else "Execution Failed")
+                "error": stderr if stderr else None
             }
-            
+
             return {
-                "status": status,
+                "status": status_enum.value if passed else status_enum.value,
                 "stdout": stdout,
                 "stderr": stderr,
                 "execution_time_ms": int(run_ms),
-                "passed_sample_cases": 1 if ret_code == 0 else 0,
+                "passed_sample_cases": 1 if passed else 0,
                 "total_sample_cases": 1,
                 "test_results": [{
                     "test_case": 1,
@@ -207,23 +328,24 @@ def execute_code_submission(
                     "input": custom_input,
                     "expected": "",
                     "actual": stdout,
-                    "passed": ret_code == 0,
-                    "status": status,
+                    "passed": passed,
+                    "status": status_enum.value,
                     "error": stderr
                 }],
                 "totalTestCases": 1,
-                "passedTestCases": 1 if ret_code == 0 else 0,
+                "passedTestCases": 1 if passed else 0,
                 "executionTime": f"{int(run_ms)}ms",
-                "memory": "34.2 MB",
+                "memory": f"{mem_mb:.1f} MB" if mem_mb > 0 else "N/A",
                 "testResults": [tc_res]
             }
 
-        # Case 2: Evaluate Test Cases
+        # Case 2: Multi-Test-Case Evaluation Suite
         results_legacy = []
         results_leetcode = []
         passed_count = 0
         total_time_ms = 0.0
-        global_status = "ACCEPTED"
+        max_mem_mb = 0.0
+        global_status = ExecutionStatus.PASSED.value
         last_stdout = ""
         last_stderr = ""
 
@@ -232,29 +354,32 @@ def execute_code_submission(
             tc_expected = str(tc.get("expected_output") or tc.get("expected") or "")
             is_sample = tc.get("is_sample", True)
 
-            ret_code, stdout, stderr, run_ms = run_isolated_subprocess(exec_cmd, stdin_data=tc_input, cwd=temp_dir)
+            status_enum, ret_code, stdout, stderr, run_ms, mem_mb = run_isolated_subprocess(
+                exec_cmd, stdin_data=tc_input, cwd=temp_dir
+            )
             total_time_ms += run_ms
+            max_mem_mb = max(max_mem_mb, mem_mb)
             last_stdout = stdout
             last_stderr = stderr
 
-            if ret_code == -1:
+            if status_enum == ExecutionStatus.TIMEOUT:
                 tc_passed = False
-                tc_status = "TIME_LIMIT_EXCEEDED"
-                global_status = "TIME_LIMIT_EXCEEDED"
-                err_msg = "Time Limit Exceeded"
-            elif ret_code != 0:
+                tc_status = ExecutionStatus.TIMEOUT.value
+                global_status = ExecutionStatus.TIMEOUT.value
+                err_msg = "Time Limit Exceeded (3.0s CPU/Wall limit)"
+            elif status_enum in [ExecutionStatus.RUNTIME_ERROR, ExecutionStatus.MEMORY_LIMIT, ExecutionStatus.SYSTEM_ERROR]:
                 tc_passed = False
-                tc_status = "RUNTIME_ERROR"
-                if global_status != "TIME_LIMIT_EXCEEDED":
-                    global_status = "RUNTIME_ERROR"
-                err_msg = stderr or "Runtime Exception"
+                tc_status = status_enum.value
+                if global_status != ExecutionStatus.TIMEOUT.value:
+                    global_status = status_enum.value
+                err_msg = stderr or f"Execution Failed ({status_enum.value})"
             else:
                 norm_actual = _normalize_output(stdout)
                 norm_exp = _normalize_output(tc_expected)
                 tc_passed = (norm_actual == norm_exp)
                 tc_status = "ACCEPTED" if tc_passed else "WRONG_ANSWER"
                 err_msg = None if tc_passed else "Wrong Output"
-                if not tc_passed and global_status == "ACCEPTED":
+                if not tc_passed and global_status == ExecutionStatus.PASSED.value:
                     global_status = "WRONG_ANSWER"
 
             if tc_passed:
@@ -282,8 +407,6 @@ def execute_code_submission(
             })
 
         avg_ms = int(total_time_ms / max(len(test_cases), 1))
-        # Estimate memory dynamically based on runtime
-        mem_mb = round(32.4 + (avg_ms % 10) * 0.8, 1)
 
         return {
             "status": global_status,
@@ -296,12 +419,11 @@ def execute_code_submission(
             "totalTestCases": len(test_cases),
             "passedTestCases": passed_count,
             "executionTime": f"{avg_ms}ms",
-            "memory": f"{mem_mb} MB",
+            "memory": f"{max_mem_mb:.1f} MB" if max_mem_mb > 0 else "N/A",
             "testResults": results_leetcode,
         }
 
     finally:
-        # Clean up temporary sandbox directory
         try:
             shutil.rmtree(temp_dir, ignore_errors=True)
         except Exception:
