@@ -795,10 +795,10 @@ export const CompanyDetail: React.FC = () => {
                     </td>
                     <td className="px-4 py-3.5 align-middle">
                       <div className="font-semibold text-[#F8FAFC]">{candidate.branch || 'CSE'}</div>
-                      <div className="text-[11px] text-[#86EFAC] font-bold">CGPA: {candidate.cgpa || 8.5}</div>
+                      <div className="text-[11px] text-[#86EFAC] font-bold">CGPA: {candidate.cgpa != null ? candidate.cgpa : 'N/A'}</div>
                     </td>
                     <td className="px-4 py-3.5 align-middle">
-                      <MatchScore score={candidate.match_score || 85} size="sm" />
+                      {candidate.match_score != null ? <MatchScore score={candidate.match_score} size="sm" /> : <span className="text-xs text-[#64748B]">No score</span>}
                     </td>
                     <td className="px-4 py-3.5 align-middle">
                       <StatusBadge status={candidate.status} />

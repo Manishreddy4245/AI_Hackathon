@@ -313,12 +313,34 @@ export const CustomMockInterviewModal: React.FC<CustomMockInterviewModalProps> =
     setIsEvaluating(true);
 
     setTimeout(() => {
-      // Multi-factor rating computation
-      const commScore = Math.floor(Math.random() * 2) + 8; // 8 - 9
-      const techScore = Math.floor(Math.random() * 2) + 8; // 8 - 9
-      const codeScore = Math.floor(Math.random() * 2) + 7; // 7 - 8
-      const probScore = Math.floor(Math.random() * 2) + 8; // 8 - 9
-      const confScore = Math.floor(Math.random() * 2) + 8; // 8 - 9
+      // Deterministic rating computation based on actual candidate responses
+      const studentMessages = chatHistory.filter((c) => c.sender === 'candidate');
+      const totalWords = studentMessages.reduce((acc, msg) => acc + msg.text.split(/\s+/).filter(Boolean).length, 0);
+      const codeLength = (userAnswer || '').trim().length;
+
+      let commScore = 6.0;
+      let techScore = 6.0;
+      let codeScore = codeLength > 20 ? 8.0 : 5.0;
+      let probScore = 6.5;
+      let confScore = 6.5;
+
+      if (totalWords > 120) {
+        commScore += 2.0;
+        confScore += 1.5;
+      } else if (totalWords > 40) {
+        commScore += 1.0;
+      }
+
+      if (studentMessages.length >= 3) {
+        techScore += 1.5;
+        probScore += 1.5;
+      }
+
+      commScore = Math.min(10.0, Math.max(1.0, Number(commScore.toFixed(1))));
+      techScore = Math.min(10.0, Math.max(1.0, Number(techScore.toFixed(1))));
+      codeScore = Math.min(10.0, Math.max(1.0, Number(codeScore.toFixed(1))));
+      probScore = Math.min(10.0, Math.max(1.0, Number(probScore.toFixed(1))));
+      confScore = Math.min(10.0, Math.max(1.0, Number(confScore.toFixed(1))));
 
       const overall = Number(((commScore + techScore + codeScore + probScore + confScore) / 5).toFixed(1));
       let verdict: 'STRONG_HIRE' | 'HIRE' | 'BORDERLINE' | 'NEEDS_PRACTICE' = 'HIRE';

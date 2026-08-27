@@ -115,7 +115,7 @@ export const StudentCommunity: React.FC = () => {
               email: p.email || user?.email || '',
               roll_number: p.rollNumber || p.roll_number || '',
               branch: p.branch || 'CSE',
-              cgpa: p.cgpa || 8.0,
+              cgpa: p.cgpa ?? 0.0,
               phone: p.phone || p.mobile || '',
               preferred_location: p.preferred_location || 'Bengaluru',
             }));
@@ -200,9 +200,9 @@ export const StudentCommunity: React.FC = () => {
   const isRegistered = community?.is_registered;
 
   // Eligibility evaluation
-  const studentCgpa = studentProfile?.cgpa || 8.0;
+  const studentCgpa = studentProfile?.cgpa ?? 0.0;
   const studentBranch = (studentProfile?.branch || 'CSE').toUpperCase();
-  const minCgpa = drive?.minCgpa || 7.0;
+  const minCgpa = drive?.minCgpa ?? 0.0;
   const eligibleBranches = drive?.eligibleBranches || ['CSE', 'IT'];
   const isCgpaEligible = studentCgpa >= minCgpa;
   const isBranchEligible =
@@ -809,7 +809,7 @@ export const StudentCommunity: React.FC = () => {
                       <td className="p-3 pl-4 font-bold text-[#F8FAFC]">{r.student_name}</td>
                       <td className="p-3 font-mono text-[#CBD5E1]">{r.roll_number || 'N/A'}</td>
                       <td className="p-3 font-bold text-[#F8FAFC]">{r.branch || 'CSE'}</td>
-                      <td className="p-3 font-bold text-[#86EFAC]">{r.cgpa || 8.0}</td>
+                      <td className="p-3 font-bold text-[#86EFAC]">{r.cgpa != null ? r.cgpa : 'N/A'}</td>
                       <td className="p-3 text-[#94A3B8]">
                         {(r.skills || []).slice(0, 3).join(', ') || 'Technical candidate'}
                       </td>

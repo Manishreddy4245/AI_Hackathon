@@ -205,12 +205,6 @@ export const VideoPracticeModal: React.FC<VideoPracticeModalProps> = ({
     // Timer Interval
     timerIntervalRef.current = setInterval(() => {
       setRecordingSeconds((prev) => prev + 1);
-      // Simulate random lightweight eye contact movement check
-      if (Math.random() < 0.15) {
-        setEyeContactStatus('LOOKING_AWAY');
-        setOffCenterCount((prev) => prev + 1);
-        setTimeout(() => setEyeContactStatus('GOOD'), 2000);
-      }
     }, 1000);
 
     setupSpeechRecognition();
@@ -305,7 +299,7 @@ export const VideoPracticeModal: React.FC<VideoPracticeModalProps> = ({
       wpm,
       pacingStatus,
       clarityScore,
-      eyeContactScore: offCenterCount > 3 ? 'Needs Focus' : 'Excellent (Centered)',
+      eyeContactScore: 'Hardware AI tracking unavailable in browser',
     };
   };
 

@@ -333,7 +333,7 @@ export const AIMatching: React.FC = () => {
             const isShortlisted = m.status === 'SHORTLISTED';
             const isExpanded = expandedCandidateIds[m.student_id];
             const isSelectedForComp = selectedForComparison.includes(m.student_id);
-            const score = m.match_score || m.readiness_score || 88;
+            const score = m.match_score ?? m.readiness_score ?? null;
 
             return (
               <Card key={m.id || m.student_id} className={`p-5 transition-all bg-[#101D31] border-[#243650] ${isShortlisted ? 'bg-[#3B82F6]/10 border-[#3B82F6]/40' : ''}`}>
