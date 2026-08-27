@@ -63,8 +63,8 @@ async def create_company(
     if db is None:
         raise HTTPException(status_code=503, detail="Database unavailable")
 
-    count = await db.companies.count_documents({})
-    new_id = f"comp-{count + 1}"
+    import uuid
+    new_id = f"comp-{uuid.uuid4().hex[:12]}"
     comp_dict = comp_in.model_dump()
     comp_dict["id"] = new_id
 

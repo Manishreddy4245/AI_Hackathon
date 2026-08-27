@@ -42,8 +42,8 @@ async def create_audit_log(
     if db is None:
         raise HTTPException(status_code=503, detail="Database unavailable")
 
-    count = await db.audit_logs.count_documents({})
-    new_id = f"aud-{int(datetime.now().timestamp())}-{count + 1}"
+    import uuid
+    new_id = f"aud-{uuid.uuid4().hex[:12]}"
 
     log_dict = {
         "id": new_id,

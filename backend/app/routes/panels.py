@@ -23,8 +23,8 @@ async def create_panel(
     if db is None:
         raise HTTPException(status_code=503, detail="Database unavailable")
 
-    count = await db.panels.count_documents({})
-    new_id = f"pnl-{count + 1}"
+    import uuid
+    new_id = f"pnl-{uuid.uuid4().hex[:12]}"
     p_dict = panel_in.model_dump()
     p_dict.update({
         "id": new_id,

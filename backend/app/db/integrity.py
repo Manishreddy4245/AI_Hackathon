@@ -17,22 +17,72 @@ from app.db.indexes import create_required_indexes
 
 logger = logging.getLogger("placemind.integrity")
 
+async def migrate_legacy_document_keys(db) -> Dict[str, int]:
+    """
+    Safely migrates legacy camelCase fields into canonical snake_case keys across MongoDB collections.
+    Preserves all existing data without losing values.
+    """
+    migrated_counts = {}
+    collections_to_migrate = ["users", "students", "drives", "applications", "interviews", "notifications", "companies", "assessments"]
+
+    for coll_name in collections_to_migrate:
+        if not hasattr(db, coll_name):
+            continue
+        coll = getattr(db, coll_name)
+        try:
+            docs = await coll.find({}).to_list(length=10000)
+            count = 0
+            for doc in docs:
+                fields_to_set = {}
+
+                if "studentId" in doc and "student_id" not in doc:
+                    fields_to_set["student_id"] = doc["studentId"]
+                if "driveId" in doc and "drive_id" not in doc:
+                    fields_to_set["drive_id"] = doc["driveId"]
+                if "companyId" in doc and "company_id" not in doc:
+                    fields_to_set["company_id"] = doc["companyId"]
+                if "companyName" in doc and "company_name" not in doc:
+                    fields_to_set["company_name"] = doc["companyName"]
+                if "roleTitle" in doc and "role_title" not in doc:
+                    fields_to_set["role_title"] = doc["roleTitle"]
+                if "rollNumber" in doc and "roll_number" not in doc:
+                    fields_to_set["roll_number"] = doc["rollNumber"]
+                if "packageLpa" in doc and "package_lpa" not in doc:
+                    fields_to_set["package_lpa"] = doc["packageLpa"]
+                if "minCgpa" in doc and "min_cgpa" not in doc:
+                    fields_to_set["min_cgpa"] = doc["minCgpa"]
+                if "createdAt" in doc and "created_at" not in doc:
+                    fields_to_set["created_at"] = doc["createdAt"]
+
+                if fields_to_set:
+                    await coll.update_one({"_id": doc["_id"]}, {"$set": fields_to_set})
+                    count += 1
+            migrated_counts[coll_name] = count
+        except Exception as e:
+            logger.warning("Document migration skipped for %s: %s", coll_name, str(e))
+
+    return migrated_counts
+
 async def setup_data_integrity(db) -> Dict[str, Any]:
-    """Startup initialization: cleans duplicates, ensures foreign reference integrity, and enforces unique indexes."""
+    """Startup initialization: cleans duplicates, ensures foreign reference integrity, normalizes documents, and enforces unique indexes."""
     if db is None:
         logger.warning("setup_data_integrity called with None database instance.")
         return {"status": "skipped", "reason": "no_database"}
 
     logger.info("Initializing PlaceMind Central Data Integrity Layer...")
-    # Step 1: Execute safe reference migration and duplicate cleanup
+    # Step 1: Normalize legacy camelCase document keys to canonical snake_case
+    migration_counts = await migrate_legacy_document_keys(db)
+
+    # Step 2: Execute safe reference migration and duplicate cleanup
     dedup_results = await run_full_deduplication(db)
 
-    # Step 2: Ensure unique and compound indexes are in place
+    # Step 3: Ensure unique and compound indexes are in place
     await create_required_indexes(db)
 
     logger.info("PlaceMind Data Integrity Layer active with 0 duplicate tolerance.")
     return {
         "status": "active",
+        "migrations": migration_counts,
         "deduplication": dedup_results,
     }
 
@@ -146,10 +196,6 @@ async def generate_data_integrity_report(db) -> Dict[str, Any]:
         "timestamp": datetime.now().isoformat(),
     }
 
-# =========================================================================
-# IDEMPOTENT WRITE HELPERS
-# =========================================================================
-
 async def create_idempotent_notification(db, notif_dict: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     """Insert notification only if deterministic notificationKey does not exist."""
     notif_type = notif_dict.get("type") or notif_dict.get("notification_type") or "NOTIFICATION"
@@ -181,7 +227,6 @@ async def create_idempotent_notification(db, notif_dict: Dict[str, Any]) -> Opti
     if not notif_dict.get("timestamp"):
         notif_dict["timestamp"] = notif_dict["createdAt"]
 
-    # Check if notification with this key or id already exists
     existing = await db.notifications.find_one({
         "$or": [
             {"notificationKey": n_key},
@@ -215,7 +260,7 @@ async def get_or_create_company(
     if existing:
         return existing
 
-    new_id = f"comp-{c_key[:12]}"
+    new_id = f"comp-{uuid.uuid4().hex[:12]}"
     company_doc = {
         "id": new_id,
         "name": clean_name,

@@ -708,9 +708,8 @@ async def schedule_interview(int_in: InterviewCreate):
                 detail=f"Venue Conflict: Room '{room_name}' is already occupied on {date_val} during {time_slot}."
             )
 
-    timestamp_ms = int(datetime.now().timestamp() * 1000)
-    count = await db.interviews.count_documents({})
-    new_id = f"int-{timestamp_ms}-{count + 1}"
+    import uuid
+    new_id = f"int-{uuid.uuid4().hex[:12]}"
     now_iso = datetime.now().isoformat()
 
     app_id = int_in.applicationId or (f"app-{student_id}-{drive_id}" if student_id and drive_id else None)
@@ -771,7 +770,7 @@ async def schedule_interview(int_in: InterviewCreate):
 
     # Dispatch notification to student candidate
     if student_id:
-        notif_id = f"notif-int-{student_id}-{timestamp_ms}"
+        notif_id = f"notif-int-{student_id}-{uuid.uuid4().hex[:8]}"
         await create_idempotent_notification(db, {
             "id": notif_id,
             "recipient_user_id": student_id,
