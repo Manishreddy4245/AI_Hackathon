@@ -1,66 +1,124 @@
-import hashlib
+import uuid
 import hmac
-import json
-import base64
+import hashlib
 import time
-from typing import Optional
+from datetime import datetime, timezone, timedelta
+from typing import Optional, Dict, Any, Tuple
+import jwt
+from argon2 import PasswordHasher
+from argon2.exceptions import VerifyMismatchError, InvalidHashError
+
 from app.core.config import settings
+
+# Configure production-grade Argon2id hasher
+ph = PasswordHasher(
+    time_cost=2,
+    memory_cost=65536,  # 64 MB
+    parallelism=2,
+    hash_len=32,
+    salt_len=16
+)
+
+ACCESS_TOKEN_EXPIRE_MINUTES = 15
+REFRESH_TOKEN_EXPIRE_DAYS = 7
 
 def _get_jwt_secret() -> str:
     return settings.JWT_SECRET
 
-def _get_security_salt() -> str:
-    return getattr(settings, "SECURITY_SALT", "") or settings.JWT_SECRET
-
 def hash_password(password: str) -> str:
-    """Hash password using SHA-256 with configured security salt."""
-    salt = _get_security_salt()
-    return hashlib.sha256((password + salt).encode('utf-8')).hexdigest()
+    """
+    Hash plain password using Argon2id algorithm.
+    """
+    if not password:
+        raise ValueError("Password cannot be empty")
+    return ph.hash(password)
 
-def verify_password(plain_password: str, hashed_password: str) -> bool:
-    """Verify plain password against stored hash."""
-    return hash_password(plain_password) == hashed_password
+def verify_password(plain_password: str, stored_hash: str) -> Tuple[bool, bool]:
+    """
+    Verify plain password against stored hash.
+    Returns: (is_valid: bool, needs_rehash: bool)
+    Supports Argon2id natively and provides backward compatibility for legacy SHA-256 hashes.
+    """
+    if not plain_password or not stored_hash:
+        return False, False
 
-def create_access_token(payload: dict, expires_in_seconds: int = 86400) -> str:
-    """Generate an HMAC-SHA256 signed JWT token using settings.JWT_SECRET."""
-    header = {"alg": "HS256", "typ": "JWT"}
-    exp_payload = payload.copy()
-    exp_payload["exp"] = int(time.time()) + expires_in_seconds
+    # 1. Native Argon2id hash verification
+    if stored_hash.startswith("$argon2id$") or stored_hash.startswith("$argon2"):
+        try:
+            ph.verify(stored_hash, plain_password)
+            needs_rehash = ph.check_needs_rehash(stored_hash)
+            return True, needs_rehash
+        except (VerifyMismatchError, InvalidHashError):
+            return False, False
 
-    header_b64 = base64.urlsafe_b64encode(json.dumps(header).encode()).decode().rstrip("=")
-    payload_b64 = base64.urlsafe_b64encode(json.dumps(exp_payload).encode()).decode().rstrip("=")
-
-    message = f"{header_b64}.{payload_b64}"
-    secret = _get_jwt_secret()
-    signature = hmac.new(secret.encode('utf-8'), message.encode('utf-8'), hashlib.sha256).digest()
-    signature_b64 = base64.urlsafe_b64encode(signature).decode().rstrip("=")
-
-    return f"{message}.{signature_b64}"
-
-def decode_access_token(token: str) -> Optional[dict]:
-    """Decode and verify HMAC-SHA256 token signature against settings.JWT_SECRET."""
+    # 2. Legacy SHA-256 fallback verification for backward compatibility
     try:
-        parts = token.split(".")
-        if len(parts) != 3:
-            return None
-        header_b64, payload_b64, signature_b64 = parts
-        message = f"{header_b64}.{payload_b64}"
-
-        secret = _get_jwt_secret()
-        expected_sig = base64.urlsafe_b64encode(
-            hmac.new(secret.encode('utf-8'), message.encode('utf-8'), hashlib.sha256).digest()
-        ).decode().rstrip("=")
-
-        if expected_sig != signature_b64:
-            return None
-
-        # Add padding back if necessary
-        padded_payload = payload_b64 + "=" * (-len(payload_b64) % 4)
-        payload = json.loads(base64.urlsafe_b64decode(padded_payload).decode())
-
-        if payload.get("exp", 0) < time.time():
-            return None
-
-        return payload
+        salt = getattr(settings, "SECURITY_SALT", "") or "placemind_salt_2026"
+        legacy_calc = hashlib.sha256((plain_password + salt).encode('utf-8')).hexdigest()
+        if hmac.compare_digest(legacy_calc, stored_hash):
+            return True, True  # Valid legacy password -> trigger automatic upgrade to Argon2id
     except Exception:
+        pass
+
+    return False, False
+
+def create_access_token(payload: Dict[str, Any], expires_in_seconds: int = 900) -> str:
+    """
+    Generate short-lived PyJWT signed Access Token (default 15 minutes).
+    """
+    now = datetime.now(timezone.utc)
+    to_encode = payload.copy()
+    to_encode.update({
+        "type": "access",
+        "jti": str(uuid.uuid4()),
+        "iat": int(now.timestamp()),
+        "exp": int((now + timedelta(seconds=expires_in_seconds)).timestamp())
+    })
+    return jwt.encode(to_encode, _get_jwt_secret(), algorithm="HS256")
+
+def create_refresh_token(user_id: str, session_id: Optional[str] = None) -> Tuple[str, str, str, int]:
+    """
+    Generate PyJWT signed Refresh Token (default 7 days).
+    Returns: (token, jti, session_id, expires_at_timestamp)
+    """
+    now = datetime.now(timezone.utc)
+    jti = str(uuid.uuid4())
+    sess_id = session_id or str(uuid.uuid4())
+    exp_dt = now + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
+    exp_ts = int(exp_dt.timestamp())
+
+    payload = {
+        "sub": user_id,
+        "type": "refresh",
+        "jti": jti,
+        "session_id": sess_id,
+        "iat": int(now.timestamp()),
+        "exp": exp_ts
+    }
+
+    token = jwt.encode(payload, _get_jwt_secret(), algorithm="HS256")
+    return token, jti, sess_id, exp_ts
+
+def decode_access_token(token: str) -> Optional[Dict[str, Any]]:
+    """
+    Decode and verify PyJWT access token.
+    """
+    try:
+        payload = jwt.decode(token, _get_jwt_secret(), algorithms=["HS256"])
+        if payload.get("type") != "access":
+            return None
+        return payload
+    except jwt.PyJWTError:
+        return None
+
+def decode_refresh_token(token: str) -> Optional[Dict[str, Any]]:
+    """
+    Decode and verify PyJWT refresh token.
+    """
+    try:
+        payload = jwt.decode(token, _get_jwt_secret(), algorithms=["HS256"])
+        if payload.get("type") != "refresh":
+            return None
+        return payload
+    except jwt.PyJWTError:
         return None

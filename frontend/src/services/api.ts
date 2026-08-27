@@ -187,15 +187,14 @@ export interface FormSubmission {
 
 const API_BASE_URL = (import.meta as any).env?.VITE_API_URL || 'http://localhost:8000/api';
 
-
 export const apiClient = axios.create({
   baseURL: API_BASE_URL,
+  withCredentials: true,
   headers: {
     'Content-Type': 'application/json',
   },
   timeout: 15000,
 });
-
 
 apiClient.interceptors.request.use((config) => {
   const token = localStorage.getItem('placemind_token');
@@ -205,10 +204,92 @@ apiClient.interceptors.request.use((config) => {
   return config;
 });
 
+// Automatic Token Refresh & Rotation Interceptor for 401 responses
+let isRefreshing = false;
+let failedQueue: Array<{ resolve: (token: string | null) => void; reject: (err: any) => void }> = [];
+
+const processQueue = (error: any, token: string | null = null) => {
+  failedQueue.forEach((prom) => {
+    if (error) {
+      prom.reject(error);
+    } else {
+      prom.resolve(token);
+    }
+  });
+  failedQueue = [];
+};
+
+apiClient.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    const originalRequest = error.config;
+    if (
+      error.response?.status === 401 &&
+      originalRequest &&
+      !originalRequest._retry &&
+      !originalRequest.url?.includes('/auth/login') &&
+      !originalRequest.url?.includes('/auth/refresh')
+    ) {
+      if (isRefreshing) {
+        return new Promise((resolve, reject) => {
+          failedQueue.push({ resolve, reject });
+        })
+          .then((token) => {
+            if (token && originalRequest.headers) {
+              originalRequest.headers.Authorization = `Bearer ${token}`;
+            }
+            return apiClient(originalRequest);
+          })
+          .catch((err) => Promise.reject(err));
+      }
+
+      originalRequest._retry = true;
+      isRefreshing = true;
+
+      try {
+        const storedRefreshToken = localStorage.getItem('placemind_refresh_token');
+        const res = await axios.post(
+          `${API_BASE_URL}/auth/refresh`,
+          { refreshToken: storedRefreshToken || undefined },
+          { withCredentials: true }
+        );
+
+        const newAccessToken = res.data?.access_token;
+        const newRefreshToken = res.data?.refresh_token;
+
+        if (newAccessToken) {
+          localStorage.setItem('placemind_token', newAccessToken);
+          if (newRefreshToken) {
+            localStorage.setItem('placemind_refresh_token', newRefreshToken);
+          }
+          if (originalRequest.headers) {
+            originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
+          }
+          processQueue(null, newAccessToken);
+          return apiClient(originalRequest);
+        }
+      } catch (refreshErr) {
+        processQueue(refreshErr, null);
+        localStorage.removeItem('placemind_token');
+        localStorage.removeItem('placemind_refresh_token');
+      } finally {
+        isRefreshing = false;
+      }
+    }
+    return Promise.reject(error);
+  }
+);
+
 export const apiService = {
   // Authentication
   async login(payload: { email: string; password: string; portalRole?: string }) {
     const res = await apiClient.post('/auth/login', payload);
+    if (res.data?.access_token) {
+      localStorage.setItem('placemind_token', res.data.access_token);
+    }
+    if (res.data?.refresh_token) {
+      localStorage.setItem('placemind_refresh_token', res.data.refresh_token);
+    }
     return res.data;
   },
 
@@ -223,6 +304,12 @@ export const apiService = {
     cgpa?: number;
   }) {
     const res = await apiClient.post('/auth/register/student', payload);
+    if (res.data?.access_token) {
+      localStorage.setItem('placemind_token', res.data.access_token);
+    }
+    if (res.data?.refresh_token) {
+      localStorage.setItem('placemind_refresh_token', res.data.refresh_token);
+    }
     return res.data;
   },
 
@@ -235,11 +322,34 @@ export const apiService = {
     phone?: string;
   }) {
     const res = await apiClient.post('/auth/register/recruiter', payload);
+    if (res.data?.access_token) {
+      localStorage.setItem('placemind_token', res.data.access_token);
+    }
+    if (res.data?.refresh_token) {
+      localStorage.setItem('placemind_refresh_token', res.data.refresh_token);
+    }
+    return res.data;
+  },
+
+  async refreshToken(refreshToken?: string) {
+    const stored = refreshToken || localStorage.getItem('placemind_refresh_token') || undefined;
+    const res = await apiClient.post('/auth/refresh', { refreshToken: stored });
+    if (res.data?.access_token) {
+      localStorage.setItem('placemind_token', res.data.access_token);
+    }
+    if (res.data?.refresh_token) {
+      localStorage.setItem('placemind_refresh_token', res.data.refresh_token);
+    }
     return res.data;
   },
 
   async forgotPassword(payload: { email: string; portalRole?: string }) {
     const res = await apiClient.post('/auth/forgot-password', payload);
+    return res.data;
+  },
+
+  async resetPassword(payload: { token: string; newPassword: string }) {
+    const res = await apiClient.post('/auth/reset-password', payload);
     return res.data;
   },
 
@@ -249,8 +359,13 @@ export const apiService = {
   },
 
   async logout() {
-    const res = await apiClient.post('/auth/logout');
-    return res.data;
+    try {
+      await apiClient.post('/auth/logout');
+    } finally {
+      localStorage.removeItem('placemind_token');
+      localStorage.removeItem('placemind_refresh_token');
+    }
+    return { status: 'ok' };
   },
 
   // Companies

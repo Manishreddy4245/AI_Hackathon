@@ -1,21 +1,32 @@
 from typing import List, Optional, Dict, Any
-from fastapi import Header, HTTPException, status, Depends
+from fastapi import Request, Header, HTTPException, status, Depends
 from app.core.security import decode_access_token
 from app.db.mongodb import db_manager
 
-async def get_current_user(authorization: Optional[str] = Header(None)) -> Dict[str, Any]:
+def _extract_raw_token(request: Request, authorization: Optional[str] = Header(None)) -> Optional[str]:
+    """Helper to extract token from Bearer header or HttpOnly access_token cookie."""
+    if authorization and authorization.startswith("Bearer "):
+        return authorization.split(" ")[1]
+    if request and hasattr(request, "cookies"):
+        cookie_token = request.cookies.get("access_token")
+        if cookie_token:
+            return cookie_token
+    return None
+
+async def get_current_user(request: Request, authorization: Optional[str] = Header(None)) -> Dict[str, Any]:
     """
-    Extract and validate JWT token from Authorization header.
-    Returns the authenticated user dict from MongoDB or token payload.
+    Extract and validate JWT access token from Authorization header or HttpOnly cookie.
+    Checks server-side session/revocation status in MongoDB.
+    Returns the authenticated user dict.
     """
-    if not authorization or not authorization.startswith("Bearer "):
+    token = _extract_raw_token(request, authorization)
+    if not token:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Authentication required. Missing or malformed Bearer token.",
+            detail="Authentication required. Missing or malformed access token.",
             headers={"WWW-Authenticate": "Bearer"}
         )
 
-    token = authorization.split(" ")[1]
     payload = decode_access_token(token)
     if not payload:
         raise HTTPException(
@@ -26,11 +37,27 @@ async def get_current_user(authorization: Optional[str] = Header(None)) -> Dict[
 
     db = db_manager.db
     if db is not None:
+        # Check if access token JTI or session has been explicitly revoked
+        jti = payload.get("jti")
+        if jti:
+            revoked = await db.revoked_tokens.find_one({"jti": jti})
+            if revoked:
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Session has been revoked or logged out. Please sign in again.",
+                    headers={"WWW-Authenticate": "Bearer"}
+                )
+
         user = await db.users.find_one({"id": payload.get("sub")}, {"_id": 0, "password_hash": 0})
         if user:
+            if not user.get("is_active", True):
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="User account is deactivated."
+                )
             return user
 
-    # Fallback to payload data if user lookup unavailable
+    # Fallback to payload data if DB lookup unavailable (e.g. mock DB initialization)
     return {
         "id": payload.get("sub"),
         "email": payload.get("email"),
@@ -39,19 +66,26 @@ async def get_current_user(authorization: Optional[str] = Header(None)) -> Dict[
         "companyId": payload.get("companyId"),
     }
 
-async def get_optional_current_user(authorization: Optional[str] = Header(None)) -> Optional[Dict[str, Any]]:
-    """Extract user if Bearer token present, else return None."""
-    if not authorization or not authorization.startswith("Bearer "):
+async def get_optional_current_user(request: Request, authorization: Optional[str] = Header(None)) -> Optional[Dict[str, Any]]:
+    """Extract user if Bearer token or HttpOnly cookie present and valid, else return None."""
+    token = _extract_raw_token(request, authorization)
+    if not token:
         return None
     try:
-        token = authorization.split(" ")[1]
         payload = decode_access_token(token)
         if not payload:
             return None
         db = db_manager.db
         if db is not None:
+            jti = payload.get("jti")
+            if jti:
+                revoked = await db.revoked_tokens.find_one({"jti": jti})
+                if revoked:
+                    return None
             user = await db.users.find_one({"id": payload.get("sub")}, {"_id": 0, "password_hash": 0})
             if user:
+                if not user.get("is_active", True):
+                    return None
                 return user
         return {
             "id": payload.get("sub"),
@@ -70,7 +104,6 @@ def require_role(allowed_roles: List[str]):
     """
     async def role_checker(current_user: Dict[str, Any] = Depends(get_current_user)) -> Dict[str, Any]:
         user_role = current_user.get("role")
-
         if user_role not in allowed_roles:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
