@@ -12,6 +12,7 @@ from app.db.mongodb import connect_to_mongo, close_mongo_connection, ping_databa
 from app.db.seed import seed_database
 from app.db.integrity import setup_data_integrity, generate_data_integrity_report
 from app.middleware.observability import RequestObservabilityMiddleware
+from app.middleware.rate_limiter import RateLimitingAndBodySizeMiddleware
 from app.core.telemetry import capture_exception, metrics, log_structured_event
 
 from app.routes.auth import router as auth_router
@@ -65,6 +66,8 @@ app = FastAPI(
 
 # 1. Observability & Tracing Middleware
 app.add_middleware(RequestObservabilityMiddleware)
+# 2. Abuse Protection & Rate Limiting Middleware
+app.add_middleware(RateLimitingAndBodySizeMiddleware)
 
 # 2. Configure CORS Middleware
 origins = [
