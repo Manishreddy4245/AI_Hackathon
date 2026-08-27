@@ -1,7 +1,7 @@
 import logging
 from typing import List, Optional, Dict, Any
 from datetime import datetime
-from fastapi import APIRouter, HTTPException, status, Depends
+from fastapi import APIRouter, HTTPException, status, Depends, Query
 from app.db.mongodb import db_manager
 from app.core.deps import get_optional_current_user, get_current_user
 from app.schemas.drive import (
@@ -23,6 +23,8 @@ router = APIRouter(prefix="/api/drives", tags=["Placement Drives"])
 @router.get("", response_model=List[PlacementDriveSchema])
 async def list_drives(
     recruiter_only: Optional[bool] = False,
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
     current_user: Optional[Dict[str, Any]] = Depends(get_optional_current_user)
 ):
     db = db_manager.db
@@ -51,11 +53,17 @@ async def list_drives(
         else:
             return []
 
-    drives = await db.drives.find(query, {"_id": 0}).sort("created_at", -1).to_list(length=200)
+    limit = min(max(page_size, 1), 100)
+    skip = (page - 1) * limit
+    drives = await db.drives.find(query, {"_id": 0}).sort([("created_at", -1), ("_id", -1)]).skip(skip).to_list(length=limit)
     return drives
 
 @router.get("/recruiter/my", response_model=List[PlacementDriveSchema])
-async def get_my_recruiter_drives(current_user: Dict[str, Any] = Depends(get_current_user)):
+async def get_my_recruiter_drives(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+    current_user: Dict[str, Any] = Depends(get_current_user)
+):
     """Retrieve placement drives strictly created by currently authenticated recruiter."""
     db = db_manager.db
     if db is None:
@@ -76,7 +84,9 @@ async def get_my_recruiter_drives(current_user: Dict[str, Any] = Depends(get_cur
     if not user_conditions:
         return []
 
-    drives = await db.drives.find({"$or": user_conditions}, {"_id": 0}).sort("created_at", -1).to_list(length=200)
+    limit = min(max(page_size, 1), 100)
+    skip = (page - 1) * limit
+    drives = await db.drives.find({"$or": user_conditions}, {"_id": 0}).sort([("created_at", -1), ("_id", -1)]).skip(skip).to_list(length=limit)
     return drives
 
 @router.get("/{drive_id}", response_model=PlacementDriveSchema)

@@ -1,6 +1,6 @@
 from typing import List, Optional, Dict, Any
 from datetime import datetime, date
-from fastapi import APIRouter, HTTPException, status, Depends
+from fastapi import APIRouter, HTTPException, status, Depends, Query
 from app.db.mongodb import db_manager
 from app.core.deps import get_current_user, require_placement_officer, require_authenticated
 from app.schemas.notification import NotificationSchema, NotificationCreate
@@ -8,7 +8,11 @@ from app.schemas.notification import NotificationSchema, NotificationCreate
 router = APIRouter(prefix="/api/notifications", tags=["Notification Center"])
 
 @router.get("", response_model=List[NotificationSchema])
-async def list_notifications(current_user: Dict[str, Any] = Depends(get_current_user)):
+async def list_notifications(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+    current_user: Dict[str, Any] = Depends(get_current_user)
+):
     """
     List notifications for currently authenticated user.
     Strictly filters by recipient_user_id or recipient_email.
@@ -38,7 +42,9 @@ async def list_notifications(current_user: Dict[str, Any] = Depends(get_current_
             {"studentEmail": user_email},
         ])
 
-    raw_notifs = await db.notifications.find(query, {"_id": 0}).sort("created_at", -1).to_list(length=100)
+    limit = min(max(page_size, 1), 100)
+    skip = (page - 1) * limit
+    raw_notifs = await db.notifications.find(query, {"_id": 0}).sort([("created_at", -1), ("_id", -1)]).skip(skip).to_list(length=limit)
 
     for n in raw_notifs:
         if "timestamp" not in n or not n["timestamp"]:

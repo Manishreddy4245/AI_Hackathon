@@ -1,5 +1,6 @@
+import re
 from typing import List, Optional, Dict, Any
-from fastapi import APIRouter, HTTPException, status, Depends
+from fastapi import APIRouter, HTTPException, status, Depends, Query
 from pydantic import BaseModel
 from app.db.mongodb import db_manager
 from app.core.deps import get_current_user, require_placement_officer, require_role
@@ -20,28 +21,44 @@ class CompanySchema(CompanyCreate):
     id: str
 
 @router.get("", response_model=List[CompanySchema])
-async def list_companies(current_user: Dict[str, Any] = Depends(get_current_user)):
-    db = db_manager.db
-    if db is None:
-        raise HTTPException(status_code=503, detail="Database unavailable")
-    companies = await db.companies.find({}, {"_id": 0}).to_list(length=100)
-    return companies
-
-@router.get("/search", response_model=List[CompanySchema])
-async def search_companies(query: str = "", current_user: Dict[str, Any] = Depends(get_current_user)):
+async def list_companies(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+    current_user: Dict[str, Any] = Depends(get_current_user)
+):
     db = db_manager.db
     if db is None:
         raise HTTPException(status_code=503, detail="Database unavailable")
     
+    limit = min(max(page_size, 1), 100)
+    skip = (page - 1) * limit
+    companies = await db.companies.find({}, {"_id": 0}).sort([("name", 1), ("_id", 1)]).skip(skip).to_list(length=limit)
+    return companies
+
+@router.get("/search", response_model=List[CompanySchema])
+async def search_companies(
+    query: str = "",
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+    current_user: Dict[str, Any] = Depends(get_current_user)
+):
+    db = db_manager.db
+    if db is None:
+        raise HTTPException(status_code=503, detail="Database unavailable")
+    
+    limit = min(max(page_size, 1), 100)
+    skip = (page - 1) * limit
+
     if not query.strip():
-        companies = await db.companies.find({}, {"_id": 0}).limit(15).to_list(length=15)
+        companies = await db.companies.find({}, {"_id": 0}).sort([("name", 1), ("_id", 1)]).skip(skip).to_list(length=limit)
         return companies
 
-    pattern = f".*{query.strip()}.*"
+    clean_query = re.escape(query.strip())
+    pattern = f".*{clean_query}.*"
     companies = await db.companies.find(
         {"name": {"$regex": pattern, "$options": "i"}},
         {"_id": 0}
-    ).limit(15).to_list(length=15)
+    ).sort([("name", 1), ("_id", 1)]).skip(skip).to_list(length=limit)
     return companies
 
 @router.get("/{company_id}", response_model=CompanySchema)

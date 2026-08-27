@@ -1,6 +1,6 @@
 from typing import List, Optional, Dict, Any
 from datetime import datetime
-from fastapi import APIRouter, HTTPException, status, Depends
+from fastapi import APIRouter, HTTPException, status, Depends, Query
 from pydantic import BaseModel
 from app.db.mongodb import db_manager
 from app.core.deps import require_placement_officer
@@ -25,12 +25,18 @@ class AuditLogSchema(BaseModel):
     timestamp: str
 
 @router.get("", response_model=List[AuditLogSchema])
-async def list_audit_logs(current_user: Dict[str, Any] = Depends(require_placement_officer)):
+async def list_audit_logs(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+    current_user: Dict[str, Any] = Depends(require_placement_officer)
+):
     db = db_manager.db
     if db is None:
         raise HTTPException(status_code=503, detail="Database unavailable")
     
-    logs = await db.audit_logs.find({}, {"_id": 0}).sort("timestamp", -1).to_list(length=100)
+    limit = min(max(page_size, 1), 100)
+    skip = (page - 1) * limit
+    logs = await db.audit_logs.find({}, {"_id": 0}).sort([("timestamp", -1), ("_id", -1)]).skip(skip).to_list(length=limit)
     return logs
 
 @router.post("", response_model=AuditLogSchema, status_code=status.HTTP_201_CREATED)

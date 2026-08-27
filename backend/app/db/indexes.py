@@ -1,6 +1,7 @@
 """MongoDB Index Management and Unique Constraint Enforcer for PlaceMind."""
 import logging
 from pymongo import ASCENDING
+from app.core.config import settings
 
 logger = logging.getLogger("placemind.indexes")
 
@@ -17,7 +18,7 @@ async def create_required_indexes(db) -> None:
         await db.students.create_index([("id", ASCENDING)], unique=True, sparse=True)
 
         # 3. Companies Collection
-        await db.companies.create_index([("companyKey", ASCENDING)], unique=True, sparse=True)
+        await db.companies.create_index([("company_key", ASCENDING)], unique=True, sparse=True)
         await db.companies.create_index([("id", ASCENDING)], unique=True, sparse=True)
 
         # 4. Applications Collection (Canonical student_id + drive_id compound uniqueness)
@@ -29,14 +30,14 @@ async def create_required_indexes(db) -> None:
         await db.applications.create_index([("id", ASCENDING)], unique=True, sparse=True)
 
         # 5. Notifications Collection
-        await db.notifications.create_index([("notificationKey", ASCENDING)], unique=True, sparse=True)
+        await db.notifications.create_index([("notification_key", ASCENDING)], unique=True, sparse=True)
         await db.notifications.create_index([("id", ASCENDING)], unique=True, sparse=True)
         await db.notifications.create_index([("recipient_id", ASCENDING)])
         await db.notifications.create_index([("student_id", ASCENDING)])
 
         # 6. Placement Drives Collection
         await db.drives.create_index([("id", ASCENDING)], unique=True, sparse=True)
-        await db.drives.create_index([("companyId", ASCENDING)])
+        await db.drives.create_index([("company_id", ASCENDING)])
         await db.drives.create_index([("status", ASCENDING)])
 
         # 7. Resumes Collection (One canonical resume per student)
@@ -62,11 +63,9 @@ async def create_required_indexes(db) -> None:
         # 11. Assessments & Assessment Results
         await db.assessments.create_index([("id", ASCENDING)], unique=True, sparse=True)
         await db.assessments.create_index([("student_id", ASCENDING)])
-        await db.assessments.create_index([("studentId", ASCENDING)])
         await db.assessment_results.create_index([("id", ASCENDING)], unique=True, sparse=True)
         await db.assessment_results.create_index([("assessment_id", ASCENDING)], unique=True, sparse=True)
         await db.assessment_results.create_index([("student_id", ASCENDING)])
-        await db.assessment_results.create_index([("studentId", ASCENDING)])
 
         # 12. Placement Communities, Messages & Responses
         await db.communities.create_index([("id", ASCENDING)], unique=True, sparse=True)
@@ -83,4 +82,9 @@ async def create_required_indexes(db) -> None:
 
         logger.info("MongoDB unique indexes and compound constraints created successfully.")
     except Exception as e:
-        logger.warning("Error creating MongoDB indexes (mock database or constraint retry): %s", str(e))
+        is_prod = getattr(settings, "ENVIRONMENT", "development") in ["production", "staging"]
+        if is_prod:
+            logger.critical("CRITICAL: Failed to initialize MongoDB indexes in %s: %s", getattr(settings, "ENVIRONMENT", "production"), str(e))
+            raise RuntimeError(f"Critical MongoDB index initialization failed: {str(e)}") from e
+        else:
+            logger.warning("Warning: Could not apply indexes (non-production/test mode): %s", str(e))
