@@ -1,12 +1,13 @@
-from typing import List
-from fastapi import APIRouter, HTTPException, status
+from typing import List, Dict, Any
+from fastapi import APIRouter, HTTPException, status, Depends
 from app.db.mongodb import db_manager
 from app.schemas.panel import PanelSchema, PanelCreate
+from app.core.deps import get_current_user, require_placement_officer
 
 router = APIRouter(prefix="/api/panels", tags=["Panels"])
 
 @router.get("", response_model=List[PanelSchema])
-async def list_panels():
+async def list_panels(current_user: Dict[str, Any] = Depends(get_current_user)):
     db = db_manager.db
     if db is None:
         raise HTTPException(status_code=503, detail="Database unavailable")
@@ -14,7 +15,10 @@ async def list_panels():
     return panels
 
 @router.post("", response_model=PanelSchema, status_code=status.HTTP_201_CREATED)
-async def create_panel(panel_in: PanelCreate):
+async def create_panel(
+    panel_in: PanelCreate,
+    current_user: Dict[str, Any] = Depends(require_placement_officer)
+):
     db = db_manager.db
     if db is None:
         raise HTTPException(status_code=503, detail="Database unavailable")
@@ -34,7 +38,10 @@ async def create_panel(panel_in: PanelCreate):
     return created
 
 @router.patch("/{panel_id}/confirm")
-async def confirm_panel(panel_id: str):
+async def confirm_panel(
+    panel_id: str,
+    current_user: Dict[str, Any] = Depends(require_placement_officer)
+):
     db = db_manager.db
     if db is None:
         raise HTTPException(status_code=503, detail="Database unavailable")

@@ -2,14 +2,14 @@ from datetime import datetime, date
 from typing import Dict, Any, List, Optional
 from fastapi import APIRouter, HTTPException, Depends
 from app.db.mongodb import db_manager
-from app.core.deps import get_current_user, get_optional_current_user
+from app.core.deps import require_placement_officer
 from app.services.eligibility_engine import evaluate_drive_eligibility
 
 router = APIRouter(prefix="/api/dashboard", tags=["Placement Officer Dashboard"])
 
 @router.get("/summary")
 async def get_placement_officer_dashboard_summary(
-    current_user: Optional[Dict[str, Any]] = Depends(get_optional_current_user)
+    current_user: Dict[str, Any] = Depends(require_placement_officer)
 ):
     """
     Returns 100% dynamic Placement Officer Dashboard KPI summary and pipeline statistics
@@ -206,7 +206,7 @@ async def get_placement_officer_dashboard_summary(
 @router.get("/kpi-details")
 async def get_kpi_detailed_breakdown(
     kpi: str,
-    current_user: Optional[Dict[str, Any]] = Depends(get_optional_current_user)
+    current_user: Dict[str, Any] = Depends(require_placement_officer)
 ):
     """
     Returns 100% real MongoDB records and exact calculation breakdowns for any clicked KPI card.

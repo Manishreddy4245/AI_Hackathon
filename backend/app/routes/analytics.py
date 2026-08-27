@@ -1,11 +1,15 @@
+from typing import Dict, Any
 from collections import Counter
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from app.db.mongodb import db_manager
+from app.core.deps import require_role
 
 router = APIRouter(prefix="/api/analytics", tags=["Skill Analytics"])
 
 @router.get("/summary")
-async def get_analytics_summary():
+async def get_analytics_summary(
+    current_user: Dict[str, Any] = Depends(require_role(["placement_officer", "recruiter", "admin"]))
+):
     db = db_manager.db
     if db is None:
         raise HTTPException(status_code=503, detail="Database unavailable")
@@ -71,7 +75,6 @@ async def get_analytics_summary():
 
     avg_readiness = round(total_score / total_students) if total_students > 0 else 0
 
-    # Dynamic Skill Demands from Drives
     drive_required_skills = []
     for d in drives:
         req = d.get("requiredSkills", [])
@@ -89,7 +92,6 @@ async def get_analytics_summary():
     total_drives_count = max(1, len(drives))
     skill_demands = []
     
-    # Calculate top skill gaps
     max_gap = -1
     for skill, demand_count in demand_counter.most_common(10):
         demand_pct = round((demand_count / total_drives_count) * 100)
@@ -133,5 +135,3 @@ async def get_analytics_summary():
         ],
         "skillDemands": skill_demands
     }
-
-

@@ -37,7 +37,6 @@ async def get_current_user(request: Request, authorization: Optional[str] = Head
 
     db = db_manager.db
     if db is not None:
-        # Check if access token JTI or session has been explicitly revoked
         jti = payload.get("jti")
         if jti:
             revoked = await db.revoked_tokens.find_one({"jti": jti})
@@ -57,7 +56,6 @@ async def get_current_user(request: Request, authorization: Optional[str] = Head
                 )
             return user
 
-    # Fallback to payload data if DB lookup unavailable (e.g. mock DB initialization)
     return {
         "id": payload.get("sub"),
         "email": payload.get("email"),
@@ -100,15 +98,91 @@ async def get_optional_current_user(request: Request, authorization: Optional[st
 def require_role(allowed_roles: List[str]):
     """
     FastAPI dependency factory enforcing strict role-based access control.
-    Allowed authentication roles: 'student', 'recruiter', 'placement_officer'.
+    Supports role aliases (e.g. 'placement_officer', 'officer', 'admin').
     """
     async def role_checker(current_user: Dict[str, Any] = Depends(get_current_user)) -> Dict[str, Any]:
-        user_role = current_user.get("role")
-        if user_role not in allowed_roles:
+        user_role = (current_user.get("role") or "").lower().strip()
+        normalized_allowed = [r.lower().strip() for r in allowed_roles]
+
+        if "placement_officer" in normalized_allowed and user_role in ["placement_officer", "officer", "admin"]:
+            return current_user
+        if "recruiter" in normalized_allowed and user_role in ["recruiter", "admin"]:
+            return current_user
+        if "student" in normalized_allowed and user_role in ["student", "admin"]:
+            return current_user
+        if "panel_member" in normalized_allowed and user_role in ["panel_member", "panel", "placement_officer", "officer", "admin"]:
+            return current_user
+        if "admin" in normalized_allowed and user_role in ["admin", "placement_officer"]:
+            return current_user
+
+        if user_role not in normalized_allowed:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail=f"Access Denied: You do not have permission to access this portal resource (Required: {', '.join(allowed_roles)}, Your role: {user_role})."
+                detail=f"Access Denied: You do not have permission to access this resource (Required role: {', '.join(allowed_roles)}, Your role: {user_role})."
             )
         return current_user
 
     return role_checker
+
+# Callable FastAPI Dependencies
+async def require_authenticated(current_user: Dict[str, Any] = Depends(get_current_user)) -> Dict[str, Any]:
+    return current_user
+
+async def require_student(current_user: Dict[str, Any] = Depends(get_current_user)) -> Dict[str, Any]:
+    return await require_role(["student", "admin"])(current_user)
+
+async def require_recruiter(current_user: Dict[str, Any] = Depends(get_current_user)) -> Dict[str, Any]:
+    return await require_role(["recruiter", "admin"])(current_user)
+
+async def require_placement_officer(current_user: Dict[str, Any] = Depends(get_current_user)) -> Dict[str, Any]:
+    return await require_role(["placement_officer", "officer", "admin"])(current_user)
+
+async def require_panel_member(current_user: Dict[str, Any] = Depends(get_current_user)) -> Dict[str, Any]:
+    return await require_role(["panel_member", "panel", "placement_officer", "officer", "admin"])(current_user)
+
+async def require_admin(current_user: Dict[str, Any] = Depends(get_current_user)) -> Dict[str, Any]:
+    return await require_role(["admin", "placement_officer"])(current_user)
+
+def check_drive_ownership(user: Dict[str, Any], drive: Dict[str, Any]) -> None:
+    """
+    Verify recruiter ownership for a drive resource.
+    Placement officers and admins have global drive access.
+    Recruiters can only access drives associated with their companyId or created by their userId.
+    """
+    role = (user.get("role") or "").lower()
+    if role in ["placement_officer", "officer", "admin"]:
+        return
+
+    if role == "recruiter":
+        user_company_id = user.get("companyId")
+        drive_company_id = drive.get("companyId") or drive.get("company_id")
+        created_by = drive.get("created_by") or drive.get("recruiter_id")
+
+        if user_company_id and drive_company_id and user_company_id == drive_company_id:
+            return
+        if created_by and created_by == user.get("id"):
+            return
+
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail="Access Denied: You do not have permission to modify or manage this drive resource."
+    )
+
+def check_student_resource_ownership(user: Dict[str, Any], target_student_id: str) -> None:
+    """
+    Verify student ownership for personal data (profile, applications, results).
+    Placement officers, admins, and recruiters have authorized access.
+    Students can only access their own studentId records.
+    """
+    role = (user.get("role") or "").lower()
+    if role in ["placement_officer", "officer", "admin", "recruiter"]:
+        return
+
+    if role == "student":
+        if user.get("id") == target_student_id:
+            return
+
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail="Access Denied: You cannot view or modify another student's confidential resources."
+    )

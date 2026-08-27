@@ -1,7 +1,8 @@
-from typing import List, Optional
-from fastapi import APIRouter, HTTPException, status
+from typing import List, Optional, Dict, Any
+from fastapi import APIRouter, HTTPException, status, Depends
 from pydantic import BaseModel
 from app.db.mongodb import db_manager
+from app.core.deps import get_current_user, require_placement_officer, require_role
 
 router = APIRouter(prefix="/api/companies", tags=["Companies"])
 
@@ -19,7 +20,7 @@ class CompanySchema(CompanyCreate):
     id: str
 
 @router.get("", response_model=List[CompanySchema])
-async def list_companies():
+async def list_companies(current_user: Dict[str, Any] = Depends(get_current_user)):
     db = db_manager.db
     if db is None:
         raise HTTPException(status_code=503, detail="Database unavailable")
@@ -27,7 +28,7 @@ async def list_companies():
     return companies
 
 @router.get("/search", response_model=List[CompanySchema])
-async def search_companies(query: str = ""):
+async def search_companies(query: str = "", current_user: Dict[str, Any] = Depends(get_current_user)):
     db = db_manager.db
     if db is None:
         raise HTTPException(status_code=503, detail="Database unavailable")
@@ -44,7 +45,7 @@ async def search_companies(query: str = ""):
     return companies
 
 @router.get("/{company_id}", response_model=CompanySchema)
-async def get_company(company_id: str):
+async def get_company(company_id: str, current_user: Dict[str, Any] = Depends(get_current_user)):
     db = db_manager.db
     if db is None:
         raise HTTPException(status_code=503, detail="Database unavailable")
@@ -54,7 +55,10 @@ async def get_company(company_id: str):
     return company
 
 @router.post("", response_model=CompanySchema, status_code=status.HTTP_201_CREATED)
-async def create_company(comp_in: CompanyCreate):
+async def create_company(
+    comp_in: CompanyCreate,
+    current_user: Dict[str, Any] = Depends(require_role(["recruiter", "placement_officer", "admin"]))
+):
     db = db_manager.db
     if db is None:
         raise HTTPException(status_code=503, detail="Database unavailable")
@@ -69,7 +73,10 @@ async def create_company(comp_in: CompanyCreate):
     return created
 
 @router.delete("/{company_id}")
-async def delete_company(company_id: str):
+async def delete_company(
+    company_id: str,
+    current_user: Dict[str, Any] = Depends(require_placement_officer)
+):
     db = db_manager.db
     if db is None:
         raise HTTPException(status_code=503, detail="Database unavailable")
