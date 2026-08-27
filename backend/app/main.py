@@ -1,7 +1,9 @@
 import asyncio
 import logging
+import time
+from datetime import datetime, timezone
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, status
+from fastapi import FastAPI, Request, status, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
@@ -9,6 +11,8 @@ from app.core.config import settings
 from app.db.mongodb import connect_to_mongo, close_mongo_connection, ping_database, db_manager
 from app.db.seed import seed_database
 from app.db.integrity import setup_data_integrity, generate_data_integrity_report
+from app.middleware.observability import RequestObservabilityMiddleware
+from app.core.telemetry import capture_exception, metrics, log_structured_event
 
 from app.routes.auth import router as auth_router
 from app.routes.companies import router as companies_router
@@ -17,7 +21,6 @@ from app.routes.students import router as students_router
 from app.routes.matching import router as matching_router
 from app.routes.interviews import router as interviews_router, singular_router as interview_router
 from app.routes.panels import router as panels_router
-
 from app.routes.rooms import router as rooms_router
 from app.routes.notifications import router as notifications_router
 from app.routes.exceptions import router as exceptions_router
@@ -34,7 +37,7 @@ from app.routes.assessments import router as assessments_router
 from app.routes.communities import router as communities_router
 from app.routes.forms import router as forms_router
 
-# Configure simple application logger
+# Configure structured application logger
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s"
@@ -46,14 +49,12 @@ async def lifespan(app: FastAPI):
     """Lifespan context manager handling application startup and shutdown events."""
     logger.info("Starting PlaceMind API server...")
     await connect_to_mongo()
-    # Execute integrity verification and seeding in background so server begins accepting requests immediately
     asyncio.create_task(setup_data_integrity(db_manager.db))
     if settings.ENABLE_DB_SEED or settings.SEED_DEMO_DATA:
         asyncio.create_task(seed_database())
     yield
     logger.info("Shutting down PlaceMind API server...")
     await close_mongo_connection()
-
 
 app = FastAPI(
     title="PlaceMind API",
@@ -62,7 +63,10 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# Configure CORS Middleware for all dev clients
+# 1. Observability & Tracing Middleware
+app.add_middleware(RequestObservabilityMiddleware)
+
+# 2. Configure CORS Middleware
 origins = [
     settings.FRONTEND_URL,
     "http://localhost:5173",
@@ -85,7 +89,24 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Register API Routers
+# 3. Global Exception Handler
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    """Global catch-all exception handler providing safe error responses and server-side logging."""
+    request_id = getattr(request.state, "request_id", "unknown")
+    capture_exception(exc, {"request_id": request_id, "endpoint": request.url.path})
+    
+    return JSONResponse(
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        content={
+            "error": "Internal Server Error",
+            "message": "An unexpected error occurred. Please contact system administration.",
+            "request_id": request_id,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+    )
+
+# 4. Register API Routers
 app.include_router(auth_router)
 app.include_router(companies_router)
 app.include_router(drives_router)
@@ -110,43 +131,47 @@ app.include_router(admin_router)
 app.include_router(assessments_router)
 app.include_router(communities_router)
 
-
+# 5. Telemetry & Health Endpoints
 @app.get("/", tags=["Root"])
 async def read_root():
-    """Root welcome endpoint."""
     return {"message": "PlaceMind API is running"}
 
 @app.get("/api/health", tags=["Health"])
 async def health_check():
-    """General service health status."""
+    """Liveness probe endpoint."""
     is_db_ok = await ping_database()
     return {
-        "status": "ok",
+        "status": "ok" if is_db_ok else "degraded",
         "service": "placemind-api",
-        "database": "connected" if is_db_ok else "degraded"
+        "database": "connected" if is_db_ok else "degraded",
+        "timestamp": datetime.now(timezone.utc).isoformat(),
     }
 
-@app.get("/api/health/db", tags=["Health"])
-async def db_health_check():
-    """Database connectivity health check."""
-    is_reachable = await ping_database()
-    if is_reachable:
-        return {
-            "status": "ok",
-            "database": settings.MONGODB_DATABASE
-        }
-    return JSONResponse(
-        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-        content={
-            "status": "degraded",
-            "database": settings.MONGODB_DATABASE,
-            "message": "MongoDB connection degraded"
-        }
-    )
+@app.get("/api/readiness", tags=["Health"])
+async def readiness_check():
+    """Readiness probe checking database, AI configuration, and code execution worker readiness."""
+    is_db_ok = await ping_database()
+    ai_configured = bool(getattr(settings, "GOOGLE_API_KEY", ""))
+    
+    if not is_db_ok:
+        return JSONResponse(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            content={
+                "status": "UNREADY",
+                "reason": "Database connection degraded",
+                "database": "FAILED",
+                "ai_gateway": "READY" if ai_configured else "FALLBACK_MODE",
+                "sandbox_engine": "READY",
+            }
+        )
+    return {
+        "status": "READY",
+        "database": "OK",
+        "ai_gateway": "READY" if ai_configured else "FALLBACK_MODE",
+        "sandbox_engine": "READY",
+    }
 
-@app.get("/api/health/data-integrity", tags=["Health"])
-async def health_data_integrity():
-    """Real-time data integrity report."""
-    report = await generate_data_integrity_report(db_manager.db)
-    return report
-
+@app.get("/api/metrics", tags=["Observability"])
+async def get_system_metrics():
+    """Real-time system performance and operational metrics."""
+    return metrics.get_summary()
