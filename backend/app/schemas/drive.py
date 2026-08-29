@@ -69,9 +69,11 @@ class PlacementDriveUpdate(BaseModel):
     rawText: Optional[str] = None
     requiredSkills: Optional[List[str]] = None
     preferredSkills: Optional[List[str]] = None
+    status: Optional[str] = None
     aiExplanation: Optional[str] = None
     aiConfirmed: Optional[bool] = None
     reanalyze_jd: Optional[bool] = False
+    changes_feedback: Optional[str] = None
 
 class PlacementDriveSchema(BaseModel):
     id: str
@@ -112,9 +114,12 @@ class PlacementDriveSchema(BaseModel):
     approved_by: Optional[str] = None
     approved_at: Optional[str] = None
     rejection_reason: Optional[str] = None
+    rejected_by: Optional[str] = None
     rejected_at: Optional[str] = None
     changes_feedback: Optional[str] = None
+    changes_requested_by: Optional[str] = None
     changes_requested_at: Optional[str] = None
+    submitted_at: Optional[str] = None
 
 
 class DriveReviewActionRequest(BaseModel):

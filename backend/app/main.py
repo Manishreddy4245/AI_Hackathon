@@ -36,6 +36,8 @@ from app.routes.admin import router as admin_router
 from app.routes.assessments import router as assessments_router
 from app.routes.communities import router as communities_router
 from app.routes.forms import router as forms_router
+from app.routes.offers import router as offers_router
+from app.routes.practice_interviews import router as practice_interviews_router
 
 # Configure structured application logger
 logging.basicConfig(
@@ -131,6 +133,9 @@ app.include_router(dashboard_router)
 app.include_router(admin_router)
 app.include_router(assessments_router)
 app.include_router(communities_router)
+app.include_router(forms_router)
+app.include_router(offers_router)
+app.include_router(practice_interviews_router)
 
 # 5. Telemetry & Health Endpoints
 @app.get("/", tags=["Root"])

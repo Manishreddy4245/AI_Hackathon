@@ -80,6 +80,22 @@ async def create_required_indexes(db) -> None:
             sparse=True
         )
 
+        # 13. Offers & Joining Collection
+        await db.offers.create_index([("id", ASCENDING)], unique=True, sparse=True)
+        await db.offers.create_index([("offer_id", ASCENDING)], unique=True, sparse=True)
+        await db.offers.create_index([("application_id", ASCENDING)])
+        await db.offers.create_index([("student_id", ASCENDING)])
+        await db.offers.create_index([("drive_id", ASCENDING)])
+        await db.offers.create_index([("status", ASCENDING)])
+
+        # 14. Audit Logs Collection
+        await db.audit_logs.create_index([("id", ASCENDING)], unique=True, sparse=True)
+        await db.audit_logs.create_index([("userId", ASCENDING)])
+        await db.audit_logs.create_index([("action", ASCENDING)])
+        await db.audit_logs.create_index([("entity", ASCENDING)])
+        await db.audit_logs.create_index([("created_at", ASCENDING)])
+        await db.audit_logs.create_index([("timestamp", ASCENDING)])
+
         logger.info("MongoDB unique indexes and compound constraints created successfully.")
     except Exception as e:
         is_prod = getattr(settings, "ENVIRONMENT", "development") in ["production", "staging"]

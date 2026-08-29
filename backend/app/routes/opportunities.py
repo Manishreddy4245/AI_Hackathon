@@ -28,32 +28,60 @@ async def list_opportunities(
     Campus Placement Drives Discovery endpoint:
     Fetches all available internal campus placement drives from MongoDB,
     evaluates every drive against the authenticated student's real profile,
-    and returns rich counts, company-grouped representations, and paginated results.
+    and returns global summary counts, company-grouped representations, and paginated results.
     """
     student_id = current_user.get("id") if current_user else None
+    student_email = current_user.get("email") if current_user else None
 
-    # Fetch complete evaluated opportunity pool
+    # 1. Fetch complete evaluated opportunity pool without applying UI filters
     all_evaluated_ops = await get_ranked_opportunities_for_student(
         student_id=student_id,
-        source_filter=source_type,
-        eligibility_filter=eligibility_filter,
-        search_query=search
+        source_filter="all",
+        eligibility_filter="all",
+        search_query="",
+        student_email=student_email
     )
 
-    # Compute accurate aggregate counts over the full opportunity set
+    # 2. Compute accurate GLOBAL aggregate counts over the full opportunity set
     total_opportunities = len(all_evaluated_ops)
     eligible_count = sum(1 for o in all_evaluated_ops if o.get("eligible"))
     ineligible_count = sum(1 for o in all_evaluated_ops if not o.get("eligible"))
 
-    # Group by company
-    company_groups_raw = group_opportunities_by_company(all_evaluated_ops)
-    total_companies = len(company_groups_raw)
+    # Global company groups for accurate total companies metric
+    all_company_groups = group_opportunities_by_company(all_evaluated_ops)
+    total_companies = len(all_company_groups)
 
-    # Pagination calculation
-    total_pages = max(1, math.ceil(total_opportunities / page_size)) if total_opportunities > 0 else 1
+    # 3. Apply search filtering to display list
+    filtered_ops = all_evaluated_ops
+    if search.strip():
+        q = search.lower().strip()
+        filtered_ops = [
+            o for o in filtered_ops if (
+                q in o["company"].lower() or
+                q in o["role"].lower() or
+                (o.get("location") and q in o["location"].lower()) or
+                any(q in s.lower() for s in o.get("matched_skills", [])) or
+                any(q in s.lower() for s in o.get("skill_gaps", []))
+            )
+        ]
+
+    # 4. Apply eligibility filtering to display list
+    if eligibility_filter == "eligible":
+        filtered_ops = [o for o in filtered_ops if o.get("eligible")]
+    elif eligibility_filter == "ineligible":
+        filtered_ops = [o for o in filtered_ops if not o.get("eligible")]
+    elif eligibility_filter == "high_match":
+        filtered_ops = [o for o in filtered_ops if o.get("match_score", 0) >= 65]
+
+    # 5. Group filtered opportunities for display
+    display_company_groups = group_opportunities_by_company(filtered_ops)
+
+    # 6. Pagination calculation
+    total_filtered = len(filtered_ops)
+    total_pages = max(1, math.ceil(total_filtered / page_size)) if total_filtered > 0 else 1
     start_idx = (page - 1) * page_size
     end_idx = start_idx + page_size
-    paginated_ops = all_evaluated_ops[start_idx:end_idx]
+    paginated_ops = filtered_ops[start_idx:end_idx]
 
     return UnifiedOpportunitiesResponseSchema(
         total_opportunities=total_opportunities,
@@ -78,7 +106,7 @@ async def list_opportunities(
                 location=g["location"],
                 opportunities=[PlacementRecommendationSchema(**o) for o in g["opportunities"]]
             )
-            for g in company_groups_raw
+            for g in display_company_groups
         ]
     )
 
@@ -92,9 +120,11 @@ async def get_opportunity_skill_gap(
     for the authenticated student against the specified opportunity.
     """
     student_id = current_user.get("id") if current_user else None
+    student_email = current_user.get("email") if current_user else None
     res = await get_opportunity_skill_gap_analysis(
         opportunity_id=opportunity_id,
-        student_id=student_id
+        student_id=student_id,
+        student_email=student_email
     )
     if "error" in res:
         raise HTTPException(status_code=404, detail=res["error"])

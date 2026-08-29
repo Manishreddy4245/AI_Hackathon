@@ -22,6 +22,7 @@ import {
   FileCheck,
   CheckCircle2,
   BrainCircuit,
+  Award,
 } from 'lucide-react';
 import { TopNavbar } from '../components/navigation/TopNavbar';
 import { useAuth } from '../context/AuthContext';
@@ -102,6 +103,7 @@ export const AppLayout: React.FC = () => {
         { path: '/student/assessment', label: 'AI Assessment', icon: <BrainCircuit className="w-4 h-4" /> },
         { path: '/student/assessments', label: 'My Assessments', icon: <BarChart3 className="w-4 h-4" /> },
         { path: '/student/applications', label: 'My Applications', icon: <FileCheck className="w-4 h-4" /> },
+        { path: '/student/offers', label: 'Offers & Joining', icon: <Award className="w-4 h-4" /> },
         { path: '/student/interviews', label: 'My Interviews', icon: <GraduationCap className="w-4 h-4" /> },
         { path: '/student/notifications', label: 'Notifications', icon: <Bell className="w-4 h-4" /> },
         { path: '/student/profile', label: 'Profile', icon: <BookOpen className="w-4 h-4" /> },

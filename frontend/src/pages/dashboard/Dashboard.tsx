@@ -116,7 +116,17 @@ export const Dashboard: React.FC = () => {
 
   // 3. SHORTLISTED CANDIDATES (from Candidates Pool)
   const shortlistedCandidatesCount = useMemo(() => {
-    const poolShort = candidatePool.filter((c) => (c.status || '').toUpperCase() === 'SHORTLISTED').length;
+    const SHORTLISTED_STAGES = [
+      'SHORTLISTED', 'APTITUDE_ALLOCATED', 'APTITUDE_ASSIGNED', 'APTITUDE_IN_PROGRESS',
+      'APTITUDE_QUALIFIED', 'TECHNICAL_ROUND_PENDING', 'TECHNICAL_ALLOCATED', 'TECHNICAL_IN_PROGRESS',
+      'TECHNICAL_QUALIFIED', 'INTERVIEW_PENDING', 'HR_INTERVIEW_PENDING', 'HR_INTERVIEW_ALLOCATED',
+      'INTERVIEW_READY', 'INTERVIEW_SCHEDULED', 'INTERVIEW_COMPLETED', 'INTERVIEWED',
+      'SELECTED', 'FINAL_SELECTED', 'OFFER_EXTENDED', 'OFFER_ACCEPTED', 'JOINED', 'PLACED'
+    ];
+    const poolShort = candidatePool.filter((c) =>
+      SHORTLISTED_STAGES.includes((c.status || '').toUpperCase()) ||
+      SHORTLISTED_STAGES.includes((c.stage || '').toUpperCase())
+    ).length;
     return poolShort > 0 ? poolShort : (candidateStats?.shortlisted || 0);
   }, [candidatePool, candidateStats]);
 
@@ -145,14 +155,22 @@ export const Dashboard: React.FC = () => {
   }, [exceptionsList, drives]);
 
   // Dynamic Pipeline
-  const pipelineData = useMemo(() => [
-    { stage: 'Registered', count: students.length, fill: '#64748B' },
-    { stage: 'Eligible', count: eligibleStudentsCount, fill: '#3B82F6' },
-    { stage: 'Applied', count: candidatePool.length, fill: '#06B6D4' },
-    { stage: 'Shortlisted', count: shortlistedCandidatesCount, fill: '#3B82F6' },
-    { stage: 'Interview', count: interviewsList.filter((i) => (i.status || '').toLowerCase() !== 'cancelled').length, fill: '#F59E0B' },
-    { stage: 'Selected', count: candidatePool.filter((c) => ['SELECTED', 'PLACED'].includes((c.status || '').toUpperCase())).length, fill: '#22C55E' },
-  ], [students, eligibleStudentsCount, candidatePool, shortlistedCandidatesCount, interviewsList]);
+  const pipelineData = useMemo(() => {
+    const SELECTED_STAGES = ['SELECTED', 'FINAL_SELECTED', 'PLACED', 'OFFER_EXTENDED', 'OFFER_ACCEPTED', 'JOINED'];
+    const selectedCount = candidateStats?.selected ?? candidatePool.filter((c) =>
+      SELECTED_STAGES.includes((c.status || '').toUpperCase()) ||
+      SELECTED_STAGES.includes((c.stage || '').toUpperCase())
+    ).length;
+
+    return [
+      { stage: 'Registered', count: students.length, fill: '#64748B' },
+      { stage: 'Eligible', count: eligibleStudentsCount, fill: '#3B82F6' },
+      { stage: 'Applied', count: candidatePool.length, fill: '#06B6D4' },
+      { stage: 'Shortlisted', count: shortlistedCandidatesCount, fill: '#3B82F6' },
+      { stage: 'Interview', count: interviewsList.filter((i) => (i.status || '').toLowerCase() !== 'cancelled').length, fill: '#F59E0B' },
+      { stage: 'Selected', count: selectedCount, fill: '#22C55E' },
+    ];
+  }, [students, eligibleStudentsCount, candidatePool, shortlistedCandidatesCount, interviewsList, candidateStats]);
 
   const skillDemandsData = skillAnalytics?.skillDemands?.map((s: any) => ({
     skill: s.skill,

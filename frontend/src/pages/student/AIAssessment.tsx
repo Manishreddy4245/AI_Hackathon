@@ -35,8 +35,7 @@ import { PageHeader } from '../../components/ui/PageHeader';
 import { Card, CardHeader, CardTitle, CardContent } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { useAuth } from '../../context/AuthContext';
-import { VideoPracticeModal } from '../../components/student/VideoPracticeModal';
-import { CustomMockInterviewModal } from '../../components/student/CustomMockInterviewModal';
+import { AIInterviewPracticeStudioModal } from '../../components/student/AIInterviewPracticeStudioModal';
 import {
   apiService,
   AssessmentSession,
@@ -170,9 +169,8 @@ export const AIAssessment: React.FC = () => {
     localStorage.setItem("placemind_adaptive_mode_enabled", String(isAdaptiveModeEnabled));
   }, [isAdaptiveModeEnabled]);
 
-  // Video & Speech Practice State
-  const [isVideoPracticeOpen, setIsVideoPracticeOpen] = useState(false);
-  const [isMockInterviewOpen, setIsMockInterviewOpen] = useState(false);
+  // Unified AI Practice Studio State
+  const [isPracticeStudioOpen, setIsPracticeStudioOpen] = useState(false);
 
   // Phase 2: CAT Adaptive Engine & Spaced Repetition State
   const [adaptiveState, setAdaptiveState] = useState<{
@@ -851,20 +849,11 @@ export const AIAssessment: React.FC = () => {
 
           <Button
             variant="secondary"
-            onClick={() => setIsMockInterviewOpen(true)}
+            onClick={() => setIsPracticeStudioOpen(true)}
             className="flex items-center gap-2 bg-gradient-to-r from-cyan-900/40 to-blue-900/40 border-cyan-500/40 text-cyan-200 hover:text-white hover:bg-cyan-800/40 font-semibold"
           >
             <BrainCircuit className="w-4 h-4 text-cyan-400" />
-            🤖 AI Mock Interview
-          </Button>
-
-          <Button
-            variant="secondary"
-            onClick={() => setIsVideoPracticeOpen(true)}
-            className="flex items-center gap-2 bg-gradient-to-r from-purple-900/40 to-indigo-900/40 border-purple-500/40 text-purple-200 hover:text-white hover:bg-purple-800/40"
-          >
-            <Video className="w-4 h-4 text-purple-400" />
-            🎥 AI Video Practice
+            🎙️ AI Interview Practice Studio
           </Button>
 
           <Button
@@ -2148,16 +2137,10 @@ export const AIAssessment: React.FC = () => {
           </div>
         </div>
       )}
-      {/* Video & Speech Practice Modal */}
-      <VideoPracticeModal
-        isOpen={isVideoPracticeOpen}
-        onClose={() => setIsVideoPracticeOpen(false)}
-      />
-
-      {/* Custom AI Mock Interview Modal */}
-      <CustomMockInterviewModal
-        isOpen={isMockInterviewOpen}
-        onClose={() => setIsMockInterviewOpen(false)}
+      {/* Unified AI Interview Practice Studio Modal */}
+      <AIInterviewPracticeStudioModal
+        isOpen={isPracticeStudioOpen}
+        onClose={() => setIsPracticeStudioOpen(false)}
       />
     </div>
   );

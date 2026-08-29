@@ -12,8 +12,9 @@ import {
   MapPin,
   HelpCircle,
   Loader2,
+  DoorOpen,
 } from 'lucide-react';
-import { Interview, InterviewRound } from '../../types';
+import { Interview, InterviewRound, Panel, Room } from '../../types';
 import { usePlacement } from '../../context/PlacementContext';
 import { apiService } from '../../services/api';
 import { Button } from '../ui/Button';
@@ -29,40 +30,69 @@ export const ScheduleInterviewModal: React.FC<ScheduleInterviewModalProps> = ({
   onClose,
   initialDriveId,
 }) => {
-  const { drives, panelsList, roomsList, scheduleInterview, checkScheduleAvailability, triggerToast } =
+  const { drives, panelsList: ctxPanels, roomsList: ctxRooms, scheduleInterview, triggerToast } =
     usePlacement();
 
+  const [drivesList, setDrivesList] = useState<any[]>([]);
   const [selectedDriveId, setSelectedDriveId] = useState<string>('');
   const [eligibleCandidates, setEligibleCandidates] = useState<any[]>([]);
   const [selectedCandidateId, setSelectedCandidateId] = useState<string>('');
   const [loadingCandidates, setLoadingCandidates] = useState<boolean>(false);
 
+  // Panels & Rooms State
+  const [panels, setPanels] = useState<Panel[]>([]);
+  const [rooms, setRooms] = useState<Room[]>([]);
+  const [loadingPanelsRooms, setLoadingPanelsRooms] = useState<boolean>(false);
+  const [selectedPanelId, setSelectedPanelId] = useState<string>('');
+  const [selectedRoomId, setSelectedRoomId] = useState<string>('');
+
   const [round, setRound] = useState<string>('HR Interview');
-  const [date, setDate] = useState('Today');
-  const [startTime, setStartTime] = useState('10:30 AM');
-  const [duration, setDuration] = useState('45 mins');
-  const [panelName, setPanelName] = useState('');
-  const [roomName, setRoomName] = useState('');
+  const [date, setDate] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [startTime, setStartTime] = useState<string>('10:30 AM');
+  const [duration, setDuration] = useState<string>('45 mins');
 
   // Conflict Checking State
-  const [hasCheckedAvailability, setHasCheckedAvailability] = useState(false);
-  const [conflictData, setConflictData] = useState<{
-    hasConflict: boolean;
-    conflictType?: 'candidate' | 'panel' | 'room';
-    reason?: string;
-    suggestedSlots?: string[];
-  }>({ hasConflict: false });
+  const [isCheckingAvailability, setIsCheckingAvailability] = useState<boolean>(false);
+  const [hasCheckedAvailability, setHasCheckedAvailability] = useState<boolean>(false);
+  const [availabilityResult, setAvailabilityResult] = useState<{
+    available: boolean;
+    candidate_available: boolean;
+    panel_available: boolean;
+    room_available: boolean;
+    conflict?: string;
+  } | null>(null);
 
-  // Initialize selectedDriveId, panel, room when modal opens
+  // Fetch real panels & rooms on open
   useEffect(() => {
     if (isOpen) {
       const defaultDriveId = initialDriveId || (drives.length > 0 ? drives[0].id : '');
       setSelectedDriveId(defaultDriveId);
-      if (panelsList.length > 0) setPanelName(panelsList[0].name);
-      if (roomsList.length > 0) setRoomName(roomsList[0].name);
+      setSelectedPanelId('');
+      setSelectedRoomId('');
       setHasCheckedAvailability(false);
+      setAvailabilityResult(null);
+
+      const loadPanelsAndRooms = async () => {
+        setLoadingPanelsRooms(true);
+        try {
+          const [panelsData, roomsData] = await Promise.all([
+            apiService.getPanels().catch(() => []),
+            apiService.getRooms().catch(() => []),
+          ]);
+          setPanels(panelsData && panelsData.length > 0 ? panelsData : ctxPanels);
+          setRooms(roomsData && roomsData.length > 0 ? roomsData : ctxRooms);
+        } catch (err) {
+          console.error('Failed to load panels or rooms:', err);
+          setPanels(ctxPanels || []);
+          setRooms(ctxRooms || []);
+        } finally {
+          setLoadingPanelsRooms(false);
+        }
+      };
+
+      loadPanelsAndRooms();
     }
-  }, [isOpen, initialDriveId, drives, panelsList, roomsList]);
+  }, [isOpen, initialDriveId, drives, ctxPanels, ctxRooms]);
 
   // Fetch HR-interview-eligible candidates whenever selectedDriveId changes
   useEffect(() => {
@@ -108,18 +138,48 @@ export const ScheduleInterviewModal: React.FC<ScheduleInterviewModalProps> = ({
     (c) => (c.student_id || c.id) === selectedCandidateId
   );
   const selectedDrive = drives.find((d) => d.id === selectedDriveId) || drives[0];
+  const chosenPanel = panels.find((p) => p.id === selectedPanelId);
+  const chosenRoom = rooms.find((r) => r.id === selectedRoomId);
 
-  const handleCheckAvailability = () => {
-    const candName = selectedCandidate?.name || selectedCandidate?.student_name || '';
-    const res = checkScheduleAvailability(candName, panelName, roomName, startTime);
-    setConflictData(res);
-    setHasCheckedAvailability(true);
-  };
+  const handleCheckAvailability = async () => {
+    if (!selectedCandidateId || !selectedCandidate) {
+      triggerToast('Please select a candidate first.', 'warning');
+      return;
+    }
+    if (!selectedPanelId) {
+      triggerToast('Please manually select an Interview Panel before checking availability.', 'warning');
+      return;
+    }
+    if (!selectedRoomId) {
+      triggerToast('Please manually select a Venue Room before checking availability.', 'warning');
+      return;
+    }
 
-  const handleUseRecommendedSlot = (slot: string) => {
-    setStartTime(slot.split(' – ')[0]);
-    setConflictData({ hasConflict: false });
-    setHasCheckedAvailability(true);
+    setIsCheckingAvailability(true);
+    try {
+      const payload = {
+        candidate_id: selectedCandidate.student_id || selectedCandidate.id,
+        candidate_name: selectedCandidate.name || selectedCandidate.student_name,
+        panel_id: selectedPanelId,
+        panel_name: chosenPanel?.name,
+        room_id: selectedRoomId,
+        room_name: chosenRoom?.name,
+        date,
+        time_slot: `${startTime} – ${duration}`,
+        start_time: startTime,
+        duration,
+      };
+
+      const res = await apiService.checkInterviewAvailability(payload);
+      setAvailabilityResult(res);
+      setHasCheckedAvailability(true);
+    } catch (err: any) {
+      console.error('Availability check failed:', err);
+      const msg = err?.response?.data?.detail || err?.message || 'Failed to check availability.';
+      triggerToast(msg, 'error');
+    } finally {
+      setIsCheckingAvailability(false);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -132,6 +192,16 @@ export const ScheduleInterviewModal: React.FC<ScheduleInterviewModalProps> = ({
 
     if (!selectedCandidateId || !selectedCandidate) {
       triggerToast('Please select an eligible candidate for HR / Interview scheduling.', 'error');
+      return;
+    }
+
+    if (!selectedPanelId) {
+      triggerToast('Please select an interview panel and venue room before scheduling.', 'error');
+      return;
+    }
+
+    if (!selectedRoomId) {
+      triggerToast('Please select an interview panel and venue room before scheduling.', 'error');
       return;
     }
 
@@ -150,8 +220,11 @@ export const ScheduleInterviewModal: React.FC<ScheduleInterviewModalProps> = ({
       startTime,
       endTime: '11:15 AM',
       date,
-      panelName: panelName || (panelsList[0]?.name || 'HR Panel'),
-      roomName: roomName || (roomsList[0]?.name || 'Main Venue'),
+      panelId: selectedPanelId,
+      panelName: chosenPanel?.name || 'Interview Panel',
+      panelMembers: chosenPanel?.members || [],
+      roomId: selectedRoomId,
+      roomName: chosenRoom?.name || 'Interview Room',
       status: 'scheduled',
       panelConfirmed: true,
     };
@@ -165,7 +238,7 @@ export const ScheduleInterviewModal: React.FC<ScheduleInterviewModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/65 backdrop-blur-md overflow-y-auto">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-md overflow-y-auto">
       <div className="bg-[#0B1628] rounded-2xl shadow-[0_12px_35px_rgba(0,0,0,0.5)] w-full max-w-2xl overflow-hidden border border-[#243650] my-6 animate-in fade-in zoom-in-95 duration-150 text-[#F8FAFC]">
         {/* Header */}
         <div className="px-6 py-4 bg-[#101D31] border-b border-[#243650] text-[#F8FAFC] flex items-center justify-between">
@@ -175,7 +248,7 @@ export const ScheduleInterviewModal: React.FC<ScheduleInterviewModalProps> = ({
             </div>
             <div>
               <h3 className="text-base font-bold text-[#F8FAFC] tracking-tight">Schedule Interview Slot</h3>
-              <p className="text-xs text-[#CBD5E1]">Automated venue, candidate &amp; panel availability verification</p>
+              <p className="text-xs text-[#CBD5E1]">Manual panel and venue room assignment with live availability verification</p>
             </div>
           </div>
           <button onClick={onClose} className="p-1 rounded-lg text-[#94A3B8] hover:text-white transition-colors cursor-pointer">
@@ -194,6 +267,7 @@ export const ScheduleInterviewModal: React.FC<ScheduleInterviewModalProps> = ({
                   setSelectedDriveId(e.target.value);
                   setSelectedCandidateId('');
                   setHasCheckedAvailability(false);
+                  setAvailabilityResult(null);
                 }}
                 className="w-full text-xs p-2.5 bg-[#101D31] border border-[#243650] text-[#F8FAFC] rounded-lg focus:outline-none focus:border-[#3B82F6] cursor-pointer font-medium"
               >
@@ -214,6 +288,7 @@ export const ScheduleInterviewModal: React.FC<ScheduleInterviewModalProps> = ({
                 onChange={(e) => {
                   setSelectedCandidateId(e.target.value);
                   setHasCheckedAvailability(false);
+                  setAvailabilityResult(null);
                 }}
                 className="w-full text-xs p-2.5 bg-[#101D31] border border-[#243650] text-[#F8FAFC] rounded-lg focus:outline-none focus:border-[#3B82F6] cursor-pointer font-medium disabled:opacity-50 disabled:cursor-not-allowed"
               >
@@ -247,16 +322,18 @@ export const ScheduleInterviewModal: React.FC<ScheduleInterviewModalProps> = ({
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-[#E2E8F0] mb-1">Date</label>
-              <select
+              <label className="block text-xs font-bold text-[#E2E8F0] mb-1">Interview Date</label>
+              <input
+                type="date"
+                required
                 value={date}
-                onChange={(e) => setDate(e.target.value)}
-                className="w-full text-xs p-2.5 bg-[#101D31] border border-[#243650] text-[#F8FAFC] rounded-lg focus:outline-none focus:border-[#3B82F6] cursor-pointer font-medium"
-              >
-                <option value="Today">Today</option>
-                <option value="Tomorrow">Tomorrow</option>
-                <option value="2026-08-28">2026-08-28</option>
-              </select>
+                onChange={(e) => {
+                  setDate(e.target.value);
+                  setHasCheckedAvailability(false);
+                  setAvailabilityResult(null);
+                }}
+                className="w-full text-xs p-2.5 bg-[#101D31] border border-[#243650] text-[#F8FAFC] rounded-lg font-bold focus:outline-none focus:border-[#3B82F6]"
+              />
             </div>
 
             <div>
@@ -267,6 +344,7 @@ export const ScheduleInterviewModal: React.FC<ScheduleInterviewModalProps> = ({
                 onChange={(e) => {
                   setStartTime(e.target.value);
                   setHasCheckedAvailability(false);
+                  setAvailabilityResult(null);
                 }}
                 className="w-full text-xs p-2.5 bg-[#101D31] border border-[#243650] text-[#F8FAFC] placeholder-[#64748B] rounded-lg font-bold focus:outline-none focus:border-[#3B82F6]"
                 placeholder="10:30 AM"
@@ -274,93 +352,94 @@ export const ScheduleInterviewModal: React.FC<ScheduleInterviewModalProps> = ({
             </div>
           </div>
 
+          {/* MANUAL PANEL & VENUE ROOM SELECTION */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-bold text-[#E2E8F0] mb-1">Assigned Panel</label>
+              <label className="block text-xs font-bold text-[#E2E8F0] mb-1 flex items-center justify-between">
+                <span>Assigned Panel *</span>
+                {loadingPanelsRooms && <span className="text-[10px] text-cyan-400">Loading panels...</span>}
+              </label>
               <select
-                value={panelName}
+                required
+                value={selectedPanelId}
                 onChange={(e) => {
-                  setPanelName(e.target.value);
+                  setSelectedPanelId(e.target.value);
                   setHasCheckedAvailability(false);
+                  setAvailabilityResult(null);
                 }}
                 className="w-full text-xs p-2.5 bg-[#101D31] border border-[#243650] text-[#F8FAFC] rounded-lg focus:outline-none focus:border-[#3B82F6] cursor-pointer font-medium"
               >
-                {panelsList.map((p) => (
-                  <option key={p.id} value={p.name}>
-                    {p.name} ({p.companyName || 'General Panel'})
+                <option value="">[ Select Interview Panel ▼ ]</option>
+                {panels.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name} {p.companyName ? `(${p.companyName})` : ''} {p.members && p.members.length > 0 ? `• ${p.members.length} members` : ''}
                   </option>
                 ))}
               </select>
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-[#E2E8F0] mb-1">Assigned Venue Room</label>
+              <label className="block text-xs font-bold text-[#E2E8F0] mb-1 flex items-center justify-between">
+                <span>Assigned Venue Room *</span>
+                {loadingPanelsRooms && <span className="text-[10px] text-cyan-400">Loading rooms...</span>}
+              </label>
               <select
-                value={roomName}
+                required
+                value={selectedRoomId}
                 onChange={(e) => {
-                  setRoomName(e.target.value);
+                  setSelectedRoomId(e.target.value);
                   setHasCheckedAvailability(false);
+                  setAvailabilityResult(null);
                 }}
                 className="w-full text-xs p-2.5 bg-[#101D31] border border-[#243650] text-[#F8FAFC] rounded-lg focus:outline-none focus:border-[#3B82F6] cursor-pointer font-medium"
               >
-                {roomsList.map((r) => (
-                  <option key={r.id} value={r.name}>
-                    {r.name} ({r.building || (r as any).block || 'Main Building'})
+                <option value="">[ Select Venue Room ▼ ]</option>
+                {rooms.map((r) => (
+                  <option key={r.id} value={r.id}>
+                    {r.name} {r.building ? `(${r.building})` : ''} {r.capacity ? `• Cap: ${r.capacity}` : ''}
                   </option>
                 ))}
               </select>
             </div>
           </div>
 
-
-          {/* CONFLICT WARNING & SMART RECOMMENDATIONS PANEL */}
-          {hasCheckedAvailability && conflictData.hasConflict && (
-            <div className="p-4 rounded-xl border border-[rgba(239,68,68,0.25)] bg-[rgba(239,68,68,0.10)] space-y-3 animate-in fade-in">
+          {/* AVAILABILITY RESULTS PANEL */}
+          {hasCheckedAvailability && availabilityResult && !availabilityResult.available && (
+            <div className="p-4 rounded-xl border border-[rgba(239,68,68,0.25)] bg-[rgba(239,68,68,0.10)] space-y-2 animate-in fade-in">
               <div className="flex items-start gap-2.5 text-xs">
                 <AlertTriangle className="w-5 h-5 text-[#EF4444] shrink-0 mt-0.5" />
                 <div>
                   <h4 className="font-bold text-[#FCA5A5]">⚠ Scheduling Conflict Detected</h4>
-                  <p className="text-[#CBD5E1] mt-0.5 leading-relaxed font-medium">{conflictData.reason}</p>
+                  <p className="text-[#CBD5E1] mt-0.5 leading-relaxed font-medium">
+                    {availabilityResult.conflict || 'Selected candidate, panel, or room is unavailable.'}
+                  </p>
                 </div>
               </div>
-
-              {/* SMART RECOMMENDATIONS SECTION */}
-              <div className="p-3 bg-[#101D31] rounded-lg border border-[#243650] space-y-2 text-xs">
-                <span className="font-bold text-[#F8FAFC] flex items-center gap-1.5">
-                  <Sparkles className="w-3.5 h-3.5 text-[#3B82F6]" /> Recommended Alternative Available Slots
+              <div className="flex items-center gap-3 pt-2 text-[11px]">
+                <span className={availabilityResult.candidate_available ? 'text-[#86EFAC]' : 'text-[#FCA5A5] font-bold'}>
+                  {availabilityResult.candidate_available ? '✓ Candidate free' : '✕ Candidate busy'}
                 </span>
-                <div className="space-y-1.5">
-                  {(conflictData.suggestedSlots || ['11:30 AM – 12:15 PM', '02:00 PM – 02:45 PM']).map((slot) => (
-                    <div
-                      key={slot}
-                      className="p-2 rounded bg-[#0B1628] border border-[#243650] flex items-center justify-between gap-2 text-[#F8FAFC]"
-                    >
-                      <div>
-                        <span className="font-bold text-[#F8FAFC]">{slot}</span>
-                        <div className="flex items-center gap-2 text-[10px] text-[#86EFAC] font-semibold mt-0.5">
-                          <span>✓ Candidate available</span>
-                          <span>✓ Panel available</span>
-                          <span>✓ Room available</span>
-                        </div>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => handleUseRecommendedSlot(slot)}
-                        className="px-2.5 py-1 text-[11px] font-bold bg-[#3B82F6] text-white rounded hover:bg-[#60A5FA] transition-colors cursor-pointer"
-                      >
-                        Use this slot
-                      </button>
-                    </div>
-                  ))}
-                </div>
+                <span className={availabilityResult.panel_available ? 'text-[#86EFAC]' : 'text-[#FCA5A5] font-bold'}>
+                  {availabilityResult.panel_available ? '✓ Panel free' : '✕ Panel occupied'}
+                </span>
+                <span className={availabilityResult.room_available ? 'text-[#86EFAC]' : 'text-[#FCA5A5] font-bold'}>
+                  {availabilityResult.room_available ? '✓ Room free' : '✕ Room occupied'}
+                </span>
               </div>
             </div>
           )}
 
-          {hasCheckedAvailability && !conflictData.hasConflict && (
-            <div className="p-3 rounded-xl border border-[rgba(34,197,94,0.25)] bg-[rgba(34,197,94,0.10)] text-[#86EFAC] text-xs font-semibold flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4 text-[#22C55E]" />
-              <span>✓ All schedules verified. Candidate, Panel, and Room are available at {startTime}.</span>
+          {hasCheckedAvailability && availabilityResult && availabilityResult.available && (
+            <div className="p-3.5 rounded-xl border border-[rgba(34,197,94,0.25)] bg-[rgba(34,197,94,0.10)] text-[#86EFAC] text-xs font-semibold space-y-1 animate-in fade-in">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-[#22C55E]" />
+                <span className="font-bold">✓ All schedules verified available in database</span>
+              </div>
+              <div className="flex items-center gap-3 text-[11px] text-[#A7F3D0] pl-6 font-medium">
+                <span>✓ Candidate available</span>
+                <span>✓ Panel available</span>
+                <span>✓ Room available</span>
+              </div>
             </div>
           )}
 
@@ -374,16 +453,24 @@ export const ScheduleInterviewModal: React.FC<ScheduleInterviewModalProps> = ({
                 variant="secondary"
                 size="sm"
                 type="button"
-                icon={<CheckCircle2 className="w-3.5 h-3.5" />}
+                disabled={isCheckingAvailability || !selectedCandidateId || !selectedPanelId || !selectedRoomId}
+                icon={isCheckingAvailability ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
                 onClick={handleCheckAvailability}
               >
-                Check Availability
+                {isCheckingAvailability ? 'Checking...' : 'Check Availability'}
               </Button>
               <Button
                 variant="primary"
                 size="sm"
                 type="submit"
-                disabled={!selectedDriveId || !selectedCandidateId || loadingCandidates || eligibleCandidates.length === 0}
+                disabled={
+                  !selectedDriveId ||
+                  !selectedCandidateId ||
+                  !selectedPanelId ||
+                  !selectedRoomId ||
+                  loadingCandidates ||
+                  eligibleCandidates.length === 0
+                }
                 icon={<Check className="w-3.5 h-3.5" />}
               >
                 Schedule Interview
@@ -395,4 +482,3 @@ export const ScheduleInterviewModal: React.FC<ScheduleInterviewModalProps> = ({
     </div>
   );
 };
-

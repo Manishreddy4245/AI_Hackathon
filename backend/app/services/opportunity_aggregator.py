@@ -88,33 +88,72 @@ async def get_college_placement_drives() -> List[Dict[str, Any]]:
     if db is None:
         return []
 
-    drives = await db.drives.find(
-        {"status": {"$in": ["ANNOUNCED", "announced", "APPROVED", "approved", "open", "active", "ACTIVE", "shortlisting", "interview"]}},
-        {"_id": 0}
-    ).to_list(length=500)
+    # 1. Discover drive IDs published/active in Communities
+    community_drive_ids: List[str] = []
+    try:
+        active_comms = await db.communities.find(
+            {"status": {"$in": ["active", "ACTIVE"]}},
+            {"drive_id": 1, "driveId": 1, "_id": 0}
+        ).to_list(length=200)
+        for c in active_comms:
+            d_id = c.get("drive_id") or c.get("driveId")
+            if d_id:
+                community_drive_ids.append(d_id)
+    except Exception:
+        community_drive_ids = []
+
+    status_query = [
+        "ANNOUNCED", "announced",
+        "APPROVED", "approved",
+        "open", "OPEN",
+        "active", "ACTIVE",
+        "shortlisting", "interview",
+        "PENDING_ANNOUNCEMENT"
+    ]
+
+    drive_query: Dict[str, Any] = {
+        "$or": [
+            {"status": {"$in": status_query}},
+            {"id": {"$in": community_drive_ids}},
+            {"driveId": {"$in": community_drive_ids}}
+        ]
+    } if community_drive_ids else {"status": {"$in": status_query}}
+
+    drives = await db.drives.find(drive_query, {"_id": 0}).to_list(length=500)
 
     college_opportunities = []
     for d in drives:
+        drive_id = d.get("id") or d.get("driveId") or "drive-1"
+        grad_year = (
+            d.get("graduationYear")
+            if d.get("graduationYear") is not None
+            else (d.get("graduationYears")[0] if d.get("graduationYears") else None)
+        )
+        grad_years = d.get("graduationYears") or ([d.get("graduationYear")] if d.get("graduationYear") is not None else [])
+        pkg_lpa = d.get("packageLpa") or d.get("package_lpa")
+        sal_text = f"{pkg_lpa} LPA" if pkg_lpa else (d.get("salary") or d.get("salary_text") or None)
+
         college_opportunities.append({
-            "id": d.get("id", "drive-1"),
+            "id": drive_id,
             "source": "placemind",
             "source_type": "college",
             "source_label": "Campus Placement Drive",
-            "company": d.get("companyName", "Company"),
-            "role": d.get("roleTitle", "Software Engineer"),
-            "company_logo": d.get("companyLogo", "TN"),
-            "location": d.get("location", "Campus / Hybrid"),
-            "package_lpa": d.get("packageLpa"),
-            "salary_text": f"{d.get('packageLpa')} LPA" if d.get("packageLpa") else None,
-            "employment_type": d.get("employmentType", "Full-time"),
-            "description": d.get("description", f"Campus recruitment drive for {d.get('roleTitle')} at {d.get('companyName')}."),
-            "required_skills": d.get("requiredSkills", []),
-            "preferred_skills": d.get("preferredSkills", []),
-            "eligible_branches": d.get("eligibleBranches", ["CSE", "IT"]),
-            "min_cgpa": d.get("minCgpa"),
-            "graduation_year": d.get("graduationYear"),
+            "company": d.get("companyName") or d.get("company_name") or "Company",
+            "role": d.get("roleTitle") or d.get("role_title") or "Software Engineer",
+            "company_logo": d.get("companyLogo") or d.get("company_logo") or "TN",
+            "location": d.get("location") or "Campus / Hybrid",
+            "package_lpa": pkg_lpa,
+            "salary_text": sal_text,
+            "employment_type": d.get("employmentType") or d.get("employment_type") or "Full-time",
+            "description": d.get("description", f"Campus recruitment drive for {d.get('roleTitle', 'role')} at {d.get('companyName', 'company')}."),
+            "required_skills": d.get("requiredSkills") or d.get("required_skills") or [],
+            "preferred_skills": d.get("preferredSkills") or d.get("preferred_skills") or [],
+            "eligible_branches": d.get("eligibleBranches") or d.get("eligible_branches") or ["CSE", "IT"],
+            "min_cgpa": d.get("minCgpa") or d.get("min_cgpa"),
+            "graduation_year": grad_year,
+            "graduation_years": grad_years,
             "deadline": d.get("deadline", "Open"),
-            "application_url": d.get("id"),
+            "application_url": drive_id,
             "source_url": None,
             "posted_at": "Active Campus Drive"
         })
@@ -166,7 +205,8 @@ async def get_ranked_opportunities_for_student(
     student_id: Optional[str] = None,
     source_filter: str = "college",    # Kept for backward compatibility; always serves internal drives
     eligibility_filter: str = "all",   # "all" | "eligible" | "ineligible" | "high_match"
-    search_query: str = ""
+    search_query: str = "",
+    student_email: Optional[str] = None
 ) -> List[Dict[str, Any]]:
     """
     Fetches official internal campus placement drives from MongoDB, matches against
@@ -177,9 +217,16 @@ async def get_ranked_opportunities_for_student(
     # 1. Fetch authenticated student profile & resume
     student = None
     latest_resume = None
-    if db is not None and student_id:
-        student = await db.students.find_one({"id": student_id}, {"_id": 0})
-        latest_resume = await db.resumes.find_one({"student_id": student_id}, {"_id": 0})
+    if db is not None:
+        if student_id:
+            student = await db.students.find_one({"id": student_id}, {"_id": 0})
+            latest_resume = await db.resumes.find_one({"student_id": student_id}, {"_id": 0})
+        if not student and student_email:
+            student = await db.students.find_one({"email": student_email.lower()}, {"_id": 0})
+        if not latest_resume and student_email:
+            latest_resume = await db.resumes.find_one({"student_email": student_email.lower()}, {"_id": 0})
+        if not latest_resume and student and student.get("id"):
+            latest_resume = await db.resumes.find_one({"student_id": student.get("id")}, {"_id": 0})
 
     has_resume = latest_resume is not None or bool(student and student.get("resumeUrl") and student.get("resumeUrl") not in ("#", "None", ""))
 
@@ -320,15 +367,26 @@ async def get_ranked_opportunities_for_student(
     )
     return ranked
 
-async def get_opportunity_skill_gap_analysis(opportunity_id: str, student_id: Optional[str] = None) -> Dict[str, Any]:
+async def get_opportunity_skill_gap_analysis(
+    opportunity_id: str,
+    student_id: Optional[str] = None,
+    student_email: Optional[str] = None
+) -> Dict[str, Any]:
     """Computes detailed company-specific skill gap for an internal placement drive."""
     db = db_manager.db
 
     student = None
     latest_resume = None
-    if db is not None and student_id:
-        student = await db.students.find_one({"id": student_id}, {"_id": 0})
-        latest_resume = await db.resumes.find_one({"student_id": student_id}, {"_id": 0})
+    if db is not None:
+        if student_id:
+            student = await db.students.find_one({"id": student_id}, {"_id": 0})
+            latest_resume = await db.resumes.find_one({"student_id": student_id}, {"_id": 0})
+        if not student and student_email:
+            student = await db.students.find_one({"email": student_email.lower()}, {"_id": 0})
+        if not latest_resume and student_email:
+            latest_resume = await db.resumes.find_one({"student_email": student_email.lower()}, {"_id": 0})
+        if not latest_resume and student and student.get("id"):
+            latest_resume = await db.resumes.find_one({"student_id": student.get("id")}, {"_id": 0})
 
     has_resume = latest_resume is not None or bool(student and student.get("resumeUrl") and student.get("resumeUrl") not in ("#", "None", ""))
 

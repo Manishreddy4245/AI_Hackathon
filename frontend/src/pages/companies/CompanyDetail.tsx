@@ -205,7 +205,7 @@ export const CompanyDetail: React.FC = () => {
     if (!drive) return;
     try {
       const updated = await approveDrive(drive.id);
-      setDrive((prev) => prev ? ({ ...prev, ...updated, status: 'ACTIVE' as any, aiConfirmed: true }) : undefined);
+      setDrive((prev) => prev ? ({ ...prev, ...(typeof updated === 'object' && updated ? updated : {}), status: 'ACTIVE' as any, aiConfirmed: true }) : undefined);
       triggerAction('Placement drive approved and published to eligible students!');
     } catch (err: any) {
       const detail = err?.response?.data?.detail || err?.message || 'Approval failed. Please try again.';

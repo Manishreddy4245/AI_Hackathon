@@ -16,6 +16,7 @@ from app.schemas.drive import RoundCandidateActionRequest
 
 from app.services.eligibility_engine import evaluate_drive_eligibility
 from app.services.pipeline_engine import derive_recruitment_pipeline_stage
+from app.services.audit_service import record_audit_event
 
 router = APIRouter(prefix="/api/applications", tags=["Applications"])
 
@@ -189,18 +190,73 @@ async def get_candidate_pool_stats(
             else:
                 base_query = {"$or": comp_conditions}
 
+    applied_q = {"$or": [
+        {"status": {"$regex": "^applied$", "$options": "i"}},
+        {"stage": {"$regex": "^applied$", "$options": "i"}},
+        {"pipeline_stage": {"$regex": "^applied$", "$options": "i"}}
+    ]}
+
+    shortlisted_statuses = [
+        "SHORTLISTED", "shortlisted", "APTITUDE_ALLOCATED", "APTITUDE_ASSIGNED", "APTITUDE_IN_PROGRESS",
+        "APTITUDE_QUALIFIED", "TECHNICAL_ROUND_PENDING", "TECHNICAL_ALLOCATED", "TECHNICAL_IN_PROGRESS",
+        "TECHNICAL_QUALIFIED", "INTERVIEW_PENDING", "HR_INTERVIEW_PENDING", "HR_INTERVIEW_ALLOCATED",
+        "INTERVIEW_READY", "INTERVIEW_SCHEDULED", "INTERVIEW_COMPLETED", "INTERVIEWED",
+        "SELECTED", "FINAL_SELECTED", "OFFER_EXTENDED", "OFFER_ACCEPTED", "JOINED", "PLACED"
+    ]
+    shortlisted_q = {"$or": [
+        {"status": {"$in": shortlisted_statuses}},
+        {"stage": {"$in": shortlisted_statuses}},
+        {"pipeline_stage": {"$in": shortlisted_statuses}}
+    ]}
+
+    rejected_statuses = [
+        "NOT_SHORTLISTED", "not_shortlisted", "REJECTED", "rejected",
+        "APTITUDE_FAILED", "REJECTED_AT_APTITUDE", "REJECTED_AT_TECHNICAL",
+        "TECHNICAL_FAILED", "REJECTED_AT_HR", "INTERVIEW_FAILED"
+    ]
+    rejected_q = {"$or": [
+        {"status": {"$in": rejected_statuses}},
+        {"stage": {"$in": rejected_statuses}},
+        {"pipeline_stage": {"$in": rejected_statuses}}
+    ]}
+
+    interview_statuses = [
+        "INTERVIEW_SCHEDULED", "interview_scheduled", "HR_INTERVIEW_ALLOCATED",
+        "INTERVIEW_COMPLETED", "interview_completed", "INTERVIEWED", "interviewed",
+        "SELECTED", "FINAL_SELECTED", "OFFER_EXTENDED", "OFFER_ACCEPTED", "JOINED", "PLACED"
+    ]
+    interview_q = {"$or": [
+        {"status": {"$in": interview_statuses}},
+        {"stage": {"$in": interview_statuses}},
+        {"pipeline_stage": {"$in": interview_statuses}},
+        {"interview": {"$ne": None}}
+    ]}
+
+    selected_statuses = [
+        "SELECTED", "selected", "FINAL_SELECTED", "final_selected",
+        "ACCEPTED", "accepted", "PLACED", "placed", "OFFER_EXTENDED",
+        "offer_extended", "OFFER_ACCEPTED", "offer_accepted", "JOINED", "joined"
+    ]
+    selected_q = {"$or": [
+        {"status": {"$in": selected_statuses}},
+        {"stage": {"$in": selected_statuses}},
+        {"pipeline_stage": {"$in": selected_statuses}}
+    ]}
+
     total = await db.applications.count_documents(base_query)
-    applied = await db.applications.count_documents({"$and": [base_query, {"status": "APPLIED"}]} if base_query else {"status": "APPLIED"})
-    shortlisted = await db.applications.count_documents({"$and": [base_query, {"status": "SHORTLISTED"}]} if base_query else {"status": "SHORTLISTED"})
-    not_shortlisted = await db.applications.count_documents({"$and": [base_query, {"status": {"$in": ["NOT_SHORTLISTED", "REJECTED"]}}]} if base_query else {"status": {"$in": ["NOT_SHORTLISTED", "REJECTED"]}})
-    interview_scheduled = await db.applications.count_documents({"$and": [base_query, {"interview": {"$ne": None}}]} if base_query else {"interview": {"$ne": None}})
+    applied = await db.applications.count_documents({"$and": [base_query, applied_q]} if base_query else applied_q)
+    shortlisted = await db.applications.count_documents({"$and": [base_query, shortlisted_q]} if base_query else shortlisted_q)
+    not_shortlisted = await db.applications.count_documents({"$and": [base_query, rejected_q]} if base_query else rejected_q)
+    interview_scheduled = await db.applications.count_documents({"$and": [base_query, interview_q]} if base_query else interview_q)
+    selected = await db.applications.count_documents({"$and": [base_query, selected_q]} if base_query else selected_q)
 
     return {
         "all": total,
         "applied": applied,
         "shortlisted": shortlisted,
         "not_shortlisted": not_shortlisted,
-        "interview_scheduled": interview_scheduled
+        "interview_scheduled": interview_scheduled,
+        "selected": selected
     }
 
 @router.get("/me", response_model=List[Dict[str, Any]])
@@ -407,6 +463,8 @@ async def shortlist_application(
     now_iso = datetime.now().isoformat()
     update_fields: Dict[str, Any] = {
         "status": "SHORTLISTED",
+        "stage": "SHORTLISTED",
+        "pipeline_stage": "SHORTLISTED",
         "updated_at": now_iso
     }
     if interview_data:
@@ -486,6 +544,15 @@ async def shortlist_application(
         "created_at": now_iso,
     })
 
+    await record_audit_event(
+        db=db,
+        user=current_user or {"id": "officer", "name": "Placement Officer", "role": "placement_officer"},
+        action="CANDIDATE_SHORTLISTED",
+        entity="Application",
+        entity_id=application_id,
+        detail=f"Candidate {student_name} shortlisted for {job_title} at {company_name}."
+    )
+
     return {
         "status": "ok",
         "message": "Candidate shortlisted successfully and notification dispatched",
@@ -500,18 +567,72 @@ async def reject_application(
     reject_req: Optional[ApplicationRejectRequest] = None,
     current_user: Optional[Dict[str, Any]] = Depends(get_optional_current_user)
 ):
-    """Mark an application as NOT_SHORTLISTED."""
+    """Mark an application as NOT_SHORTLISTED / REJECTED and dispatch student notification."""
     db = db_manager.db
     if db is None:
         raise HTTPException(status_code=503, detail="Database unavailable")
 
-    now_iso = datetime.now().isoformat()
-    res = await db.applications.update_one(
-        {"$or": [{"id": application_id}, {"_id": application_id}]},
-        {"$set": {"status": "NOT_SHORTLISTED", "updated_at": now_iso}}
-    )
-    if res.matched_count == 0:
+    if current_user and current_user.get("role") not in ["placement_officer", "admin", "officer"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only Placement Officers are authorized to reject candidate applications."
+        )
+
+    app = await db.applications.find_one({"$or": [{"id": application_id}, {"_id": application_id}]})
+    if not app:
         raise HTTPException(status_code=404, detail="Application not found")
+
+    student_id = app.get("student_id") or app.get("studentId")
+    student_name = app.get("student_name") or app.get("studentName", "Student")
+    company_name = app.get("company_name") or app.get("companyName", "Company")
+    job_title = app.get("job_title") or app.get("roleTitle", "Placement Role")
+    drive_id = app.get("drive_id") or app.get("driveId")
+
+    officer_name = current_user.get("name", "Placement Officer") if current_user else "Placement Officer"
+    now_iso = datetime.now().isoformat()
+    reason = reject_req.reason if reject_req and reject_req.reason else "Application does not meet current shortlisting criteria."
+
+    await db.applications.update_one(
+        {"$or": [{"id": application_id}, {"_id": application_id}]},
+        {"$set": {
+            "status": "NOT_SHORTLISTED",
+            "rejection_reason": reason,
+            "rejected_by": officer_name,
+            "rejected_at": now_iso,
+            "updated_at": now_iso
+        }}
+    )
+
+    if student_id:
+        notif_id = f"notif-app-rej-{student_id}-{application_id}"
+        await create_idempotent_notification(db, {
+            "id": notif_id,
+            "recipient_user_id": student_id,
+            "recipientRole": "student",
+            "recipientName": student_name,
+            "type": "APPLICATION_STATUS_UPDATE",
+            "title": f"Application Update — {company_name}",
+            "message": f"Dear {student_name}, thank you for your interest in {job_title} at {company_name}. Your application was not shortlisted for this drive round.",
+            "application_id": application_id,
+            "student_id": student_id,
+            "drive_id": drive_id,
+            "company_name": company_name,
+            "job_title": job_title,
+            "relatedRoute": "/student/dashboard",
+            "read": False,
+            "important": False,
+            "timestamp": datetime.now().strftime("%I:%M %p • %d %b %Y"),
+            "created_at": now_iso,
+        })
+
+    await record_audit_event(
+        db=db,
+        user=current_user or {"id": "officer", "name": officer_name, "role": "placement_officer"},
+        action="CANDIDATE_REJECTED",
+        entity="Application",
+        entity_id=application_id,
+        detail=f"Candidate {student_name} rejected for {job_title} at {company_name}. Reason: {reason}"
+    )
 
     return {"status": "ok", "message": "Application marked as NOT_SHORTLISTED", "applicationStatus": "NOT_SHORTLISTED"}
 
@@ -641,14 +762,22 @@ async def execute_round_action(
         )
 
     # Persist updated application record
+    set_fields = {
+        "status": new_app_status,
+        "stage": new_app_status,
+        "pipeline_stage": new_app_status,
+        "round_evaluations": round_evaluations,
+        "current_round_id": target_round_id,
+        "updated_at": now_iso
+    }
+    if new_app_status == "SELECTED":
+        set_fields["hr_status"] = "SELECTED"
+    elif new_app_status == "REJECTED":
+        set_fields["hr_status"] = "FAILED"
+
     await db.applications.update_one(
         {"$or": [{"id": application_id}, {"_id": application_id}]},
-        {"$set": {
-            "status": new_app_status,
-            "round_evaluations": round_evaluations,
-            "current_round_id": target_round_id,
-            "updated_at": now_iso
-        }}
+        {"$set": set_fields}
     )
 
     # Dispatch notification to student

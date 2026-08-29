@@ -13,6 +13,7 @@ import {
   InterviewStatus,
   ExceptionStatus,
   UserRole,
+  CandidatePoolStats,
 } from '../types';
 import { apiService } from '../services/api';
 
@@ -38,7 +39,7 @@ interface PlacementContextType {
   students: Student[];
   drives: PlacementDrive[];
   candidatePool: any[];
-  candidateStats: { all: number; applied: number; shortlisted: number; not_shortlisted: number; interview_scheduled: number };
+  candidateStats: CandidatePoolStats;
   interviewsList: Interview[];
   availabilitySlots: any[];
   panelsList: Panel[];
@@ -99,12 +100,13 @@ export const PlacementProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const [students, setStudents] = useState<Student[]>([]);
   const [drives, setDrives] = useState<PlacementDrive[]>([]);
   const [candidatePool, setCandidatePool] = useState<any[]>([]);
-  const [candidateStats, setCandidateStats] = useState<{ all: number; applied: number; shortlisted: number; not_shortlisted: number; interview_scheduled: number }>({
+  const [candidateStats, setCandidateStats] = useState<CandidatePoolStats>({
     all: 0,
     applied: 0,
     shortlisted: 0,
     not_shortlisted: 0,
     interview_scheduled: 0,
+    selected: 0,
   });
   const [interviewsList, setInterviewsList] = useState<Interview[]>([]);
   const [availabilitySlots, setAvailabilitySlots] = useState<any[]>([]);
@@ -135,6 +137,7 @@ export const PlacementProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         roomsData,
         notifsData,
         exceptionsData,
+        activitiesData,
       ] = await Promise.all([
         apiService.getDrives().catch(() => null),
         apiService.getStudents().catch(() => null),
@@ -146,6 +149,7 @@ export const PlacementProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         apiService.getRooms().catch(() => null),
         apiService.getNotifications().catch(() => null),
         apiService.getExceptions().catch(() => null),
+        apiService.getAgentActivities().catch(() => null),
       ]);
 
       if (Array.isArray(drivesData)) setDrives(drivesData);
@@ -158,6 +162,7 @@ export const PlacementProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       if (Array.isArray(roomsData)) setRoomsList(roomsData);
       if (Array.isArray(notifsData)) setNotificationsList(notifsData);
       if (Array.isArray(exceptionsData)) setExceptionsList(exceptionsData);
+      if (Array.isArray(activitiesData) && activitiesData.length > 0) setAgentActivities(activitiesData);
     } catch (err) {
       console.log('Backend sync active');
     }
@@ -236,18 +241,42 @@ export const PlacementProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const hasAppliedToDrive = (driveId: string) => appliedDriveIds.includes(driveId);
 
   const checkEligibility = (student: Student, drive: PlacementDrive): EligibilityResult => {
-    if (student.cgpa < drive.minCgpa) {
+    if (student.cgpa < (drive.minCgpa || 0)) {
       return { eligible: false, reason: `CGPA ${student.cgpa} is below required ${drive.minCgpa}` };
     }
-    const normalizedStudentBranch = student.branch.toUpperCase();
-    const branchMatch = drive.eligibleBranches.some(
-      (b) => normalizedStudentBranch.includes(b.toUpperCase()) || (b.toUpperCase() === 'CSE' && normalizedStudentBranch.includes('COMPUTER'))
-    );
+    const BRANCH_CANONICALS: Record<string, string[]> = {
+      CSE: ['CSE', 'CS', 'COMPUTER SCIENCE', 'COMPUTER SCIENCE & ENGINEERING', 'COMPUTER SCIENCE AND ENGINEERING', 'COMPUTER ENGINEERING'],
+      IT: ['IT', 'INFORMATION TECHNOLOGY', 'INFO TECH', 'INFORMATION SCIENCE', 'ISE'],
+      ECE: ['ECE', 'ELECTRONICS', 'ELECTRONICS & COMMUNICATION', 'ELECTRONICS AND COMMUNICATION', 'ELECTRONICS & COMMUNICATION ENGINEERING', 'ELECTRONICS AND COMMUNICATION ENGINEERING', 'ETC'],
+      EE: ['EE', 'EEE', 'ELECTRICAL', 'ELECTRICAL ENGINEERING', 'ELECTRICAL AND ELECTRONICS', 'ELECTRICAL & ELECTRONICS ENGINEERING', 'TECHNICAL / ELECTRICAL ENGINEERING'],
+      ME: ['ME', 'MECH', 'MECHANICAL', 'MECHANICAL ENGINEERING'],
+      CE: ['CE', 'CIVIL', 'CIVIL ENGINEERING'],
+      AIML: ['AI', 'AIML', 'ARTIFICIAL INTELLIGENCE', 'AI & ML', 'AI/ML', 'ARTIFICIAL INTELLIGENCE AND MACHINE LEARNING'],
+      DATA_SCIENCE: ['DS', 'DATA SCIENCE', 'DATA SCIENCE AND ENGINEERING'],
+    };
+    const getCanonical = (bStr: string) => {
+      if (!bStr) return '';
+      const clean = bStr.toUpperCase().trim();
+      for (const [code, syns] of Object.entries(BRANCH_CANONICALS)) {
+        if (syns.includes(clean)) return code;
+      }
+      if (clean.includes('COMPUTER SCIENCE') || clean.includes('COMPUTER ENG')) return 'CSE';
+      if (clean.includes('INFORMATION TECH') || clean.includes('INFORMATION SCI')) return 'IT';
+      if (clean.includes('ELECTRONICS') && clean.includes('COMMUNICATION')) return 'ECE';
+      if (clean.includes('ELECTRICAL')) return 'EE';
+      if (clean.includes('MECHANICAL')) return 'ME';
+      if (clean.includes('CIVIL')) return 'CE';
+      return clean;
+    };
+    const studentCanon = getCanonical(student.branch);
+    const driveCanons = new Set((drive.eligibleBranches || []).map((b) => getCanonical(b)));
+    const branchMatch = (drive.eligibleBranches || []).length === 0 || driveCanons.has(studentCanon) || (drive.eligibleBranches || []).some((b) => b.toUpperCase().trim() === (student.branch || '').toUpperCase().trim());
+    
     if (!branchMatch) {
       return { eligible: false, reason: `${student.branch} is not an eligible branch` };
     }
-    const missingSkill = drive.requiredSkills.find(
-      (reqSkill) => !student.skills.some((s) => s.toLowerCase() === reqSkill.toLowerCase())
+    const missingSkill = (drive.requiredSkills || []).find(
+      (reqSkill) => !(student.skills || []).some((s) => s.toLowerCase() === reqSkill.toLowerCase())
     );
     if (missingSkill) {
       return { eligible: false, reason: `Required skill ${missingSkill} not found` };
@@ -418,7 +447,7 @@ export const PlacementProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     triggerToast(`Automated reminder preference updated.`, 'info');
   };
 
-  const approveExceptionRecommendation = (exceptionId: string) => {
+  const approveExceptionRecommendation = async (exceptionId: string) => {
     const target = exceptionsList.find((e) => e.id === exceptionId);
     if (!target) return;
 
@@ -441,14 +470,27 @@ export const PlacementProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     setAgentActivities([newLog, ...agentActivities]);
 
     triggerToast(`Exception resolved successfully ✓.`, 'success');
-    apiService.approveException(exceptionId).catch(() => {});
+    try {
+      await apiService.approveException(exceptionId);
+      // Re-sync drives and notifications in case a drive was approved
+      apiService.getDrives().then((d) => { if (Array.isArray(d)) setDrives(d); }).catch(() => {});
+      apiService.getAgentActivities().then((acts) => { if (Array.isArray(acts) && acts.length > 0) setAgentActivities(acts); }).catch(() => {});
+    } catch (err) {
+      console.error('Approve exception error:', err);
+    }
   };
 
-  const updateExceptionStatus = (exceptionId: string, status: ExceptionStatus) => {
+  const updateExceptionStatus = async (exceptionId: string, status: ExceptionStatus) => {
     setExceptionsList(
       exceptionsList.map((e) => (e.id === exceptionId ? { ...e, status } : e))
     );
     triggerToast(`Exception status set to ${status.toUpperCase()}.`, 'info');
+    try {
+      await apiService.updateExceptionStatus(exceptionId, status);
+      apiService.getAgentActivities().then((acts) => { if (Array.isArray(acts) && acts.length > 0) setAgentActivities(acts); }).catch(() => {});
+    } catch (err) {
+      console.error('Update exception status error:', err);
+    }
   };
 
   const createDrive = async (newDrive: PlacementDrive) => {

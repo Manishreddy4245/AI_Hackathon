@@ -3,7 +3,9 @@ from typing import List, Optional, Dict, Any
 from datetime import datetime
 from fastapi import APIRouter, HTTPException, status, Depends, Query
 from app.db.mongodb import db_manager
+from app.db.integrity import create_idempotent_notification
 from app.core.deps import get_optional_current_user, get_current_user
+from app.services.audit_service import record_audit_event
 from app.schemas.drive import (
     PlacementDriveSchema,
     PlacementDriveCreate,
@@ -20,6 +22,49 @@ logger = logging.getLogger("placemind.drives")
 
 router = APIRouter(prefix="/api/drives", tags=["Placement Drives"])
 
+async def _notify_officers_of_submitted_drive(db, drive: Dict[str, Any], recruiter_name: str):
+    """Dispatches notifications to all Placement Officers when a drive is submitted for review."""
+    timestamp_ms = int(datetime.now().timestamp() * 1000)
+    now_iso = datetime.now().isoformat()
+    drive_id = drive.get("id")
+    company_name = drive.get("companyName", "Company")
+    role_title = drive.get("roleTitle", "Placement Opportunity")
+    package_lpa = drive.get("packageLpa", 0)
+
+    officers = await db.users.find(
+        {"role": {"$in": ["placement_officer", "admin"]}},
+        {"id": 1, "email": 1, "name": 1}
+    ).to_list(length=50)
+
+    if not officers:
+        officers = [{"id": "officer-admin", "name": "Placement Officer"}]
+
+    for officer in officers:
+        off_id = officer.get("id") or "officer-admin"
+        await create_idempotent_notification(db, {
+            "id": f"notif-campus-{drive_id}-{off_id}",
+            "title": f"Campus Drive Submitted: {company_name} - {role_title}",
+            "message": (
+                f"Campus drive submitted for review: {company_name} is hiring for "
+                f"{role_title} ({package_lpa} LPA). "
+                f"Please review drive specifications and approve when ready."
+            ),
+            "timestamp": "Just now",
+            "read": False,
+            "important": True,
+            "type": "CAMPUS_DRIVE_PENDING",
+            "recipientRole": "placement_officer",
+            "recipientName": officer.get("name", "Placement Officer"),
+            "recipient_user_id": off_id,
+            "created_at": now_iso,
+            "drive_id": drive_id,
+            "company_name": company_name,
+            "job_title": role_title,
+            "location": drive.get("location"),
+            "recruiter_name": recruiter_name,
+            "relatedRoute": f"/admin/companies/{drive_id}"
+        })
+
 @router.get("", response_model=List[PlacementDriveSchema])
 async def list_drives(
     recruiter_only: Optional[bool] = False,
@@ -34,7 +79,7 @@ async def list_drives(
     query: Dict[str, Any] = {}
     if current_user and current_user.get("role") == "student":
         # Students only see announced or active drives
-        query["status"] = {"$in": ["ANNOUNCED", "open", "active", "ACTIVE", "shortlisting", "interview"]}
+        query["status"] = {"$in": ["ANNOUNCED", "open", "active", "ACTIVE", "OPEN", "shortlisting", "interview"]}
     elif recruiter_only or (current_user and current_user.get("role") in ["recruiter", "company_recruiter"]):
         user_id = current_user.get("id") if current_user else None
         user_email = (current_user.get("email") or "").lower() if current_user else ""
@@ -114,8 +159,8 @@ async def create_drive(
     current_user: Dict[str, Any] = Depends(get_current_user)
 ):
     """
-    Recruiter submits a new campus/placement drive.
-    Requires authentication. Tagged with the real creator's id, email, and companyId.
+    Recruiter creates a new campus/placement drive.
+    Default status is DRAFT (or SUBMITTED_TO_OFFICER if explicitly submitted).
     """
     db = db_manager.db
     if db is None:
@@ -134,10 +179,19 @@ async def create_drive(
     grad_years = drive_in.graduationYears if drive_in.graduationYears is not None else ([drive_in.graduationYear] if drive_in.graduationYear is not None else [])
     single_grad = grad_years[0] if grad_years else drive_in.graduationYear
 
+    # Determine status: DRAFT, PENDING_APPROVAL, or ACTIVE/ANNOUNCED
+    req_status = (drive_in.status or "PENDING_APPROVAL").upper()
+    if req_status in ["DRAFT"]:
+        final_status = "DRAFT"
+    elif req_status in ["ACTIVE", "ANNOUNCED"]:
+        final_status = req_status
+    else:
+        final_status = "PENDING_APPROVAL"
+
     drive_dict = drive_in.model_dump()
     drive_dict.update({
         "id": new_id,
-        "status": "PENDING_APPROVAL",
+        "status": final_status,
         "graduationYear": single_grad,
         "graduationYears": grad_years,
         "recruiter_id": recruiter_id,
@@ -147,6 +201,7 @@ async def create_drive(
         "companyId": company_id,
         "company_id": company_id,
         "created_at": now_iso,
+        "submitted_at": now_iso if final_status in ["PENDING_APPROVAL", "SUBMITTED_TO_OFFICER"] else None,
         "announced_at": None,
         "students_notified": False,
         "students_notified_count": 0,
@@ -165,68 +220,87 @@ async def create_drive(
 
     await db.drives.insert_one(drive_dict)
 
-    # Notify all Placement Officers
-    officers = await db.users.find(
-        {"role": {"$in": ["placement_officer", "admin"]}},
-        {"id": 1, "email": 1, "name": 1}
-    ).to_list(length=50)
+    await record_audit_event(
+        db=db,
+        user=current_user,
+        action="DRIVE_CREATED",
+        entity="Drive",
+        entity_id=new_id,
+        detail=f"Placement drive for {drive_dict.get('companyName')} ({drive_dict.get('roleTitle')}) created with status {final_status}."
+    )
 
-    officer_notifs = []
-    for officer in officers:
-        officer_notifs.append({
-            "id": f"notif-campus-{timestamp_ms}-{officer.get('id', 'off')}",
-            "title": f"Campus Drive: {drive_in.companyName} is hiring for {drive_in.roleTitle}",
-            "message": (
-                f"Campus drive coming up: {drive_in.companyName} is hiring for "
-                f"{drive_in.roleTitle} ({drive_in.packageLpa} LPA, {drive_in.location or 'Location TBD'}). "
-                f"Review the drive details and notify students when ready."
-            ),
-            "timestamp": "Just now",
-            "read": False,
-            "important": True,
-            "type": "CAMPUS_DRIVE_PENDING",
-            "recipientRole": "placement_officer",
-            "recipientName": officer.get("name", "Placement Officer"),
-            "recipient_user_id": officer.get("id"),
-            "created_at": now_iso,
-            "drive_id": new_id,
-            "company_name": drive_in.companyName,
-            "job_title": drive_in.roleTitle,
-            "location": drive_in.location,
-            "recruiter_name": recruiter_name,
-            "relatedRoute": f"/admin/companies/{new_id}"
-        })
-
-    # Fallback: if no officers in DB, create generic notification
-    if not officer_notifs:
-        officer_notifs.append({
-            "id": f"notif-campus-{timestamp_ms}",
-            "title": f"Campus Drive: {drive_in.companyName} is hiring for {drive_in.roleTitle}",
-            "message": (
-                f"Campus drive coming up: {drive_in.companyName} is hiring for "
-                f"{drive_in.roleTitle} ({drive_in.packageLpa} LPA). "
-                f"Review drive details and notify students when ready."
-            ),
-            "timestamp": "Just now",
-            "read": False,
-            "important": True,
-            "type": "CAMPUS_DRIVE_PENDING",
-            "recipientRole": "placement_officer",
-            "recipientName": "Placement Officer",
-            "recipient_user_id": "officer-demo",
-            "created_at": now_iso,
-            "drive_id": new_id,
-            "company_name": drive_in.companyName,
-            "job_title": drive_in.roleTitle,
-            "location": drive_in.location,
-            "recruiter_name": recruiter_name,
-            "relatedRoute": f"/admin/companies/{new_id}"
-        })
-
-    await db.notifications.insert_many(officer_notifs)
+    # If submitted or pending approval, notify Placement Officers
+    if final_status in ["SUBMITTED_TO_OFFICER", "PENDING_APPROVAL", "PENDING_ANNOUNCEMENT"]:
+        await _notify_officers_of_submitted_drive(db, drive_dict, recruiter_name)
 
     created = await db.drives.find_one({"id": new_id}, {"_id": 0})
     return created
+
+@router.post("/{drive_id}/submit", response_model=PlacementDriveSchema)
+async def submit_drive_to_officer(
+    drive_id: str,
+    current_user: Dict[str, Any] = Depends(get_current_user)
+):
+    """
+    Recruiter submits a DRAFT or CHANGES_REQUESTED drive to Placement Officers for review.
+    Transitions: DRAFT / CHANGES_REQUESTED -> SUBMITTED_TO_OFFICER
+    """
+    db = db_manager.db
+    if db is None:
+        raise HTTPException(status_code=503, detail="Database unavailable")
+
+    drive = await db.drives.find_one({"id": drive_id})
+    if not drive:
+        raise HTTPException(status_code=404, detail="Placement drive not found")
+
+    user_role = current_user.get("role")
+    user_id = current_user.get("id")
+    user_email = (current_user.get("email") or "").lower()
+    company_id = current_user.get("companyId") or current_user.get("company_id")
+
+    if user_role not in ["placement_officer", "admin", "officer"]:
+        is_owner = False
+        if user_id and (drive.get("recruiter_id") == user_id or drive.get("createdBy") == user_id):
+            is_owner = True
+        elif user_email and (drive.get("recruiter_email") or "").lower() == user_email:
+            is_owner = True
+        elif company_id and (drive.get("companyId") == company_id or drive.get("company_id") == company_id):
+            is_owner = True
+
+        if not is_owner:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You do not have permission to submit this placement drive."
+            )
+
+    curr_status = (drive.get("status") or "").upper()
+    if curr_status in ["ACTIVE", "ANNOUNCED"]:
+        return drive
+
+    now_iso = datetime.now().isoformat()
+    recruiter_name = current_user.get("name") or drive.get("recruiter_name") or "Recruiter"
+
+    await db.drives.update_one(
+        {"id": drive_id},
+        {"$set": {
+            "status": "SUBMITTED_TO_OFFICER",
+            "submitted_at": now_iso,
+            "updated_at": now_iso
+        }}
+    )
+
+    await record_audit_event(
+        db=db,
+        user=current_user,
+        action="DRIVE_SUBMITTED",
+        entity="Drive",
+        entity_id=drive_id,
+        detail=f"Placement drive {drive.get('companyName')} ({drive.get('roleTitle')}) submitted to Placement Officers for approval."
+    )
+
+    updated_drive = await db.drives.find_one({"id": drive_id}, {"_id": 0})
+    await _notify_officers_of_submitted_drive(db, updated_drive, recruiter_name)
+    return updated_drive
 
 
 @router.put("/{drive_id}", response_model=PlacementDriveSchema)
@@ -539,6 +613,15 @@ async def announce_drive_to_students(
         {"$set": {"students_notified_count": len(student_notifs)}}
     )
 
+    await record_audit_event(
+        db=db,
+        user=current_user or {"id": officer_id, "name": officer_name, "role": "placement_officer"},
+        action="DRIVE_ANNOUNCED",
+        entity="Drive",
+        entity_id=drive_id,
+        detail=f"Placement drive for {drive.get('companyName')} ({drive.get('roleTitle')}) announced to campus students ({len(student_notifs)} notified)."
+    )
+
     updated = await db.drives.find_one({"id": drive_id}, {"_id": 0})
     return updated
 
@@ -549,21 +632,27 @@ async def approve_drive(
     current_user: Optional[Dict[str, Any]] = Depends(get_optional_current_user)
 ):
     """
-    Placement Officer approves a pending campus drive.
-    Drive status: PENDING_APPROVAL → ACTIVE
-    - Sends notification to the recruiter
-    - Sends notifications to all students
+    Placement Officer approves a submitted campus drive.
+    Transitions: SUBMITTED_TO_OFFICER / PENDING_APPROVAL -> ACTIVE
+    - Sends notification to recruiter
+    - Sends notifications to all eligible students
     - Creates a Placement Community for the drive
     """
     db = db_manager.db
     if db is None:
         raise HTTPException(status_code=503, detail="Database unavailable")
 
+    if current_user and current_user.get("role") not in ["placement_officer", "admin", "officer"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only Placement Officers are authorized to approve placement drives."
+        )
+
     drive = await db.drives.find_one({"id": drive_id})
     if not drive:
         raise HTTPException(status_code=404, detail="Placement drive not found")
 
-    # State guard: only allow approval from valid pending states
+    # State guard: only allow approval from valid pending/review states
     current_status = (drive.get("status") or "").upper()
     non_approvable = {"ACTIVE", "ANNOUNCED", "CLOSED", "COMPLETED", "REJECTED"}
     if current_status in non_approvable:
@@ -578,7 +667,13 @@ async def approve_drive(
 
     await db.drives.update_one(
         {"id": drive_id},
-        {"$set": {"status": "ACTIVE", "aiConfirmed": True, "approved_by": officer_name, "approved_at": now_iso}}
+        {"$set": {
+            "status": "ACTIVE",
+            "aiConfirmed": True,
+            "approved_by": officer_name,
+            "approved_at": now_iso,
+            "updated_at": now_iso
+        }}
     )
 
     comm_doc = {
@@ -607,7 +702,7 @@ async def approve_drive(
             "id": f"msg-init-{drive_id}",
             "community_id": f"comm-{drive_id}",
             "drive_id": drive_id,
-            "author_id": "officer-admin",
+            "author_id": officer_id,
             "author_name": officer_name,
             "author_role": "placement_officer",
             "message_type": "REGISTRATION",
@@ -620,10 +715,10 @@ async def approve_drive(
 
     recruiter_target = drive.get("recruiter_id") or drive.get("recruiter_email") or "recruiter"
     timestamp_ms = int(datetime.now().timestamp() * 1000)
-    await db.notifications.insert_one({
-        "id": f"notif-apprv-{timestamp_ms}",
+    await create_idempotent_notification(db, {
+        "id": f"notif-apprv-{drive_id}",
         "title": f"Drive Approved: {drive.get('roleTitle')}",
-        "message": f"Your drive for {drive.get('roleTitle')} at {drive.get('companyName')} is now LIVE.",
+        "message": f"Your drive for {drive.get('roleTitle')} at {drive.get('companyName')} has been APPROVED and is now LIVE.",
         "timestamp": "Just now",
         "read": False,
         "important": True,
@@ -638,29 +733,36 @@ async def approve_drive(
         "relatedRoute": "/recruiter/drives"
     })
 
-    all_students = await db.students.find({}, {"id": 1, "email": 1, "name": 1}).to_list(length=200)
-    student_notifs = []
+    all_students = await db.students.find({}, {"id": 1, "email": 1, "name": 1}).to_list(length=300)
     for st in all_students:
         st_id = st.get("id")
-        student_notifs.append({
-            "id": f"notif-drive-{drive_id}-{st_id}",
-            "title": f"New Drive: {drive.get('roleTitle')} at {drive.get('companyName')}",
-            "message": f"New placement drive active for {drive.get('roleTitle')}.",
-            "timestamp": "Just now",
-            "read": False,
-            "important": True,
-            "type": "NEW_DRIVE_AVAILABLE",
-            "recipientRole": "student",
-            "recipientName": st.get("name", "Student"),
-            "recipient_user_id": st_id,
-            "created_at": now_iso,
-            "drive_id": drive_id,
-            "company_name": drive.get("companyName"),
-            "job_title": drive.get("roleTitle"),
-            "relatedRoute": f"/student/community/{drive_id}"
-        })
-    if student_notifs:
-        await db.notifications.insert_many(student_notifs)
+        if st_id:
+            await create_idempotent_notification(db, {
+                "id": f"notif-drive-{drive_id}-{st_id}",
+                "title": f"New Drive: {drive.get('roleTitle')} at {drive.get('companyName')}",
+                "message": f"New placement drive active for {drive.get('roleTitle')} (Rs.{drive.get('packageLpa', '')} LPA). Check details and apply.",
+                "timestamp": "Just now",
+                "read": False,
+                "important": True,
+                "type": "NEW_DRIVE_AVAILABLE",
+                "recipientRole": "student",
+                "recipientName": st.get("name", "Student"),
+                "recipient_user_id": st_id,
+                "created_at": now_iso,
+                "drive_id": drive_id,
+                "company_name": drive.get("companyName"),
+                "job_title": drive.get("roleTitle"),
+                "relatedRoute": f"/student/community/{drive_id}"
+            })
+
+    await record_audit_event(
+        db=db,
+        user=current_user or {"id": "officer", "name": "Placement Officer", "role": "placement_officer"},
+        action="DRIVE_APPROVED",
+        entity="Drive",
+        entity_id=drive_id,
+        detail=f"Placement drive for {drive.get('companyName')} ({drive.get('roleTitle')}) approved and activated."
+    )
 
     updated = await db.drives.find_one({"id": drive_id}, {"_id": 0})
     return updated
@@ -672,24 +774,44 @@ async def reject_drive(
     action_in: Optional[DriveReviewActionRequest] = None,
     current_user: Optional[Dict[str, Any]] = Depends(get_optional_current_user)
 ):
+    """
+    Placement Officer rejects a submitted campus drive.
+    Transitions: SUBMITTED_TO_OFFICER / PENDING_APPROVAL -> REJECTED
+    """
     db = db_manager.db
     if db is None:
         raise HTTPException(status_code=503, detail="Database unavailable")
+
+    if current_user and current_user.get("role") not in ["placement_officer", "admin", "officer"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only Placement Officers are authorized to reject placement drives."
+        )
+
     drive = await db.drives.find_one({"id": drive_id})
     if not drive:
         raise HTTPException(status_code=404, detail="Placement drive not found")
+
     reason = action_in.reason if action_in and action_in.reason else "Does not meet placement policies."
+    officer_name = current_user.get("name", "Placement Officer") if current_user else "Placement Officer"
     now_iso = datetime.now().isoformat()
+
     await db.drives.update_one(
         {"id": drive_id},
-        {"$set": {"status": "REJECTED", "rejection_reason": reason, "rejected_at": now_iso}}
+        {"$set": {
+            "status": "REJECTED",
+            "rejection_reason": reason,
+            "rejected_by": officer_name,
+            "rejected_at": now_iso,
+            "updated_at": now_iso
+        }}
     )
+
     recruiter_target = drive.get("recruiter_id") or drive.get("recruiter_email") or "recruiter"
-    timestamp_ms = int(datetime.now().timestamp() * 1000)
-    await db.notifications.insert_one({
-        "id": f"notif-rej-{timestamp_ms}",
+    await create_idempotent_notification(db, {
+        "id": f"notif-rej-{drive_id}",
         "title": f"Drive Rejected: {drive.get('roleTitle')}",
-        "message": f"Your drive for '{drive.get('roleTitle')}' was rejected. Reason: {reason}",
+        "message": f"Your drive for '{drive.get('roleTitle')}' was rejected by Placement Cell. Reason: {reason}",
         "timestamp": "Just now",
         "read": False,
         "important": True,
@@ -704,6 +826,16 @@ async def reject_drive(
         "relatedRoute": "/recruiter/drives"
     })
     updated = await db.drives.find_one({"id": drive_id}, {"_id": 0})
+
+    await record_audit_event(
+        db=db,
+        user=current_user or {"id": "officer", "name": officer_name, "role": "placement_officer"},
+        action="DRIVE_REJECTED",
+        entity="Drive",
+        entity_id=drive_id,
+        detail=f"Placement drive for {drive.get('companyName')} ({drive.get('roleTitle')}) rejected by Placement Cell. Reason: {reason}"
+    )
+
     return updated
 
 
@@ -713,22 +845,42 @@ async def request_drive_changes(
     action_in: Optional[DriveReviewActionRequest] = None,
     current_user: Optional[Dict[str, Any]] = Depends(get_optional_current_user)
 ):
+    """
+    Placement Officer requests adjustments from recruiter on a submitted campus drive.
+    Transitions: SUBMITTED_TO_OFFICER / PENDING_APPROVAL -> CHANGES_REQUESTED
+    """
     db = db_manager.db
     if db is None:
         raise HTTPException(status_code=503, detail="Database unavailable")
+
+    if current_user and current_user.get("role") not in ["placement_officer", "admin", "officer"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only Placement Officers are authorized to request changes on placement drives."
+        )
+
     drive = await db.drives.find_one({"id": drive_id})
     if not drive:
         raise HTTPException(status_code=404, detail="Placement drive not found")
-    feedback = action_in.feedback if action_in and action_in.feedback else "Please update skill profile and CGPA criteria."
+
+    feedback = action_in.feedback if action_in and action_in.feedback else "Please update skill requirements and CGPA criteria."
+    officer_name = current_user.get("name", "Placement Officer") if current_user else "Placement Officer"
     now_iso = datetime.now().isoformat()
+
     await db.drives.update_one(
         {"id": drive_id},
-        {"$set": {"status": "CHANGES_REQUESTED", "changes_feedback": feedback, "changes_requested_at": now_iso}}
+        {"$set": {
+            "status": "CHANGES_REQUESTED",
+            "changes_feedback": feedback,
+            "changes_requested_by": officer_name,
+            "changes_requested_at": now_iso,
+            "updated_at": now_iso
+        }}
     )
+
     recruiter_target = drive.get("recruiter_id") or drive.get("recruiter_email") or "recruiter"
-    timestamp_ms = int(datetime.now().timestamp() * 1000)
-    await db.notifications.insert_one({
-        "id": f"notif-chg-{timestamp_ms}",
+    await create_idempotent_notification(db, {
+        "id": f"notif-chg-{drive_id}",
         "title": f"Changes Requested: {drive.get('roleTitle')}",
         "message": f"Placement Cell requested adjustments for '{drive.get('roleTitle')}': {feedback}",
         "timestamp": "Just now",
@@ -741,7 +893,8 @@ async def request_drive_changes(
         "created_at": now_iso,
         "drive_id": drive_id,
         "company_name": drive.get("companyName"),
-        "job_title": drive.get("roleTitle")
+        "job_title": drive.get("roleTitle"),
+        "relatedRoute": "/recruiter/dashboard"
     })
     updated = await db.drives.find_one({"id": drive_id}, {"_id": 0})
     return updated
@@ -981,8 +1134,26 @@ async def get_recruiter_drive_dashboard_metrics(
     }, {"_id": 0}).to_list(length=500)
 
     total_registered = len(apps)
-    selections_made = len([a for a in apps if (a.get("status") or "").upper() in ["SELECTED", "FINAL_SELECTED", "ACCEPTED", "PLACED"]])
-    shortlisted_count = len([a for a in apps if (a.get("status") or "").upper() in ["SHORTLISTED", "IN_PIPELINE", "SELECTED", "INTERVIEW"]])
+    selected_stages = {"SELECTED", "FINAL_SELECTED", "ACCEPTED", "PLACED", "OFFER_EXTENDED", "OFFER_ACCEPTED", "JOINED"}
+    shortlisted_stages = {
+        "SHORTLISTED", "APTITUDE_ALLOCATED", "APTITUDE_ASSIGNED", "APTITUDE_IN_PROGRESS",
+        "APTITUDE_QUALIFIED", "TECHNICAL_ROUND_PENDING", "TECHNICAL_ALLOCATED", "TECHNICAL_IN_PROGRESS",
+        "TECHNICAL_QUALIFIED", "INTERVIEW_PENDING", "HR_INTERVIEW_PENDING", "HR_INTERVIEW_ALLOCATED",
+        "INTERVIEW_READY", "INTERVIEW_SCHEDULED", "INTERVIEW_COMPLETED", "INTERVIEWED",
+        "SELECTED", "FINAL_SELECTED", "OFFER_EXTENDED", "OFFER_ACCEPTED", "JOINED", "PLACED"
+    }
+    selections_made = len([
+        a for a in apps
+        if (a.get("status") or "").upper() in selected_stages
+        or (a.get("stage") or "").upper() in selected_stages
+        or (a.get("pipeline_stage") or "").upper() in selected_stages
+    ])
+    shortlisted_count = len([
+        a for a in apps
+        if (a.get("status") or "").upper() in shortlisted_stages
+        or (a.get("stage") or "").upper() in shortlisted_stages
+        or (a.get("pipeline_stage") or "").upper() in shortlisted_stages
+    ])
 
     round_pipeline = []
     passed_prev_round_ids = set()

@@ -189,30 +189,47 @@ async def connect_to_mongo() -> None:
     Fails fast if connection is unavailable. In-memory mock database fallback
     is strictly forbidden during normal application runtime and production.
     """
-    logger.info("Initializing PyMongo AsyncMongoClient connection to %s", settings.MONGODB_URI)
+    from app.core.config import get_safe_db_target
+    target = get_safe_db_target()
+    target_type = "MongoDB Atlas" if target["is_atlas"] else "Local MongoDB"
+
+    logger.info("Initializing connection to %s (%s, db='%s', env='%s')", target_type, target["host"], target["database"], target["environment"])
+    try:
+        import certifi
+        tls_kwargs = {"tlsCAFile": certifi.where()} if "mongodb+srv" in settings.MONGODB_URI or "mongodb.net" in settings.MONGODB_URI else {}
+    except Exception:
+        tls_kwargs = {}
+
     try:
         real_client = AsyncMongoClient(
             settings.MONGODB_URI,
-            serverSelectionTimeoutMS=5000
+            serverSelectionTimeoutMS=5000,
+            **tls_kwargs
         )
         # Test ping to confirm server is up and responsive
         await real_client.admin.command("ping")
         db_manager.client = real_client
         db_manager.is_mock = False
         logger.info("=========================================================================")
-        logger.info("  LIVE DATABASE CONFIRMED: Connected to MongoDB '%s'", settings.MONGODB_DATABASE)
+        logger.info("  DATABASE TARGET CONFIRMED:")
+        logger.info("  - Type:        %s", target_type)
+        logger.info("  - Host:        %s", target["host"])
+        logger.info("  - Database:    %s", target["database"])
+        logger.info("  - Environment: %s", target["environment"])
         logger.info("=========================================================================")
     except Exception as e:
         await db_manager.close_all()
         logger.critical("=========================================================================")
         logger.critical("  CRITICAL ERROR: MONGODB DATABASE CONNECTION FAILED!")
-        logger.critical("  URI: %s", settings.MONGODB_URI)
-        logger.critical("  Database: %s", settings.MONGODB_DATABASE)
-        logger.critical("  Reason: %s", str(e))
+        logger.critical("  - Type:        %s", target_type)
+        logger.critical("  - Host:        %s", target["host"])
+        logger.critical("  - Database:    %s", target["database"])
+        logger.critical("  - Environment: %s", target["environment"])
+        logger.critical("  - Reason:      %s", str(e))
         logger.critical("  Application startup aborted. Persistent MongoDB is required.")
         logger.critical("=========================================================================")
         raise ConnectionError(
-            f"CRITICAL: Failed to connect to MongoDB database '{settings.MONGODB_DATABASE}' at '{settings.MONGODB_URI}': {str(e)}"
+            f"CRITICAL: Failed to connect to MongoDB '{target['database']}' at '{target['host']}' ({target_type}): {str(e)}"
         )
 
 async def close_mongo_connection() -> None:

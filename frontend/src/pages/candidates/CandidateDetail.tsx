@@ -108,6 +108,30 @@ export const CandidateDetail: React.FC = () => {
     }
   };
 
+  const handleFinalSelect = async () => {
+    if (!candidate) return;
+    try {
+      await apiService.executeRoundAction(candidate.id, 'FINAL_SELECT');
+      triggerToast(`Successfully marked ${candidate.student_name} as Finally Selected!`, 'success');
+      await fetchCandidate();
+    } catch (err: any) {
+      triggerToast(err?.response?.data?.detail || 'Failed to select candidate.', 'error');
+    }
+  };
+
+  const handleRejectInterview = async () => {
+    if (!candidate) return;
+    if (window.confirm(`Mark ${candidate.student_name} as Not Selected after interview?`)) {
+      try {
+        await apiService.executeRoundAction(candidate.id, 'REJECT');
+        triggerToast(`Updated candidate status to Rejected.`, 'info');
+        await fetchCandidate();
+      } catch (err: any) {
+        triggerToast(err?.response?.data?.detail || 'Failed to update status.', 'error');
+      }
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-[60vh] flex flex-col items-center justify-center gap-3 text-[#94A3B8]">
@@ -134,12 +158,12 @@ export const CandidateDetail: React.FC = () => {
     );
   }
 
-  const stage = candidate.stage || candidate.status || 'APPLIED';
+  const stage = (candidate.stage || candidate.status || 'APPLIED').toUpperCase();
   const isShortlisted = stage === 'SHORTLISTED';
   const isAptitudeAssigned = stage === 'APTITUDE_ALLOCATED' || stage === 'APTITUDE_ASSIGNED';
-  const isRejected = ['NOT_SHORTLISTED', 'REJECTED', 'APTITUDE_FAILED', 'REJECTED_AT_APTITUDE'].includes(stage);
+  const isRejected = ['NOT_SHORTLISTED', 'REJECTED', 'APTITUDE_FAILED', 'REJECTED_AT_APTITUDE', 'REJECTED_AT_TECHNICAL', 'REJECTED_AT_HR', 'INTERVIEW_FAILED'].includes(stage);
+  const isSelected = ['SELECTED', 'FINAL_SELECTED', 'PLACED'].includes(stage);
   const hasInterview = !!candidate.interview;
-
 
   return (
     <div className="space-y-6 pb-12 text-[#F8FAFC]">
@@ -149,7 +173,7 @@ export const CandidateDetail: React.FC = () => {
         subtitle={`Application for ${candidate.job_title} at ${candidate.company_name}`}
         icon={<UserCheck className="w-5 h-5" />}
         action={
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <Button variant="outline" icon={<ArrowLeft className="w-4 h-4" />} onClick={() => navigate('/admin/candidates')}>
               Back to Candidates
             </Button>
@@ -173,7 +197,26 @@ export const CandidateDetail: React.FC = () => {
                 Allocate Technical Round
               </Button>
             )}
-            {!isShortlisted && !isAptitudeAssigned && !isRejected && stage !== 'APTITUDE_QUALIFIED' && stage !== 'TECHNICAL_ALLOCATED' && (
+            {stage === 'INTERVIEW_COMPLETED' && (
+              <>
+                <Button
+                  variant="primary"
+                  icon={<CheckCircle2 className="w-4 h-4" />}
+                  className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold"
+                  onClick={handleFinalSelect}
+                >
+                  Final Select Candidate
+                </Button>
+                <Button
+                  variant="outline"
+                  className="border-red-500/40 text-red-400 hover:bg-red-500/10"
+                  onClick={handleRejectInterview}
+                >
+                  Reject After Interview
+                </Button>
+              </>
+            )}
+            {!isShortlisted && !isAptitudeAssigned && !isRejected && !isSelected && stage !== 'APTITUDE_QUALIFIED' && stage !== 'TECHNICAL_ALLOCATED' && stage !== 'INTERVIEW_COMPLETED' && stage !== 'HR_INTERVIEW_ALLOCATED' && stage !== 'INTERVIEW_SCHEDULED' && (
               <Button
                 variant="primary"
                 icon={<CheckCircle2 className="w-4 h-4" />}
@@ -182,7 +225,7 @@ export const CandidateDetail: React.FC = () => {
                 Shortlist Candidate
               </Button>
             )}
-            {!isRejected && !isShortlisted && (
+            {!isRejected && !isShortlisted && !isSelected && stage !== 'INTERVIEW_COMPLETED' && (
               <Button variant="outline" onClick={handleReject}>
                 Do Not Shortlist
               </Button>
@@ -206,12 +249,37 @@ export const CandidateDetail: React.FC = () => {
                     🟢 Shortlisted
                   </span>
                 )}
-                {isRejected && (
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-[rgba(239,68,68,0.15)] text-[#F87171] border border-[rgba(239,68,68,0.30)]">
-                    🔴 Not Shortlisted
+                {stage === 'INTERVIEW_COMPLETED' && (
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-blue-500/20 text-blue-300 border border-blue-500/40">
+                    🤝 Interview Completed
                   </span>
                 )}
-                {candidate.status === 'APPLIED' && (
+                {isSelected && (
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+                    🏆 Selected / Placed
+                  </span>
+                )}
+                {stage === 'OFFER_EXTENDED' && (
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+                    📄 Offer Extended
+                  </span>
+                )}
+                {stage === 'OFFER_ACCEPTED' && (
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+                    ✅ Offer Accepted
+                  </span>
+                )}
+                {stage === 'JOINED' && (
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+                    🎉 Joined Company
+                  </span>
+                )}
+                {isRejected && (
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-[rgba(239,68,68,0.15)] text-[#F87171] border border-[rgba(239,68,68,0.30)]">
+                    🔴 {stage === 'REJECTED_AT_HR' ? 'Rejected at Interview' : stage === 'REJECTED_AT_TECHNICAL' ? 'Rejected at Technical' : stage === 'REJECTED_AT_APTITUDE' ? 'Rejected at Aptitude' : 'Not Shortlisted'}
+                  </span>
+                )}
+                {stage === 'APPLIED' && (
                   <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-[rgba(59,130,246,0.15)] text-[#60A5FA] border border-[rgba(59,130,246,0.30)]">
                     🔵 Applied
                   </span>

@@ -16,6 +16,7 @@ import {
   FileText,
   UserCheck,
   RefreshCw,
+  Award,
 } from 'lucide-react';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { Card, CardHeader, CardTitle, CardContent } from '../../components/ui/Card';
@@ -26,18 +27,21 @@ import { apiService } from '../../services/api';
 import { usePlacement } from '../../context/PlacementContext';
 import { ShortlistInterviewModal } from '../../components/candidates/ShortlistInterviewModal';
 import { AllocateAptitudeModal } from '../../components/candidates/AllocateAptitudeModal';
+import { CreateOfferModal } from '../../components/offers/CreateOfferModal';
+import { CandidatePoolStats } from '../../types';
 
 export const CandidatesList: React.FC = () => {
   const navigate = useNavigate();
   const { drives, triggerToast } = usePlacement();
 
   const [candidates, setCandidates] = useState<any[]>([]);
-  const [stats, setStats] = useState({
+  const [stats, setStats] = useState<CandidatePoolStats>({
     all: 0,
     applied: 0,
     shortlisted: 0,
     not_shortlisted: 0,
     interview_scheduled: 0,
+    selected: 0,
   });
   const [loading, setLoading] = useState(true);
   const [isRefreshingPool, setIsRefreshingPool] = useState(false);
@@ -49,6 +53,7 @@ export const CandidatesList: React.FC = () => {
 
   const [selectedCandidateForShortlist, setSelectedCandidateForShortlist] = useState<any | null>(null);
   const [selectedCandidateForAptitude, setSelectedCandidateForAptitude] = useState<any | null>(null);
+  const [selectedCandidateForOffer, setSelectedCandidateForOffer] = useState<any | null>(null);
 
 
   const fetchPool = async (isInitial: boolean = false) => {
@@ -69,10 +74,11 @@ export const CandidatesList: React.FC = () => {
       } else {
         setStats({
           all: safePool.length,
-          applied: safePool.filter((c: any) => c.status === 'APPLIED').length,
-          shortlisted: safePool.filter((c: any) => c.status === 'SHORTLISTED').length,
-          not_shortlisted: safePool.filter((c: any) => c.status === 'NOT_SHORTLISTED' || c.status === 'REJECTED').length,
-          interview_scheduled: safePool.filter((c: any) => !!c.interview).length,
+          applied: safePool.filter((c: any) => (c.status || '').toUpperCase() === 'APPLIED' && (c.stage || '').toUpperCase() === 'APPLIED').length,
+          shortlisted: safePool.filter((c: any) => SHORTLISTED_STAGES.includes((c.status || '').toUpperCase()) || SHORTLISTED_STAGES.includes((c.stage || '').toUpperCase())).length,
+          not_shortlisted: safePool.filter((c: any) => REJECTED_STAGES.includes((c.status || '').toUpperCase()) || REJECTED_STAGES.includes((c.stage || '').toUpperCase())).length,
+          interview_scheduled: safePool.filter((c: any) => !!c.interview || ['INTERVIEW_SCHEDULED', 'HR_INTERVIEW_ALLOCATED'].includes((c.stage || '').toUpperCase())).length,
+          selected: safePool.filter((c: any) => SELECTED_STAGES.includes((c.status || '').toUpperCase()) || SELECTED_STAGES.includes((c.stage || '').toUpperCase())).length,
         });
       }
     } catch (err) {
@@ -169,6 +175,16 @@ export const CandidatesList: React.FC = () => {
   };
 
 
+  const SHORTLISTED_STAGES = [
+    'SHORTLISTED', 'APTITUDE_ALLOCATED', 'APTITUDE_ASSIGNED', 'APTITUDE_IN_PROGRESS',
+    'APTITUDE_QUALIFIED', 'TECHNICAL_ROUND_PENDING', 'TECHNICAL_ALLOCATED', 'TECHNICAL_IN_PROGRESS',
+    'TECHNICAL_QUALIFIED', 'INTERVIEW_PENDING', 'HR_INTERVIEW_PENDING', 'HR_INTERVIEW_ALLOCATED',
+    'INTERVIEW_READY', 'INTERVIEW_SCHEDULED', 'INTERVIEW_COMPLETED', 'INTERVIEWED',
+    'SELECTED', 'FINAL_SELECTED', 'OFFER_EXTENDED', 'OFFER_ACCEPTED', 'JOINED', 'PLACED'
+  ];
+  const SELECTED_STAGES = ['SELECTED', 'FINAL_SELECTED', 'ACCEPTED', 'PLACED', 'OFFER_EXTENDED', 'OFFER_ACCEPTED', 'JOINED'];
+  const REJECTED_STAGES = ['NOT_SHORTLISTED', 'REJECTED', 'APTITUDE_FAILED', 'REJECTED_AT_APTITUDE', 'REJECTED_AT_TECHNICAL', 'TECHNICAL_FAILED', 'REJECTED_AT_HR', 'INTERVIEW_FAILED'];
+
   const filteredCandidates = candidates.filter((c) => {
     const q = search.toLowerCase();
     const matchesSearch =
@@ -181,12 +197,16 @@ export const CandidatesList: React.FC = () => {
 
     const matchesBranch = branchFilter === 'all' || (c.branch || '').toUpperCase() === branchFilter.toUpperCase();
 
+    const stUpper = (c.status || '').toUpperCase();
+    const stageUpper = (c.stage || '').toUpperCase();
+
     const matchesStatus =
       statusFilter === 'all' ||
-      (statusFilter === 'APPLIED' && c.status === 'APPLIED') ||
-      (statusFilter === 'SHORTLISTED' && c.status === 'SHORTLISTED') ||
-      (statusFilter === 'NOT_SHORTLISTED' && (c.status === 'NOT_SHORTLISTED' || c.status === 'REJECTED')) ||
-      (statusFilter === 'INTERVIEW_SCHEDULED' && !!c.interview);
+      (statusFilter === 'APPLIED' && stUpper === 'APPLIED' && stageUpper === 'APPLIED') ||
+      (statusFilter === 'SHORTLISTED' && (SHORTLISTED_STAGES.includes(stUpper) || SHORTLISTED_STAGES.includes(stageUpper))) ||
+      (statusFilter === 'NOT_SHORTLISTED' && (REJECTED_STAGES.includes(stUpper) || REJECTED_STAGES.includes(stageUpper))) ||
+      (statusFilter === 'INTERVIEW_SCHEDULED' && (!!c.interview || ['INTERVIEW_SCHEDULED', 'HR_INTERVIEW_ALLOCATED'].includes(stageUpper))) ||
+      (statusFilter === 'SELECTED' && (SELECTED_STAGES.includes(stUpper) || SELECTED_STAGES.includes(stageUpper)));
 
     return matchesSearch && matchesBranch && matchesStatus;
   });
@@ -212,26 +232,30 @@ export const CandidatesList: React.FC = () => {
       />
 
       {/* KPI METRIC CARDS */}
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-6 gap-3">
         <div className="p-4 bg-[#101D31] rounded-xl border border-[#243650] shadow-sm">
           <span className="text-xs font-bold text-[#94A3B8] uppercase tracking-wider">All Applicants</span>
-          <div className="text-2xl font-black text-[#F8FAFC] mt-1">{stats.all}</div>
+          <div className="text-2xl font-black text-[#F8FAFC] mt-1">{stats.all || 0}</div>
         </div>
         <div className="p-4 bg-[#101D31] rounded-xl border border-[#243650] shadow-sm">
           <span className="text-xs font-bold text-[#94A3B8] uppercase tracking-wider">Applied</span>
-          <div className="text-2xl font-black text-[#3B82F6] mt-1">{stats.applied}</div>
+          <div className="text-2xl font-black text-[#3B82F6] mt-1">{stats.applied || 0}</div>
         </div>
         <div className="p-4 bg-[#101D31] rounded-xl border border-[#243650] shadow-sm">
           <span className="text-xs font-bold text-[#94A3B8] uppercase tracking-wider">Shortlisted</span>
-          <div className="text-2xl font-black text-[#22C55E] mt-1">{stats.shortlisted}</div>
+          <div className="text-2xl font-black text-[#22C55E] mt-1">{stats.shortlisted || 0}</div>
         </div>
         <div className="p-4 bg-[#101D31] rounded-xl border border-[#243650] shadow-sm">
           <span className="text-xs font-bold text-[#94A3B8] uppercase tracking-wider">Not Shortlisted</span>
-          <div className="text-2xl font-black text-[#EF4444] mt-1">{stats.not_shortlisted}</div>
+          <div className="text-2xl font-black text-[#EF4444] mt-1">{stats.not_shortlisted || 0}</div>
         </div>
         <div className="p-4 bg-[#101D31] rounded-xl border border-[#243650] shadow-sm">
           <span className="text-xs font-bold text-[#FCD34D] uppercase tracking-wider">Interview Set</span>
-          <div className="text-2xl font-black text-[#FCD34D] mt-1">{stats.interview_scheduled}</div>
+          <div className="text-2xl font-black text-[#FCD34D] mt-1">{stats.interview_scheduled || 0}</div>
+        </div>
+        <div className="p-4 bg-[#101D31] rounded-xl border border-[#243650] shadow-sm">
+          <span className="text-xs font-bold text-[#86EFAC] uppercase tracking-wider">Selected</span>
+          <div className="text-2xl font-black text-[#86EFAC] mt-1">{stats.selected || 0}</div>
         </div>
       </div>
 
@@ -281,9 +305,10 @@ export const CandidatesList: React.FC = () => {
           >
             <option value="all">All Application Statuses</option>
             <option value="APPLIED">Applied (Pending Review)</option>
-            <option value="SHORTLISTED">Shortlisted</option>
-            <option value="NOT_SHORTLISTED">Not Shortlisted</option>
+            <option value="SHORTLISTED">Shortlisted (In Pipeline)</option>
             <option value="INTERVIEW_SCHEDULED">Interview Scheduled</option>
+            <option value="SELECTED">Selected / Placed</option>
+            <option value="NOT_SHORTLISTED">Not Shortlisted / Rejected</option>
           </select>
         </div>
       </Card>
@@ -313,14 +338,14 @@ export const CandidatesList: React.FC = () => {
           ) : (
             <div className="divide-y divide-[#243650]">
               {filteredCandidates.map((c) => {
-                const stage = c.stage || c.status || 'APPLIED';
+                const stage = (c.stage || c.status || 'APPLIED').toUpperCase();
                 const isEligible = c.eligible !== false;
                 const isShortlisted = stage === 'SHORTLISTED';
                 const isAptitudeAssigned = stage === 'APTITUDE_ALLOCATED' || stage === 'APTITUDE_ASSIGNED';
 
                 const isAptitudeQualified = stage === 'APTITUDE_QUALIFIED' || stage === 'INTERVIEW_READY';
-                const isInterviewScheduled = stage === 'INTERVIEW_SCHEDULED' || !!c.interview;
-                const isRejected = ['NOT_SHORTLISTED', 'REJECTED', 'APTITUDE_FAILED'].includes(stage);
+                const isInterviewScheduled = (stage === 'INTERVIEW_SCHEDULED' || (!!c.interview && (c.interview.status || '').toUpperCase() === 'SCHEDULED')) && !['INTERVIEW_COMPLETED', 'SELECTED', 'FINAL_SELECTED', 'PLACED', 'OFFER_EXTENDED', 'OFFER_ACCEPTED', 'JOINED'].includes(stage);
+                const isRejected = ['NOT_SHORTLISTED', 'REJECTED', 'APTITUDE_FAILED', 'REJECTED_AT_APTITUDE', 'REJECTED_AT_TECHNICAL', 'REJECTED_AT_HR', 'INTERVIEW_FAILED'].includes(stage);
                 const hasInterview = !!c.interview;
 
                 return (
@@ -377,9 +402,39 @@ export const CandidatesList: React.FC = () => {
                                 💻 Technical Round Allocated
                               </span>
                             )}
-                            {isInterviewScheduled && (
+                            {isEligible && stage === 'HR_INTERVIEW_ALLOCATED' && !isInterviewScheduled && (
+                              <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/40">
+                                🔷 HR / Interview Allocated
+                              </span>
+                            )}
+                            {isEligible && isInterviewScheduled && (
                               <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-purple-500/20 text-purple-300 border border-purple-500/40">
                                 🟣 Interview Scheduled
+                              </span>
+                            )}
+                            {isEligible && stage === 'INTERVIEW_COMPLETED' && (
+                              <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-blue-500/20 text-blue-300 border border-blue-500/40">
+                                🤝 Interview Completed (Decision Pending)
+                              </span>
+                            )}
+                            {isEligible && (['SELECTED', 'FINAL_SELECTED', 'PLACED'].includes(stage) || (c.status || '').toUpperCase() === 'SELECTED' || (c.status || '').toUpperCase() === 'PLACED') && (
+                              <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+                                🏆 Selected / Placed
+                              </span>
+                            )}
+                            {isEligible && (stage === 'OFFER_EXTENDED' || (c.status || '').toUpperCase() === 'OFFER_EXTENDED') && (
+                              <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+                                📄 Offer Extended
+                              </span>
+                            )}
+                            {isEligible && (stage === 'OFFER_ACCEPTED' || (c.status || '').toUpperCase() === 'OFFER_ACCEPTED') && (
+                              <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+                                ✅ Offer Accepted
+                              </span>
+                            )}
+                            {isEligible && (stage === 'JOINED' || (c.status || '').toUpperCase() === 'JOINED') && (
+                              <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+                                🎉 Joined Company
                               </span>
                             )}
                             {stage === 'TECHNICAL_IN_PROGRESS' && (
@@ -397,7 +452,12 @@ export const CandidatesList: React.FC = () => {
                                 🔴 Rejected at Technical
                               </span>
                             )}
-                            {(isRejected || stage === 'REJECTED_AT_APTITUDE') && (
+                            {stage === 'REJECTED_AT_HR' && (
+                              <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-red-500/20 text-red-300 border border-red-500/40">
+                                🔴 Rejected at HR / Interview
+                              </span>
+                            )}
+                            {(isRejected || stage === 'REJECTED_AT_APTITUDE') && stage !== 'REJECTED_AT_TECHNICAL' && stage !== 'REJECTED_AT_HR' && (
                               <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-red-500/20 text-red-300 border border-red-500/40">
                                 🔴 {stage === 'REJECTED_AT_APTITUDE' ? 'Rejected at Aptitude' : 'Not Shortlisted / Failed'}
                               </span>
@@ -578,6 +638,38 @@ export const CandidatesList: React.FC = () => {
                           </Button>
                         )}
 
+                        {isEligible && (stage === 'SELECTED' || c.status === 'SELECTED' || c.canIssueOffer) && (
+                          <Button
+                            variant="primary"
+                            size="sm"
+                            className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold flex items-center gap-1.5 shadow-md shadow-emerald-900/30"
+                            icon={<Award className="w-4 h-4" />}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedCandidateForOffer(c);
+                            }}
+                          >
+                            Issue Offer Letter
+                          </Button>
+                        )}
+
+                        {isEligible && stage === 'OFFERED' && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            disabled
+                            className="border-cyan-500/40 text-cyan-400 bg-cyan-500/10 cursor-default"
+                          >
+                            Offer Released
+                          </Button>
+                        )}
+
+                        {isEligible && (stage === 'OFFER_ACCEPTED' || stage === 'JOINING_CONFIRMED') && (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 text-xs font-bold">
+                            <CheckCircle2 className="w-3.5 h-3.5" /> Placed &amp; Joined
+                          </span>
+                        )}
+
 
                         {!isRejected && stage === 'APPLIED' && (
                           <Button
@@ -669,6 +761,14 @@ export const CandidatesList: React.FC = () => {
         onClose={() => setSelectedCandidateForShortlist(null)}
         candidate={selectedCandidateForShortlist}
         onShortlistSuccess={handleShortlistSuccess}
+      />
+
+      {/* Issue Official Offer Letter Modal */}
+      <CreateOfferModal
+        isOpen={!!selectedCandidateForOffer}
+        onClose={() => setSelectedCandidateForOffer(null)}
+        candidate={selectedCandidateForOffer}
+        onOfferIssued={() => fetchPool(false)}
       />
     </div>
   );

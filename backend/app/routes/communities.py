@@ -14,6 +14,7 @@ from app.schemas.community import (
     CommunityRegistrationRequest,
     CommunityResponseItem,
 )
+from app.services.eligibility_engine import evaluate_drive_eligibility
 
 logger = logging.getLogger("placemind.communities")
 
@@ -270,9 +271,26 @@ async def register_student_for_drive(
     student = await db.students.find_one({"$or": [{"id": user_id}, {"email": user_email}]}) or current_user
     st_name = req.name or student.get("name") or "Student Candidate"
     st_roll = req.roll_number or student.get("rollNumber") or "N/A"
-    st_branch = req.branch or student.get("branch") or "CSE"
-    st_cgpa = req.cgpa if req.cgpa is not None else student.get("cgpa", 8.0)
+    st_branch = req.branch or student.get("branch") or current_user.get("branch") or ""
+    st_cgpa = req.cgpa if req.cgpa is not None else student.get("cgpa")
+    if st_cgpa is None:
+        st_cgpa = current_user.get("cgpa")
     st_skills = student.get("skills", [])
+
+    # Authoritative Server-Side Eligibility Validation
+    student_eval_data = {
+        "cgpa": float(st_cgpa) if st_cgpa is not None else None,
+        "branch": str(st_branch or ""),
+        "graduationYear": student.get("batch") or student.get("graduationYear") or current_user.get("graduationYear"),
+        "activeBacklogs": student.get("activeBacklogs") if student.get("activeBacklogs") is not None else (student.get("backlogs") or 0),
+    }
+    is_eligible, reasons, missing_reqs = evaluate_drive_eligibility(student_eval_data, drive)
+    if not is_eligible:
+        reasons_msg = "; ".join(reasons) if reasons else "You do not meet the eligibility requirements for this drive."
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Ineligible candidate: You do not satisfy the drive eligibility criteria. Reasons: {reasons_msg}"
+        )
 
     now_iso = datetime.now().isoformat()
     app_id = f"app-{uuid.uuid4().hex[:10]}"

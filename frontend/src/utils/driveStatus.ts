@@ -6,7 +6,13 @@
 export const isDrivePendingApproval = (status?: string): boolean => {
   if (!status) return false;
   const s = status.toUpperCase();
-  return s === 'PENDING_ANNOUNCEMENT' || s === 'PENDING_APPROVAL' || s === 'PENDING' || s === 'CHANGES_PENDING_REVIEW';
+  return (
+    s === 'PENDING_ANNOUNCEMENT' ||
+    s === 'PENDING_APPROVAL' ||
+    s === 'PENDING' ||
+    s === 'CHANGES_PENDING_REVIEW' ||
+    s === 'SUBMITTED_TO_OFFICER'
+  );
 };
 
 export const isDriveActiveOrAnnounced = (status?: string): boolean => {

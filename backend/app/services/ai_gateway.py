@@ -140,8 +140,19 @@ class AIGateway:
 
     def __init__(self):
         self.provider = getattr(settings, "AI_PROVIDER", "gemini").lower()
-        self.model_name = getattr(settings, "AI_MODEL_NAME", "gemini-1.5-flash")
-        self.api_key = getattr(settings, "GOOGLE_API_KEY", "") or getattr(settings, "GEMINI_API_KEY", "")
+        self.fallback_models = [
+            "gemini-flash-lite-latest",
+            "gemini-3.1-flash-lite",
+            "gemini-3.5-flash-lite",
+            "gemini-flash-latest",
+            "gemini-2.0-flash",
+            "gemini-1.5-flash",
+            "gemma-4-26b-a4b-it"
+        ]
+
+    def _get_active_api_key(self) -> str:
+        from app.core.config import get_gemini_api_key
+        return get_gemini_api_key()
 
     async def _call_llm_json(self, prompt: str, schema_class: Type[BaseModel]) -> Tuple[Optional[BaseModel], Dict[str, Any]]:
         """
@@ -149,25 +160,24 @@ class AIGateway:
         Returns (parsed_pydantic_instance, metadata_dict).
         """
         clean_prompt = sanitize_user_input(prompt)
+        api_key = self._get_active_api_key()
         metadata = {
             "is_ai_generated": False,
             "source": "UNAVAILABLE",
             "provider": self.provider,
-            "model": self.model_name,
+            "model": self.fallback_models[0],
             "retries": 0,
             "execution_time_ms": 0.0,
             "tokens": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0, "estimated_cost_usd": 0.0},
         }
 
         # If no API key configured, return fallback directly
-        if not self.api_key or self.api_key.startswith("mock-") or self.api_key == "default-gemini-key":
+        if not api_key or len(api_key) < 10:
             logger.info("No live AI API key configured. Returning deterministic fallback.")
             metadata["source"] = "RULE_ENGINE"
             return None, metadata
 
         headers = {"Content-Type": "application/json"}
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/{self.model_name}:generateContent?key={self.api_key}"
-        
         payload = {
             "contents": [{"parts": [{"text": clean_prompt}]}],
             "generationConfig": {
@@ -177,37 +187,41 @@ class AIGateway:
         }
 
         start_time = time.perf_counter()
-        
-        for attempt in range(1, MAX_RETRIES + 1):
-            metadata["retries"] = attempt
-            try:
-                async with httpx.AsyncClient(timeout=AI_TIMEOUT_SECONDS) as client:
-                    resp = await client.post(url, json=payload, headers=headers)
-                    if resp.status_code == 200:
-                        data = resp.json()
-                        candidates = data.get("candidates", [])
-                        if candidates:
-                            raw_text = candidates[0].get("content", {}).get("parts", [{}])[0].get("text", "")
-                            
-                            # Parse JSON
-                            json_obj = json.loads(raw_text)
-                            
-                            # Validate against Pydantic Schema
-                            parsed_model = schema_class.model_validate(json_obj)
-                            
-                            elapsed_ms = (time.perf_counter() - start_time) * 1000.0
-                            metadata["execution_time_ms"] = round(elapsed_ms, 2)
-                            metadata["is_ai_generated"] = True
-                            metadata["source"] = "AI"
-                            metadata["tokens"] = estimate_token_cost(clean_prompt, raw_text, self.model_name)
-                            
-                            logger.info("AI Gateway request succeeded on attempt %d (%dms)", attempt, elapsed_ms)
-                            return parsed_model, metadata
 
-            except (httpx.TimeoutException, httpx.HTTPError, json.JSONDecodeError, ValidationError) as e:
-                logger.warning("AI Gateway attempt %d/%d failed (%s): %s", attempt, MAX_RETRIES, type(e).__name__, str(e))
-                if attempt < MAX_RETRIES:
-                    await time.sleep(0.5 * (2 ** (attempt - 1)))  # Exponential backoff: 0.5s, 1.0s, 2.0s
+        for model_name in self.fallback_models:
+            metadata["model"] = model_name
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={api_key}"
+            
+            for attempt in range(1, MAX_RETRIES + 1):
+                metadata["retries"] = attempt
+                try:
+                    async with httpx.AsyncClient(timeout=AI_TIMEOUT_SECONDS) as client:
+                        resp = await client.post(url, json=payload, headers=headers)
+                        if resp.status_code == 200:
+                            data = resp.json()
+                            candidates = data.get("candidates", [])
+                            if candidates:
+                                raw_text = candidates[0].get("content", {}).get("parts", [{}])[0].get("text", "")
+                                
+                                # Parse JSON
+                                json_obj = json.loads(raw_text)
+                                
+                                # Validate against Pydantic Schema
+                                parsed_model = schema_class.model_validate(json_obj)
+                                
+                                elapsed_ms = (time.perf_counter() - start_time) * 1000.0
+                                metadata["execution_time_ms"] = round(elapsed_ms, 2)
+                                metadata["is_ai_generated"] = True
+                                metadata["source"] = "AI"
+                                metadata["tokens"] = estimate_token_cost(clean_prompt, raw_text, model_name)
+                                
+                                logger.info("AI Gateway request succeeded with model %s on attempt %d (%dms)", model_name, attempt, elapsed_ms)
+                                return parsed_model, metadata
+
+                except (httpx.TimeoutException, httpx.HTTPError, json.JSONDecodeError, ValidationError) as e:
+                    logger.warning("AI Gateway model %s attempt %d/%d failed (%s): %s", model_name, attempt, MAX_RETRIES, type(e).__name__, str(e))
+                    if attempt < MAX_RETRIES:
+                        await time.sleep(0.4 * (2 ** (attempt - 1)))  # Exponential backoff
 
         elapsed_ms = (time.perf_counter() - start_time) * 1000.0
         metadata["execution_time_ms"] = round(elapsed_ms, 2)

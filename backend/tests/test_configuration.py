@@ -36,6 +36,9 @@ def test_production_configuration_fail_fast_on_missing_secrets():
             MONGODB_URI="mongodb://localhost:27017",  # Insecure localhost
             JWT_SECRET="dev-jwt-secret-key-change-in-prod-2026",  # Weak default secret
             FRONTEND_URL="http://localhost:5173",  # Insecure localhost
+            GEMINI_API_KEY="",
+            AI_API_KEY="",
+            GOOGLE_API_KEY="",
             ALLOW_MOCK_DB=True  # Insecure mock DB in prod
         )
     

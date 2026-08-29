@@ -19,6 +19,7 @@ from app.schemas.assessment import (
     MockInterviewChatResponse,
 )
 from app.services.assessment_ai_engine import generate_mock_interview_chat_reply
+from app.services.audit_service import record_audit_event
 
 router = APIRouter(prefix="/api/interviews", tags=["Interviews"])
 singular_router = APIRouter(prefix="/api/interview", tags=["Interviews"])
@@ -571,12 +572,172 @@ from app.schemas.interview import (
     InterviewAvailabilityUpdate,
     InterviewAvailabilitySchema,
     InterviewStatusUpdateRequest,
+    InterviewAvailabilityCheckRequest,
+    InterviewAvailabilityCheckResponse,
 )
+
+@router.post("/check-availability", response_model=InterviewAvailabilityCheckResponse)
+@singular_router.post("/check-availability", response_model=InterviewAvailabilityCheckResponse)
+async def check_interview_availability(
+    req: InterviewAvailabilityCheckRequest,
+    current_user: Optional[Dict[str, Any]] = Depends(get_optional_current_user)
+):
+    """
+    Authoritative backend check verifying Candidate, Panel, and Room availability in MongoDB.
+    AI must never assume or auto-assign; this reflects actual database bookings.
+    """
+    db = db_manager.db
+    if db is None:
+        raise HTTPException(status_code=503, detail="Database unavailable")
+
+    date_val = req.date.strip()
+    time_slot = (req.time_slot or req.start_time or "").strip()
+    if not time_slot and req.start_time:
+        time_slot = f"{req.start_time} – {req.duration or '45 mins'}"
+
+    cand_id = req.candidate_id
+    cand_name = (req.candidate_name or "").strip()
+    panel_id = req.panel_id
+    panel_name = (req.panel_name or "").strip()
+    room_id = req.room_id
+    room_name = (req.room_name or "").strip()
+
+    # Look up canonical panel name from db.panels if panel_id provided
+    if panel_id:
+        p_doc = await db.panels.find_one({"$or": [{"id": panel_id}, {"_id": panel_id}]})
+        if p_doc:
+            panel_name = p_doc.get("name") or p_doc.get("panel_name") or panel_name
+
+    # Look up canonical room name from db.rooms if room_id provided
+    if room_id:
+        r_doc = await db.rooms.find_one({"$or": [{"id": room_id}, {"_id": room_id}]})
+        if r_doc:
+            room_name = r_doc.get("name") or r_doc.get("roomNumber") or room_name
+
+    active_filter = {"status": {"$nin": ["CANCELLED", "REJECTED", "UNAVAILABLE", "cancelled", "rejected", "unavailable"]}}
+
+    candidate_available = True
+    panel_available = True
+    room_available = True
+    conflict_msg = None
+
+    # 1. Candidate check
+    if cand_id or cand_name:
+        cand_q = []
+        if cand_id:
+            cand_q.extend([{"candidateId": cand_id}, {"student_id": cand_id}, {"studentId": cand_id}])
+        if cand_name:
+            cand_q.extend([
+                {"candidateName": {"$regex": f"^{cand_name}$", "$options": "i"}},
+                {"candidate_name": {"$regex": f"^{cand_name}$", "$options": "i"}}
+            ])
+
+        time_match_q = [{"timeSlot": time_slot}, {"time": time_slot}]
+        if req.start_time:
+            time_match_q.extend([{"startTime": req.start_time}, {"start_time": req.start_time}])
+
+        cand_conflict = await db.interviews.find_one({
+            "$and": [
+                active_filter,
+                {"date": date_val},
+                {"$or": time_match_q},
+                {"$or": cand_q}
+            ]
+        })
+        if cand_conflict:
+            candidate_available = False
+            conflict_msg = f"Candidate '{cand_name or cand_id}' is already scheduled for an interview on {date_val} during {time_slot}."
+
+    # 2. Panel check
+    if (panel_id or panel_name) and candidate_available:
+        panel_q = []
+        if panel_id:
+            panel_q.extend([{"panelId": panel_id}, {"panel_id": panel_id}])
+        if panel_name:
+            panel_q.extend([
+                {"panelName": {"$regex": f"^{panel_name}$", "$options": "i"}},
+                {"panel_name": {"$regex": f"^{panel_name}$", "$options": "i"}}
+            ])
+
+        time_match_q = [{"timeSlot": time_slot}, {"time": time_slot}]
+        if req.start_time:
+            time_match_q.extend([{"startTime": req.start_time}, {"start_time": req.start_time}])
+
+        panel_conflict = await db.interviews.find_one({
+            "$and": [
+                active_filter,
+                {"date": date_val},
+                {"$or": time_match_q},
+                {"$or": panel_q}
+            ]
+        })
+        if not panel_conflict and panel_name:
+            start_prefix = req.start_time or time_slot[:5]
+            panel_conflict = await db.interview_slots.find_one({
+                "panel_name": {"$regex": f"^{panel_name}$", "$options": "i"},
+                "date": date_val,
+                "start_time": {"$regex": f"^{start_prefix}", "$options": "i"},
+                "status": {"$in": ["ASSIGNED", "UNAVAILABLE"]}
+            })
+
+        if panel_conflict:
+            panel_available = False
+            conflict_msg = f"Interview Panel '{panel_name or panel_id}' is already booked on {date_val} during {time_slot}."
+
+    # 3. Room check
+    if (room_id or room_name) and candidate_available and panel_available:
+        room_q = []
+        if room_id:
+            room_q.extend([{"roomId": room_id}, {"room_id": room_id}])
+        if room_name:
+            room_q.extend([
+                {"roomName": {"$regex": f"^{room_name}$", "$options": "i"}},
+                {"room_name": {"$regex": f"^{room_name}$", "$options": "i"}}
+            ])
+
+        time_match_q = [{"timeSlot": time_slot}, {"time": time_slot}]
+        if req.start_time:
+            time_match_q.extend([{"startTime": req.start_time}, {"start_time": req.start_time}])
+
+        room_conflict = await db.interviews.find_one({
+            "$and": [
+                active_filter,
+                {"date": date_val},
+                {"$or": time_match_q},
+                {"$or": room_q}
+            ]
+        })
+        if not room_conflict and room_name:
+            start_prefix = req.start_time or time_slot[:5]
+            room_conflict = await db.interview_slots.find_one({
+                "$or": [
+                    {"room_number": {"$regex": f"^{room_name}$", "$options": "i"}},
+                    {"block": {"$regex": f"^{room_name}$", "$options": "i"}}
+                ],
+                "date": date_val,
+                "start_time": {"$regex": f"^{start_prefix}", "$options": "i"},
+                "status": {"$in": ["ASSIGNED", "UNAVAILABLE"]}
+            })
+
+        if room_conflict:
+            room_available = False
+            conflict_msg = f"Venue Room '{room_name or room_id}' is already occupied on {date_val} during {time_slot}."
+
+    is_overall_available = candidate_available and panel_available and room_available
+
+    return InterviewAvailabilityCheckResponse(
+        available=is_overall_available,
+        candidate_available=candidate_available,
+        panel_available=panel_available,
+        room_available=room_available,
+        conflict=conflict_msg if not is_overall_available else None
+    )
 
 @router.post("", response_model=InterviewSchema, status_code=status.HTTP_201_CREATED)
 async def schedule_interview(int_in: InterviewCreate):
     """
     Schedule a new interview for a shortlisted candidate.
+    Requires explicit manual selection of panel and room by the Recruiter/Officer.
     Performs authoritative backend conflict check for Candidate, Panel, and Room.
     Dispatches notification to candidate and updates canonical application state.
     """
@@ -585,10 +746,37 @@ async def schedule_interview(int_in: InterviewCreate):
         raise HTTPException(status_code=503, detail="Database unavailable")
 
     cand_name = int_in.candidateName.strip()
-    panel_name = int_in.panelName.strip()
-    room_name = int_in.roomName.strip()
+    panel_id = int_in.panelId or int_in.panel_id
+    panel_name = (int_in.panelName or int_in.panel_name or "").strip()
+    room_id = int_in.roomId or int_in.room_id
+    room_name = (int_in.roomName or int_in.room_name or "").strip()
     time_slot = int_in.timeSlot.strip()
     date_val = int_in.date.strip()
+
+    # Strict Validation: Manual selection of Panel and Room is mandatory
+    if not (panel_id or panel_name) or not (room_id or room_name):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Please select an interview panel and venue room before scheduling."
+        )
+
+    # Look up canonical panel in db.panels if panel_id supplied
+    if panel_id:
+        p_doc = await db.panels.find_one({"$or": [{"id": panel_id}, {"_id": panel_id}]})
+        if p_doc:
+            panel_name = p_doc.get("name") or p_doc.get("panel_name") or panel_name
+            if not int_in.panelMembers:
+                int_in.panelMembers = p_doc.get("members") or []
+
+    # Look up canonical room in db.rooms if room_id supplied
+    if room_id:
+        r_doc = await db.rooms.find_one({"$or": [{"id": room_id}, {"_id": room_id}]})
+        if r_doc:
+            room_name = r_doc.get("name") or r_doc.get("roomNumber") or room_name
+            if not int_in.block:
+                int_in.block = r_doc.get("building") or r_doc.get("block")
+            if not int_in.roomNumber:
+                int_in.roomNumber = r_doc.get("roomNumber") or r_doc.get("name")
 
     # 0. Authoritative Verification: Candidate must be shortlisted and eligible
     cand_id = int_in.candidateId
@@ -641,27 +829,25 @@ async def schedule_interview(int_in: InterviewCreate):
                 detail=f"Cannot schedule interview: Candidate '{cand_name}' must qualify the aptitude round before interview scheduling."
             )
 
-
-
-
     active_filter = {"status": {"$nin": ["CANCELLED", "REJECTED", "UNAVAILABLE", "cancelled", "rejected", "unavailable"]}}
 
-
-
-
     # 1. Conflict Check: Candidate double booking
-    if cand_name:
+    if cand_name or cand_id:
+        cand_q = []
+        if cand_name:
+            cand_q.extend([
+                {"candidateName": {"$regex": f"^{cand_name}$", "$options": "i"}},
+                {"candidate_name": {"$regex": f"^{cand_name}$", "$options": "i"}}
+            ])
+        if cand_id:
+            cand_q.extend([{"candidateId": cand_id}, {"student_id": cand_id}])
+
         cand_conflict = await db.interviews.find_one({
             "$and": [
                 active_filter,
                 {"date": date_val},
                 {"timeSlot": time_slot},
-                {"$or": [
-                    {"candidateName": {"$regex": f"^{cand_name}$", "$options": "i"}},
-                    {"candidate_name": {"$regex": f"^{cand_name}$", "$options": "i"}},
-                    {"candidateId": int_in.candidateId} if int_in.candidateId else {"_id": None},
-                    {"student_id": int_in.candidateId} if int_in.candidateId else {"_id": None}
-                ]}
+                {"$or": cand_q}
             ]
         })
         if cand_conflict:
@@ -671,42 +857,71 @@ async def schedule_interview(int_in: InterviewCreate):
             )
 
     # 2. Conflict Check: Panel double booking
+    panel_q = []
+    if panel_id:
+        panel_q.extend([{"panelId": panel_id}, {"panel_id": panel_id}])
     if panel_name:
-        panel_conflict = await db.interviews.find_one({
-            "$and": [
-                active_filter,
-                {"date": date_val},
-                {"timeSlot": time_slot},
-                {"$or": [
-                    {"panelName": {"$regex": f"^{panel_name}$", "$options": "i"}},
-                    {"panel_name": {"$regex": f"^{panel_name}$", "$options": "i"}}
-                ]}
-            ]
+        panel_q.extend([
+            {"panelName": {"$regex": f"^{panel_name}$", "$options": "i"}},
+            {"panel_name": {"$regex": f"^{panel_name}$", "$options": "i"}}
+        ])
+
+    panel_conflict = await db.interviews.find_one({
+        "$and": [
+            active_filter,
+            {"date": date_val},
+            {"timeSlot": time_slot},
+            {"$or": panel_q}
+        ]
+    })
+    if not panel_conflict and panel_name:
+        panel_conflict = await db.interview_slots.find_one({
+            "panel_name": {"$regex": f"^{panel_name}$", "$options": "i"},
+            "date": date_val,
+            "start_time": {"$regex": f"^{int_in.startTime or time_slot[:5]}", "$options": "i"},
+            "status": {"$in": ["ASSIGNED", "UNAVAILABLE"]}
         })
-        if panel_conflict:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail=f"Scheduling Conflict: Panel '{panel_name}' is already assigned to another interview on {date_val} during {time_slot}."
-            )
+
+    if panel_conflict:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Scheduling Conflict: Panel '{panel_name}' is already assigned to another interview on {date_val} during {time_slot}."
+        )
 
     # 3. Conflict Check: Room double booking
+    room_q = []
+    if room_id:
+        room_q.extend([{"roomId": room_id}, {"room_id": room_id}])
     if room_name:
-        room_conflict = await db.interviews.find_one({
-            "$and": [
-                active_filter,
-                {"date": date_val},
-                {"timeSlot": time_slot},
-                {"$or": [
-                    {"roomName": {"$regex": f"^{room_name}$", "$options": "i"}},
-                    {"room_name": {"$regex": f"^{room_name}$", "$options": "i"}}
-                ]}
-            ]
+        room_q.extend([
+            {"roomName": {"$regex": f"^{room_name}$", "$options": "i"}},
+            {"room_name": {"$regex": f"^{room_name}$", "$options": "i"}}
+        ])
+
+    room_conflict = await db.interviews.find_one({
+        "$and": [
+            active_filter,
+            {"date": date_val},
+            {"timeSlot": time_slot},
+            {"$or": room_q}
+        ]
+    })
+    if not room_conflict and (room_name or int_in.roomNumber):
+        room_conflict = await db.interview_slots.find_one({
+            "$or": [
+                {"room_number": {"$regex": f"^{int_in.roomNumber or room_name}$", "$options": "i"}},
+                {"block": {"$regex": f"^{int_in.block or room_name}$", "$options": "i"}}
+            ],
+            "date": date_val,
+            "start_time": {"$regex": f"^{int_in.startTime or time_slot[:5]}", "$options": "i"},
+            "status": {"$in": ["ASSIGNED", "UNAVAILABLE"]}
         })
-        if room_conflict:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail=f"Venue Conflict: Room '{room_name}' is already occupied on {date_val} during {time_slot}."
-            )
+
+    if room_conflict:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Venue Conflict: Room '{room_name}' is already occupied on {date_val} during {time_slot}."
+        )
 
     import uuid
     new_id = f"int-{uuid.uuid4().hex[:12]}"
@@ -719,6 +934,10 @@ async def schedule_interview(int_in: InterviewCreate):
     int_dict.update({
         "id": int_id,
         "interview_id": int_id,
+        "panelId": panel_id,
+        "panelName": panel_name,
+        "roomId": room_id,
+        "roomName": room_name,
         "status": "scheduled",
         "panelConfirmed": True,
         "created_at": now_iso,
@@ -794,6 +1013,15 @@ async def schedule_interview(int_in: InterviewCreate):
             "timestamp": "Just now",
             "created_at": now_iso
         })
+
+    await record_audit_event(
+        db=db,
+        user={"id": "officer", "name": "Placement Officer", "role": "placement_officer"},
+        action="INTERVIEW_SCHEDULED",
+        entity="Interview",
+        entity_id=created.get("id", "interview"),
+        detail=f"Interview scheduled for {cand_name} ({int_in.companyName} - {int_in.roleTitle}) with panel '{panel_name}' in room '{room_name}' on {date_val} ({time_slot})."
+    )
 
     return created
 
@@ -879,14 +1107,16 @@ async def reschedule_interview(interview_id: str, req: InterviewRescheduleReques
     return {"status": "ok", "message": "Interview slot rescheduled successfully"}
 
 @router.patch("/{interview_id}/status")
+@router.put("/{interview_id}/status")
 async def update_interview_status(
     interview_id: str,
     body: Optional[InterviewStatusUpdateRequest] = None,
-    status_val: Optional[str] = None
+    status_val: Optional[str] = None,
+    status: Optional[str] = None
 ):
     """
     Update interview status.
-    Accepts JSON body {"status": "COMPLETED"} OR query parameter ?status_val=COMPLETED.
+    Accepts JSON body {"status": "COMPLETED"} OR query parameter ?status=COMPLETED or ?status_val=COMPLETED.
     """
     db = db_manager.db
     if db is None:
@@ -897,6 +1127,8 @@ async def update_interview_status(
         target_status = body.status or body.status_val
     if not target_status and status_val:
         target_status = status_val
+    if not target_status and status:
+        target_status = status
 
     if not target_status:
         raise HTTPException(status_code=400, detail="Field 'status' or 'status_val' is required in request body or query parameter.")
@@ -948,6 +1180,16 @@ async def update_interview_status(
                 "pipeline_stage": "SELECTED",
                 "hr_status": "SELECTED"
             })
+            if drive_id:
+                await db.drives.update_one(
+                    {"$or": [{"id": drive_id}, {"_id": drive_id}]},
+                    {"$inc": {"selectedCount": 1}}
+                )
+            if student_id:
+                await db.students.update_one(
+                    {"id": student_id},
+                    {"$set": {"placementStatus": "placed", "selectedCompany": company_name, "selectedRole": role_title}}
+                )
             notif_type = "FINAL_SELECTION"
             notif_title = "Congratulations! You are Selected! 🎉🎊"
             notif_msg = f"Congratulations {student_name}! You have been selected for the {role_title} position at {company_name}!"

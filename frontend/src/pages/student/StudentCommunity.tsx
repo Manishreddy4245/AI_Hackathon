@@ -23,6 +23,7 @@ import {
   ExternalLink,
   BookOpen,
   Plus,
+  ClipboardList,
 } from 'lucide-react';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { Card, CardHeader, CardTitle, CardContent } from '../../components/ui/Card';
@@ -38,8 +39,40 @@ import {
   CommunityResponseItem,
   PlacementForm,
 } from '../../services/api';
-import { PlacementDrive } from '../../types';
-import { ClipboardList } from 'lucide-react';
+const BRANCH_CANONICALS: Record<string, string[]> = {
+  CSE: ['CSE', 'CS', 'COMPUTER SCIENCE', 'COMPUTER SCIENCE & ENGINEERING', 'COMPUTER SCIENCE AND ENGINEERING', 'COMPUTER ENGINEERING'],
+  IT: ['IT', 'INFORMATION TECHNOLOGY', 'INFO TECH', 'INFORMATION SCIENCE', 'ISE'],
+  ECE: ['ECE', 'ELECTRONICS', 'ELECTRONICS & COMMUNICATION', 'ELECTRONICS AND COMMUNICATION', 'ELECTRONICS & COMMUNICATION ENGINEERING', 'ELECTRONICS AND COMMUNICATION ENGINEERING', 'ETC'],
+  EE: ['EE', 'EEE', 'ELECTRICAL', 'ELECTRICAL ENGINEERING', 'ELECTRICAL AND ELECTRONICS', 'ELECTRICAL & ELECTRONICS ENGINEERING', 'TECHNICAL / ELECTRICAL ENGINEERING'],
+  ME: ['ME', 'MECH', 'MECHANICAL', 'MECHANICAL ENGINEERING'],
+  CE: ['CE', 'CIVIL', 'CIVIL ENGINEERING'],
+  AIML: ['AI', 'AIML', 'ARTIFICIAL INTELLIGENCE', 'AI & ML', 'AI/ML', 'ARTIFICIAL INTELLIGENCE AND MACHINE LEARNING'],
+  DATA_SCIENCE: ['DS', 'DATA SCIENCE', 'DATA SCIENCE AND ENGINEERING'],
+};
+
+const getCanonicalBranch = (bStr: string) => {
+  if (!bStr) return '';
+  const clean = bStr.toUpperCase().trim();
+  for (const [code, syns] of Object.entries(BRANCH_CANONICALS)) {
+    if (syns.includes(clean)) return code;
+  }
+  if (clean.includes('COMPUTER SCIENCE') || clean.includes('COMPUTER ENG')) return 'CSE';
+  if (clean.includes('INFORMATION TECH') || clean.includes('INFORMATION SCI')) return 'IT';
+  if (clean.includes('ELECTRONICS') && clean.includes('COMMUNICATION')) return 'ECE';
+  if (clean.includes('ELECTRICAL')) return 'EE';
+  if (clean.includes('MECHANICAL')) return 'ME';
+  if (clean.includes('CIVIL')) return 'CE';
+  return clean;
+};
+
+const isBranchMatch = (stBranch: string, eligBranches: string[]) => {
+  if (!eligBranches || eligBranches.length === 0) return true;
+  if (!stBranch) return false;
+  const stCanon = getCanonicalBranch(stBranch);
+  const driveCanons = new Set(eligBranches.map((b) => getCanonicalBranch(b)));
+  if (driveCanons.has(stCanon)) return true;
+  return eligBranches.some((b) => b.toUpperCase().trim() === stBranch.toUpperCase().trim());
+};
 
 export const StudentCommunity: React.FC = () => {
   const { driveId: paramDriveId } = useParams<{ driveId?: string }>();
@@ -152,9 +185,27 @@ export const StudentCommunity: React.FC = () => {
     };
   }, [activeDriveId, user?.id, isOfficer]);
 
+  const drive = community?.drive;
+  const isRegistered = community?.is_registered;
+
+  // Authoritative Eligibility evaluation
+  const studentCgpa = studentProfile?.cgpa ?? 0.0;
+  const studentBranch = (studentProfile?.branch || 'CSE').trim();
+  const minCgpa = drive?.minCgpa ?? 0.0;
+  const eligibleBranches = drive?.eligibleBranches || ['CSE', 'IT'];
+  const isCgpaEligible = minCgpa <= 0 || studentCgpa >= minCgpa;
+  const isBranchEligible = isBranchMatch(studentBranch, eligibleBranches);
+  const isEligible = isCgpaEligible && isBranchEligible;
+
   const handleRegisterSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!community) return;
+
+    if (!isEligible) {
+      triggerToast('You do not meet the eligibility criteria for this placement drive.', 'error');
+      setIsRegisterModalOpen(false);
+      return;
+    }
 
     setIsSubmittingReg(true);
     try {
@@ -195,22 +246,6 @@ export const StudentCommunity: React.FC = () => {
       setIsSubmittingReg(false);
     }
   };
-
-  const drive = community?.drive;
-  const isRegistered = community?.is_registered;
-
-  // Eligibility evaluation
-  const studentCgpa = studentProfile?.cgpa ?? 0.0;
-  const studentBranch = (studentProfile?.branch || 'CSE').toUpperCase();
-  const minCgpa = drive?.minCgpa ?? 0.0;
-  const eligibleBranches = drive?.eligibleBranches || ['CSE', 'IT'];
-  const isCgpaEligible = studentCgpa >= minCgpa;
-  const isBranchEligible =
-    eligibleBranches.length === 0 ||
-    eligibleBranches.some(
-      (b) => studentBranch.includes(b.toUpperCase()) || (b.toUpperCase() === 'CSE' && studentBranch.includes('COMPUTER'))
-    );
-  const isEligible = isCgpaEligible && isBranchEligible;
 
   if (loading && !community) {
     return (
@@ -330,7 +365,7 @@ export const StudentCommunity: React.FC = () => {
               <div className="px-4 py-2.5 rounded-xl bg-[#22C55E]/15 border border-[#22C55E]/30 text-[#86EFAC] text-xs font-bold flex items-center justify-center gap-2">
                 <CheckCircle2 className="w-4 h-4 text-[#22C55E]" /> Registered ✓
               </div>
-            ) : (
+            ) : isEligible ? (
               <Button
                 variant="primary"
                 icon={<Sparkles className="w-4 h-4" />}
@@ -339,6 +374,13 @@ export const StudentCommunity: React.FC = () => {
               >
                 Register for Placement Drive
               </Button>
+            ) : (
+              <div
+                className="px-4 py-2.5 rounded-xl bg-[#EF4444]/15 border border-[#EF4444]/30 text-[#FCA5A5] text-xs font-bold flex items-center justify-center gap-2 shadow-sm"
+                title={!isCgpaEligible ? `CGPA ${studentCgpa} is below minimum requirement ${minCgpa}` : `Branch ${studentBranch} is not in eligible branches [${eligibleBranches.join(', ')}]`}
+              >
+                <AlertCircle className="w-4 h-4 text-[#EF4444]" /> Not Eligible to Register
+              </div>
             )}
 
             <Button
@@ -848,6 +890,15 @@ export const StudentCommunity: React.FC = () => {
             </div>
 
             <form onSubmit={handleRegisterSubmit} className="p-6 space-y-4 text-xs">
+              {!isEligible && (
+                <div className="p-3 rounded-xl bg-[#EF4444]/15 border border-[#EF4444]/30 text-[#FCA5A5] text-xs font-semibold flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 text-[#EF4444] shrink-0" />
+                  <span>
+                    You do not satisfy the drive eligibility criteria ({!isCgpaEligible ? `CGPA below ${minCgpa}. ` : ''}{!isBranchEligible ? `Branch ${studentBranch} is not eligible.` : ''}).
+                  </span>
+                </div>
+              )}
+
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-bold text-[#CBD5E1] mb-1">Full Name</label>
@@ -939,10 +990,10 @@ export const StudentCommunity: React.FC = () => {
                 <Button
                   variant="primary"
                   type="submit"
-                  disabled={isSubmittingReg}
+                  disabled={isSubmittingReg || !isEligible}
                   icon={isSubmittingReg ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
                 >
-                  {isSubmittingReg ? 'Submitting...' : 'Submit Registration'}
+                  {isSubmittingReg ? 'Submitting...' : !isEligible ? 'Ineligible to Register' : 'Submit Registration'}
                 </Button>
               </div>
             </form>

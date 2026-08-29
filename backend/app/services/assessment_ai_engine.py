@@ -5,7 +5,7 @@ import uuid
 import hashlib
 from typing import Dict, Any, List, Optional
 import httpx
-from app.core.config import settings
+from app.core.config import settings, get_gemini_api_key
 from app.schemas.assessment import (
     AssessmentCreateRequest,
     PrepBotChatRequest,
@@ -15,6 +15,16 @@ from app.schemas.assessment import (
 )
 
 logger = logging.getLogger("placemind.assessment_ai")
+
+STANDARD_GEMINI_MODELS = [
+    "gemini-flash-lite-latest",
+    "gemini-3.1-flash-lite",
+    "gemini-3.5-flash-lite",
+    "gemini-flash-latest",
+    "gemini-2.0-flash",
+    "gemini-1.5-flash",
+    "gemma-4-26b-a4b-it"
+]
 
 # Canonical Topic Mappings based on Student Skills
 SKILL_TO_TOPICS_MAP = {
@@ -404,8 +414,8 @@ async def generate_personalized_assessment_questions(
         if not selected_topics:
             selected_topics = ["Arrays & Hashing", "Strings", "Quantitative Aptitude", "Logical Reasoning"]
 
-    api_key = settings.GEMINI_API_KEY
-    if api_key and api_key != "your-gemini-api-key-here" and len(api_key) > 10:
+    api_key = get_gemini_api_key()
+    if api_key and len(api_key) > 10:
         try:
             ai_questions = await _call_gemini_assessment_generator(
                 skills=active_skills,
@@ -503,7 +513,7 @@ async def _extract_assessment_config_from_prompt(message: str) -> Optional[Asses
     Returns AssessmentCreateRequest object if student expresses intent to practice/take/generate a test,
     otherwise returns None.
     """
-    api_key = settings.GEMINI_API_KEY
+    api_key = get_gemini_api_key()
     if not api_key or len(api_key) < 10:
         return None
 
@@ -535,14 +545,13 @@ If the user message is a general conceptual question or greeting with NO intent 
 Return: {{"has_test_intent": false}}
 """
 
-    GEMINI_MODELS = ["gemini-3.1-flash-lite", "gemini-3.5-flash-lite", "gemini-2.5-pro", "gemini-3.6-flash"]
     payload = {
         "contents": [{"parts": [{"text": prompt}]}],
         "generationConfig": {"temperature": 0.1, "responseMimeType": "application/json"}
     }
 
     async with httpx.AsyncClient(timeout=12.0) as client:
-        for model in GEMINI_MODELS:
+        for model in STANDARD_GEMINI_MODELS:
             url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
             try:
                 res = await client.post(url, json=payload)
@@ -629,7 +638,7 @@ For aptitude questions:
   "points": 10
 }}
 """
-    GEMINI_MODELS = ["gemini-3.1-flash-lite", "gemini-3.5-flash-lite", "gemini-2.5-pro", "gemini-3.6-flash"]
+    api_key = get_gemini_api_key()
     payload = {
         "contents": [{"parts": [{"text": prompt}]}],
         "generationConfig": {"temperature": 0.2, "responseMimeType": "application/json"}
@@ -637,8 +646,8 @@ For aptitude questions:
 
     last_error = None
     async with httpx.AsyncClient(timeout=18.0) as client:
-        for model in GEMINI_MODELS:
-            url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={settings.GEMINI_API_KEY}"
+        for model in STANDARD_GEMINI_MODELS:
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
             try:
                 res = await client.post(url, json=payload)
                 if res.status_code == 200:
@@ -665,8 +674,8 @@ async def _call_gemini_prepbot_chat(
     recent_assessment: Optional[Dict[str, Any]] = None,
 ) -> str:
     """Call Google Gemini Generative AI model to generate intelligent contextual responses for PrepBot."""
-    api_key = settings.GEMINI_API_KEY
-    if not api_key or api_key == "your-gemini-api-key-here" or len(api_key) < 10:
+    api_key = get_gemini_api_key()
+    if not api_key or len(api_key) < 10:
         raise ValueError("GEMINI_API_KEY is not configured in backend/.env file. Please add a valid key to enable AI features.")
 
     skills_str = ", ".join(resume_skills) if resume_skills else "General CS & Placement Aptitude"
@@ -688,7 +697,6 @@ async def _call_gemini_prepbot_chat(
 
     prompt = f"{system_instruction}\n\n[CANDIDATE CONTEXT]\n{context_info}\n[CANDIDATE MESSAGE]\n{message}\n\n[YOUR PREPBOT RESPONSE]:"
 
-    GEMINI_MODELS = ["gemini-3.1-flash-lite", "gemini-3.5-flash-lite", "gemini-2.5-pro", "gemini-3.6-flash"]
     payload = {
         "contents": [{"parts": [{"text": prompt}]}],
         "generationConfig": {"temperature": 0.3, "maxOutputTokens": 1000}
@@ -696,7 +704,7 @@ async def _call_gemini_prepbot_chat(
 
     last_error = None
     async with httpx.AsyncClient(timeout=18.0) as client:
-        for model in GEMINI_MODELS:
+        for model in STANDARD_GEMINI_MODELS:
             url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
             try:
                 res = await client.post(url, json=payload)
@@ -788,7 +796,7 @@ async def analyze_code_complexity(
     language: str
 ) -> ComplexityAnalysisResponse:
     """Analyze time and space complexity of student code submission using Gemini AI."""
-    api_key = settings.GEMINI_API_KEY
+    api_key = get_gemini_api_key()
     if not api_key or len(api_key) < 10:
         return ComplexityAnalysisResponse(
             complexity_time="O(N)",
@@ -818,14 +826,13 @@ Return a JSON object matching this EXACT schema:
   "summary": "1-sentence overview of code efficiency"
 }}
 """
-    GEMINI_MODELS = ["gemini-3.1-flash-lite", "gemini-3.5-flash-lite", "gemini-2.5-pro", "gemini-3.6-flash"]
     payload = {
         "contents": [{"parts": [{"text": prompt}]}],
         "generationConfig": {"temperature": 0.1, "responseMimeType": "application/json"}
     }
 
     async with httpx.AsyncClient(timeout=15.0) as client:
-        for model in GEMINI_MODELS:
+        for model in STANDARD_GEMINI_MODELS:
             url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
             try:
                 res = await client.post(url, json=payload)
@@ -857,7 +864,7 @@ async def generate_progressive_hint(
     hint_level: int = 1
 ) -> HintResponse:
     """Generate progressive Socratic hints (Level 1: conceptual, Level 2: algorithmic, Level 3: pseudocode structure)."""
-    api_key = settings.GEMINI_API_KEY
+    api_key = get_gemini_api_key()
     level = max(1, min(hint_level, 3))
     
     level_descriptions = {
@@ -898,14 +905,13 @@ Return a JSON object:
   "hint_text": "Markdown formatted hint text."
 }}
 """
-    GEMINI_MODELS = ["gemini-3.1-flash-lite", "gemini-3.5-flash-lite", "gemini-2.5-pro", "gemini-3.6-flash"]
     payload = {
         "contents": [{"parts": [{"text": prompt}]}],
         "generationConfig": {"temperature": 0.3, "responseMimeType": "application/json"}
     }
 
     async with httpx.AsyncClient(timeout=15.0) as client:
-        for model in GEMINI_MODELS:
+        for model in STANDARD_GEMINI_MODELS:
             url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
             try:
                 res = await client.post(url, json=payload)
@@ -951,13 +957,12 @@ Behavior Rules:
 3. If the candidate says "I don't know", "I didn't understand", or gives an incorrect answer, DO NOT praise them. Instead, explain/clarify the question simply or provide a small hint and ask them to try again.
 4. Maintain a professional, realistic interviewer tone. Keep follow-up probes concise (2-4 sentences max)."""
 
-    gemini_key = os.getenv("GEMINI_API_KEY") or settings.GEMINI_API_KEY or settings.AI_API_KEY
+    from app.core.config import get_gemini_api_key
+    gemini_key = get_gemini_api_key()
     openai_key = os.getenv("OPENAI_API_KEY")
 
     # 1. Attempt Gemini API if gemini_key is available
-    if gemini_key and gemini_key != "your-gemini-api-key-here" and len(gemini_key) > 5:
-        GEMINI_MODELS = ["gemini-3.6-flash", "gemini-2.0-flash", "gemini-1.5-flash", "gemini-flash"]
-
+    if gemini_key and len(gemini_key) > 5:
         # Build contents array with conversation history
         contents = []
         for msg in history[-10:]:
@@ -980,7 +985,7 @@ Behavior Rules:
         }
 
         async with httpx.AsyncClient(timeout=15.0) as client:
-            for model in GEMINI_MODELS:
+            for model in STANDARD_GEMINI_MODELS:
                 url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={gemini_key}"
                 try:
                     res = await client.post(url, json=payload)

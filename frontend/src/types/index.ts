@@ -285,13 +285,25 @@ export interface Interview {
   date: string;
   panelId?: string;
   panelName: string;
+  panelMembers?: string[];
   roomId?: string;
   roomName: string;
+  block?: string;
+  roomNumber?: string;
   status: InterviewStatus;
   panelConfirmed: boolean;
   conflictNote?: string;
   score?: number;
   feedback?: string;
+}
+
+export interface CandidatePoolStats {
+  all: number;
+  applied: number;
+  shortlisted: number;
+  not_shortlisted: number;
+  interview_scheduled: number;
+  selected?: number;
 }
 
 export interface ScheduleConflict {
@@ -422,6 +434,16 @@ export interface CopilotCard {
   status?: string;
 }
 
+export interface CopilotActionProposal {
+  action_type: string;
+  summary: string;
+  details: Record<string, any>;
+  requires_confirmation: boolean;
+  confirmed?: boolean;
+  executed?: boolean;
+  error?: string;
+}
+
 export interface CopilotMessage {
   id: string;
   sender: 'user' | 'assistant';
@@ -432,6 +454,7 @@ export interface CopilotMessage {
     label: string;
     route: string;
   };
+  actionProposal?: CopilotActionProposal;
 }
 
 export interface CopilotPrompt {
@@ -475,3 +498,87 @@ export interface ActivityLog {
   timestamp: string;
   type: 'ai' | 'drive' | 'interview' | 'student' | 'system';
 }
+
+export type OfferStatus = 'OFFERED' | 'ACCEPTED' | 'DECLINED' | 'JOINING_CONFIRMED';
+
+export interface JoiningDetails {
+  confirmed_joining_date?: string;
+  preferred_location?: string;
+  emergency_contact_name?: string;
+  emergency_contact_phone?: string;
+  student_notes?: string;
+  accepted_at?: string;
+  reporting_venue_or_link?: string;
+  reporting_time?: string;
+  onboarding_notes?: string;
+  confirmed_by?: string;
+  confirmed_at?: string;
+}
+
+export interface PlacementOffer {
+  id: string;
+  offer_id: string;
+  application_id: string;
+  student_id: string;
+  student_name: string;
+  student_email: string;
+  drive_id: string;
+  company_name: string;
+  job_title: string;
+  designation: string;
+  package_lpa: number;
+  base_salary_lpa?: number;
+  joining_bonus_lpa?: number;
+  job_location: string;
+  employment_type: string;
+  joining_date: string;
+  response_deadline?: string;
+  status: OfferStatus;
+  offer_letter_text?: string;
+  terms_and_conditions: string[];
+  benefits: string[];
+  issued_by?: string;
+  issued_by_role?: string;
+  issued_at: string;
+  responded_at?: string;
+  decline_reason?: string;
+  joining_details?: JoiningDetails;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface OfferCreatePayload {
+  application_id: string;
+  student_id?: string;
+  drive_id?: string;
+  company_name?: string;
+  job_title?: string;
+  package_lpa: number;
+  base_salary_lpa?: number;
+  joining_bonus_lpa?: number;
+  designation?: string;
+  job_location?: string;
+  employment_type?: string;
+  joining_date: string;
+  response_deadline?: string;
+  offer_letter_text?: string;
+  terms_and_conditions?: string[];
+  benefits?: string[];
+}
+
+export interface OfferStudentResponsePayload {
+  action: 'ACCEPT' | 'DECLINE';
+  joining_date?: string;
+  preferred_location?: string;
+  emergency_contact_name?: string;
+  emergency_contact_phone?: string;
+  decline_reason?: string;
+  notes?: string;
+}
+
+export interface JoiningConfirmationPayload {
+  reporting_venue_or_link?: string;
+  reporting_time?: string;
+  onboarding_notes?: string;
+}
+

@@ -1,25 +1,61 @@
 """
 Complete Operational Data Wipe Script
-Wipes 100% of operational and transactional collections in MongoDB Atlas so the placement workflow starts fresh from zero,
+Wipes operational and transactional collections in MongoDB so the placement workflow starts fresh from zero,
 while preserving all user authentication accounts in `db.users` completely untouched.
+
+SAFEGUARDS:
+1. Never executes on ENV=production or ENV=staging.
+2. Displays sanitized target (Host, Database, Environment) without exposing credentials.
+3. Requires explicit confirmation flag: WIPE_OPERATIONAL_CONFIRM=I_UNDERSTAND_THIS_WIPES_OPERATIONAL_DATA
+4. Uses canonical app.core.config.settings and app.db.mongodb.connect_to_mongo.
 """
+import os
+import sys
 import asyncio
 import logging
 from typing import Dict, List, Any
 
-from app.core.config import settings
+from app.core.config import settings, get_safe_db_target
 from app.db.mongodb import db_manager, connect_to_mongo
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 logger = logging.getLogger("wipe_operational_data")
 
+REQUIRED_CONFIRMATION = "I_UNDERSTAND_THIS_WIPES_OPERATIONAL_DATA"
+
 # Collections explicitly identified for user authentication & login accounts
 USER_AUTH_COLLECTIONS = {"users", "students"}
 
 async def execute_operational_wipe():
+    target = get_safe_db_target()
+    target_type = "MongoDB Atlas" if target["is_atlas"] else "Local MongoDB"
+
     print("\n=========================================================================")
-    print("  LIVE MONGODB ATLAS — FULL OPERATIONAL DATA WIPE EXECUTION")
+    print("  PLACEMIND OPERATIONAL DATA WIPE UTILITY")
+    print("=========================================================================")
+    print(f"  Target Type:        {target_type}")
+    print(f"  Database Host:      {target['host']}")
+    print(f"  Database Name:      {target['database']}")
+    print(f"  Active Environment: {target['environment']}")
     print("=========================================================================\n")
+
+    # Safeguard 1: Refuse to run on production or staging
+    if target["environment"] in ["production", "staging"]:
+        logger.critical("SAFETY VIOLATION: Operational wipe is strictly FORBIDDEN in '%s' environment.", target["environment"])
+        print(f"ERROR: Cannot wipe operational data when ENV={target['environment']}. Aborting.")
+        sys.exit(1)
+
+    # Safeguard 2: Require explicit confirmation
+    confirm_env = os.getenv("WIPE_OPERATIONAL_CONFIRM", "").strip()
+    if confirm_env != REQUIRED_CONFIRMATION:
+        logger.warning("SAFETY LOCK ACTIVE: Explicit confirmation missing.")
+        print("SAFETY LOCK ACTIVE:")
+        print("To execute an operational data wipe, you must provide the exact confirmation environment variable:")
+        print(f"  WIPE_OPERATIONAL_CONFIRM={REQUIRED_CONFIRMATION}")
+        print("\nExample (PowerShell):")
+        print(f"  $env:WIPE_OPERATIONAL_CONFIRM='{REQUIRED_CONFIRMATION}'; python wipe_operational_data.py")
+        print("\nAborting without modifying any data.")
+        sys.exit(1)
 
     await connect_to_mongo()
     db = db_manager.db

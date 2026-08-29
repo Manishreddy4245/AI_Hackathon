@@ -48,10 +48,10 @@ def derive_recruitment_pipeline_stage(
     hr_status = (app.get("hr_status") or "").upper()
 
     # 2. Derive Stage based on explicit progression records
-    if raw_status in ["SELECTED", "PLACED"]:
+    if raw_status in ["JOINING_CONFIRMED", "PLACEMENT_COMPLETED"]:
         return {
-            "stage": "SELECTED",
-            "stageLabel": "Selected / Placed",
+            "stage": "JOINING_CONFIRMED",
+            "stageLabel": "Joining Confirmed (Placement Completed)",
             "stageGroup": "selected",
             "isEligible": True,
             "canShortlist": False,
@@ -61,7 +61,81 @@ def derive_recruitment_pipeline_stage(
             "canScheduleInterview": False,
             "canCompleteInterview": False,
             "canMakeFinalDecision": False,
-            "nextAction": "Completed",
+            "canIssueOffer": False,
+            "nextAction": "Onboarding",
+            "statusColor": "#10B981"
+        }
+
+    if raw_status in ["OFFER_ACCEPTED", "ACCEPTED"]:
+        return {
+            "stage": "OFFER_ACCEPTED",
+            "stageLabel": "Offer Accepted (Awaiting Joining)",
+            "stageGroup": "selected",
+            "isEligible": True,
+            "canShortlist": False,
+            "canAllocateAptitude": False,
+            "canAllocateTechnical": False,
+            "canAllocateHR": False,
+            "canScheduleInterview": False,
+            "canCompleteInterview": False,
+            "canMakeFinalDecision": False,
+            "canIssueOffer": False,
+            "canConfirmJoining": True,
+            "nextAction": "Confirm Joining",
+            "statusColor": "#22C55E"
+        }
+
+    if raw_status in ["OFFERED", "OFFER_ISSUED"]:
+        return {
+            "stage": "OFFERED",
+            "stageLabel": "Offer Letter Released (Awaiting Student Response)",
+            "stageGroup": "selected",
+            "isEligible": True,
+            "canShortlist": False,
+            "canAllocateAptitude": False,
+            "canAllocateTechnical": False,
+            "canAllocateHR": False,
+            "canScheduleInterview": False,
+            "canCompleteInterview": False,
+            "canMakeFinalDecision": False,
+            "canIssueOffer": False,
+            "nextAction": "Awaiting Student Response",
+            "statusColor": "#06B6D4"
+        }
+
+    if raw_status in ["OFFER_DECLINED", "DECLINED"]:
+        return {
+            "stage": "OFFER_DECLINED",
+            "stageLabel": "Offer Declined by Candidate",
+            "stageGroup": "rejected",
+            "isEligible": True,
+            "canShortlist": False,
+            "canAllocateAptitude": False,
+            "canAllocateTechnical": False,
+            "canAllocateHR": False,
+            "canScheduleInterview": False,
+            "canCompleteInterview": False,
+            "canMakeFinalDecision": False,
+            "canIssueOffer": True,
+            "nextAction": "None",
+            "statusColor": "#64748B"
+        }
+
+    if raw_status in ["SELECTED", "PLACED"]:
+        return {
+            "stage": "SELECTED",
+            "stageLabel": "Selected / Placed (Ready for Offer Letter)",
+            "stageGroup": "selected",
+            "isEligible": True,
+            "canShortlist": False,
+            "canAllocateAptitude": False,
+            "canAllocateTechnical": False,
+            "canAllocateHR": False,
+            "canScheduleInterview": False,
+            "canCompleteInterview": False,
+            "canMakeFinalDecision": False,
+            "canIssueOffer": True,
+            "nextAction": "Issue Offer Letter",
             "statusColor": "#22C55E"
         }
 

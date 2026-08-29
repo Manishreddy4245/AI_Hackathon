@@ -43,6 +43,7 @@ import { StudentAssessmentsList } from './pages/student/StudentAssessmentsList';
 
 import { StudentCommunity } from './pages/student/StudentCommunity';
 import { StudentForms } from './pages/student/StudentForms';
+import { StudentOffers } from './pages/student/StudentOffers';
 
 export function App() {
   return (
@@ -79,6 +80,8 @@ export function App() {
 
 
               <Route path="/student/applications" element={<StudentApplications />} />
+              <Route path="/student/offers" element={<StudentOffers />} />
+              <Route path="/student/offers/:id" element={<StudentOffers />} />
               <Route path="/student/interviews" element={<StudentInterviews />} />
               <Route path="/student/notifications" element={<NotificationsList />} />
               <Route path="/student/profile" element={<StudentProfile />} />

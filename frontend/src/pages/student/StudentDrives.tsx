@@ -126,8 +126,8 @@ export const StudentDrives: React.FC = () => {
   const renderOpportunityCard = (opp: PlacementRecommendation, isInsideGroup: boolean = false) => {
     const isCollege = opp.source_type === 'college';
     const applied = hasAppliedToDrive(opp.drive_id);
-    const isEligible = hasResume ? opp.eligible : false;
-    const matchScore = hasResume ? opp.match_score : 0;
+    const isEligible = opp.eligible;
+    const matchScore = opp.match_score;
     const matchedSkills = opp.matched_skills || [];
     const skillGaps = opp.skill_gaps || [];
     const reasons = opp.eligibility_reasons || [];
@@ -138,11 +138,9 @@ export const StudentDrives: React.FC = () => {
         className={`p-5 text-[#F8FAFC] transition-all border ${
           isInsideGroup ? 'bg-[#0B1628] border-[#243650]/80' : 'bg-[#101D31] border-[#243650]'
         } ${
-          hasResume
-            ? isEligible
-              ? 'border-l-4 border-l-[#22C55E]'
-              : 'border-l-4 border-l-[#F59E0B]'
-            : ''
+          isEligible
+            ? 'border-l-4 border-l-[#22C55E]'
+            : 'border-l-4 border-l-[#F59E0B]'
         }`}
       >
         <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
@@ -339,7 +337,14 @@ export const StudentDrives: React.FC = () => {
               >
                 Apply / Register
               </Button>
-            ) : null}
+            ) : (
+              <span
+                className="text-xs font-semibold text-[#FCD34D] bg-[rgba(245,158,11,0.12)] px-3 py-2 rounded-xl border border-[rgba(245,158,11,0.25)] flex items-center justify-center gap-1.5 cursor-default"
+                title={reasons.join(' | ') || 'Does not meet drive eligibility requirements'}
+              >
+                <XCircle className="w-3.5 h-3.5 text-[#F59E0B]" /> Not Eligible
+              </span>
+            )}
           </div>
         </div>
       </Card>
@@ -403,12 +408,12 @@ export const StudentDrives: React.FC = () => {
           <div className="h-7 w-[1px] bg-[#243650]" />
           <div>
             <span className="text-[#86EFAC] block text-[11px] font-semibold">Eligible For You</span>
-            <span className="text-base font-black text-[#86EFAC]">{hasResume ? eligibleCount : 0}</span>
+            <span className="text-base font-black text-[#86EFAC]">{eligibleCount}</span>
           </div>
           <div className="h-7 w-[1px] bg-[#243650]" />
           <div>
             <span className="text-[#FCD34D] block text-[11px] font-semibold">Not Currently Eligible</span>
-            <span className="text-base font-black text-[#FCD34D]">{hasResume ? ineligibleCount : 0}</span>
+            <span className="text-base font-black text-[#FCD34D]">{ineligibleCount}</span>
           </div>
           <div className="h-7 w-[1px] bg-[#243650]" />
           <div>
@@ -473,7 +478,7 @@ export const StudentDrives: React.FC = () => {
                   : 'text-[#86EFAC] hover:text-white hover:bg-[#14243B]'
               }`}
             >
-              <CheckCircle2 className="w-3.5 h-3.5" /> Eligible ({hasResume ? eligibleCount : 0})
+              <CheckCircle2 className="w-3.5 h-3.5" /> Eligible ({eligibleCount})
             </button>
 
             <button
@@ -487,7 +492,7 @@ export const StudentDrives: React.FC = () => {
                   : 'text-[#FCD34D] hover:text-white hover:bg-[#14243B]'
               }`}
             >
-              <Target className="w-3.5 h-3.5" /> Not Eligible ({hasResume ? ineligibleCount : 0})
+              <Target className="w-3.5 h-3.5" /> Not Eligible ({ineligibleCount})
             </button>
 
             <button
@@ -578,15 +583,9 @@ export const StudentDrives: React.FC = () => {
                       <p className="text-xs text-[#94A3B8] font-medium mt-1 flex items-center gap-2">
                         <span>{group.total_jobs} {group.total_jobs === 1 ? 'Drive' : 'Drives'}</span>
                         <span>&bull;</span>
-                        {hasResume ? (
-                          <>
-                            <span className="text-[#86EFAC] font-semibold">{group.eligible_jobs} Eligible</span>
-                            <span>&bull;</span>
-                            <span className="text-[#FCD34D] font-semibold">{group.ineligible_jobs} Not Eligible</span>
-                          </>
-                        ) : (
-                          <span className="text-[#F59E0B]">Resume Required</span>
-                        )}
+                        <span className="text-[#86EFAC] font-semibold">{group.eligible_jobs} Eligible</span>
+                        <span>&bull;</span>
+                        <span className="text-[#FCD34D] font-semibold">{group.ineligible_jobs} Not Eligible</span>
                       </p>
                     </div>
                   </div>

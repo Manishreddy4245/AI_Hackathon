@@ -327,7 +327,15 @@ Return a valid JSON object matching this structure EXACTLY:
   "aiExplanation": "Clear reasoning of requirements detected strictly in the provided text"
 }}
 """
-    models = ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-pro"]
+    models = [
+        "gemini-flash-lite-latest",
+        "gemini-3.1-flash-lite",
+        "gemini-3.5-flash-lite",
+        "gemini-flash-latest",
+        "gemini-2.0-flash",
+        "gemini-1.5-flash",
+        "gemma-4-26b-a4b-it"
+    ]
     for model in models:
         url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
         payload = {
@@ -335,7 +343,7 @@ Return a valid JSON object matching this structure EXACTLY:
             "generationConfig": {"temperature": 0.1, "responseMimeType": "application/json"}
         }
         try:
-            async with httpx.AsyncClient(timeout=5.0) as client:
+            async with httpx.AsyncClient(timeout=15.0) as client:
                 response = await client.post(url, json=payload)
                 if response.status_code == 200:
                     result_json = response.json()
@@ -365,6 +373,7 @@ Return a valid JSON object matching this structure EXACTLY:
                     summary = data.get("summary") or f"AI analyzed requirements for {role_title or 'this role'}."
                     ai_explanation = data.get("aiExplanation") or "Requirements extracted dynamically from the provided raw text."
 
+                    logger.info("Successfully extracted JD using Gemini model %s", model)
                     return JDExtractResponse(
                         roleTitle=role_title or "Campus Placement Role",
                         companyName=ret_company,
@@ -404,9 +413,10 @@ async def extract_job_description(req: JDExtractRequest):
         raise HTTPException(status_code=400, detail="Raw job description text cannot be empty. Please enter the job requirements.")
 
     company_name = req.companyName or req.company_name or "Company"
-    api_key = os.getenv("GEMINI_API_KEY") or settings.GEMINI_API_KEY or settings.AI_API_KEY
+    from app.core.config import get_gemini_api_key
+    api_key = get_gemini_api_key()
 
-    if api_key and api_key != "your-gemini-api-key-here" and len(api_key) > 10:
+    if api_key and len(api_key) > 10:
         gemini_result = await _analyze_with_gemini(raw_text, company_name, api_key)
         if gemini_result is not None:
             return gemini_result

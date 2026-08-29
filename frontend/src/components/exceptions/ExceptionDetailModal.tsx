@@ -1,5 +1,6 @@
 import React from 'react';
-import { AlertTriangle, X, ShieldAlert, CheckCircle2, Sparkles, UserCheck, Check, ArrowRight } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { AlertTriangle, X, ShieldAlert, CheckCircle2, Sparkles, UserCheck, Check, ArrowRight, ExternalLink } from 'lucide-react';
 import { ExceptionItem } from '../../types';
 import { usePlacement } from '../../context/PlacementContext';
 import { Button } from '../ui/Button';
@@ -10,6 +11,7 @@ interface ExceptionDetailModalProps {
 }
 
 export const ExceptionDetailModal: React.FC<ExceptionDetailModalProps> = ({ exception, onClose }) => {
+  const navigate = useNavigate();
   const { approveExceptionRecommendation, updateExceptionStatus } = usePlacement();
 
   if (!exception) return null;
@@ -22,6 +24,15 @@ export const ExceptionDetailModal: React.FC<ExceptionDetailModalProps> = ({ exce
   const handleIgnore = () => {
     updateExceptionStatus(exception.id, 'ignored');
     onClose();
+  };
+
+  const handleNavigateAction = () => {
+    onClose();
+    if (exception.actionRoute) {
+      navigate(exception.actionRoute);
+    } else {
+      navigate('/admin/dashboard');
+    }
   };
 
   return (
@@ -120,14 +131,15 @@ export const ExceptionDetailModal: React.FC<ExceptionDetailModalProps> = ({ exce
               <Button
                 variant="secondary"
                 size="sm"
-                onClick={() => alert('Custom override workflow opened.')}
+                icon={<ExternalLink className="w-3.5 h-3.5" />}
+                onClick={handleNavigateAction}
               >
-                Choose Another Action
+                Go to Associated Workflow
               </Button>
               <Button
                 variant="primary"
                 size="sm"
-                icon={<Check className="w-4 h-4" />}
+                icon={<Check className="w-3.5 h-3.5" />}
                 onClick={handleApprove}
               >
                 Approve Recommendation

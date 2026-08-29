@@ -2,16 +2,26 @@
 Comprehensive Interview Data Elimination & Unset Utility
 Deletes all documents in interview collections (interviews, interview_slots, interview_availability, panels, rooms)
 and unsets all interview-related embedded fields on db.applications documents.
+
+SAFEGUARDS:
+1. Never executes on ENV=production or ENV=staging.
+2. Displays sanitized target (Host, Database, Environment) without exposing credentials.
+3. Requires explicit confirmation flag: PURGE_INTERVIEWS_CONFIRM=I_UNDERSTAND_THIS_DELETES_INTERVIEW_DATA
+4. Uses canonical app.core.config.settings and app.db.mongodb.connect_to_mongo.
 """
+import os
+import sys
 import asyncio
 import logging
 from typing import Dict, List, Any
 
-from app.core.config import settings
+from app.core.config import settings, get_safe_db_target
 from app.db.mongodb import db_manager, connect_to_mongo
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 logger = logging.getLogger("purge_interview_data")
+
+REQUIRED_CONFIRMATION = "I_UNDERSTAND_THIS_DELETES_INTERVIEW_DATA"
 
 INTERVIEW_COLLECTIONS = [
     "interviews",
@@ -34,9 +44,35 @@ INTERVIEW_APPLICATION_FIELDS = [
 ]
 
 async def execute_interview_purge():
+    target = get_safe_db_target()
+    target_type = "MongoDB Atlas" if target["is_atlas"] else "Local MongoDB"
+
     print("\n=========================================================================")
-    print("  LIVE MONGODB ATLAS — COMPLETE INTERVIEW DATA PURGE & UNSET")
+    print("  PLACEMIND INTERVIEW DATA PURGE UTILITY")
+    print("=========================================================================")
+    print(f"  Target Type:        {target_type}")
+    print(f"  Database Host:      {target['host']}")
+    print(f"  Database Name:      {target['database']}")
+    print(f"  Active Environment: {target['environment']}")
     print("=========================================================================\n")
+
+    # Safeguard 1: Refuse to run on production or staging
+    if target["environment"] in ["production", "staging"]:
+        logger.critical("SAFETY VIOLATION: Interview purge is strictly FORBIDDEN in '%s' environment.", target["environment"])
+        print(f"ERROR: Cannot purge interview data when ENV={target['environment']}. Aborting.")
+        sys.exit(1)
+
+    # Safeguard 2: Require explicit confirmation
+    confirm_env = os.getenv("PURGE_INTERVIEWS_CONFIRM", "").strip()
+    if confirm_env != REQUIRED_CONFIRMATION:
+        logger.warning("SAFETY LOCK ACTIVE: Explicit confirmation missing.")
+        print("SAFETY LOCK ACTIVE:")
+        print("To execute an interview data purge, you must provide the exact confirmation environment variable:")
+        print(f"  PURGE_INTERVIEWS_CONFIRM={REQUIRED_CONFIRMATION}")
+        print("\nExample (PowerShell):")
+        print(f"  $env:PURGE_INTERVIEWS_CONFIRM='{REQUIRED_CONFIRMATION}'; python purge_interview_data.py")
+        print("\nAborting without modifying any data.")
+        sys.exit(1)
 
     await connect_to_mongo()
     db = db_manager.db

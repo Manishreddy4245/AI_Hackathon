@@ -18,6 +18,7 @@ from app.core.security import (
 )
 from app.core.rate_limiter import auth_rate_limiter
 from app.services.email_service import email_service
+from app.services.audit_service import record_audit_event
 from app.core.deps import get_current_user, get_optional_current_user
 
 router = APIRouter(prefix="/api/auth", tags=["Authentication"])
@@ -200,6 +201,15 @@ async def login(req: LoginRequest, request: Request, response: Response):
     }
     await db.sessions.insert_one(session_doc)
 
+    await record_audit_event(
+        db=db,
+        user=user,
+        action="USER_LOGIN",
+        entity="Auth",
+        entity_id=user["id"],
+        detail=f"User {user.get('name', 'User')} ({user_role}) logged in successfully."
+    )
+
     # Set secure HttpOnly cookies
     _set_auth_cookies(response, access_token, refresh_token)
 
@@ -266,6 +276,15 @@ async def register_student(req: RegisterStudentRequest, response: Response):
         "interviewsCount": 0,
     }
     await db.students.insert_one(student_doc)
+
+    await record_audit_event(
+        db=db,
+        user=user_doc,
+        action="STUDENT_REGISTERED",
+        entity="Student",
+        entity_id=user_id,
+        detail=f"Student {req.name} ({req.branch}, Batch {req.graduationYear}) registered successfully."
+    )
 
     token_payload = {"sub": user_id, "email": clean_email, "role": "student", "name": req.name}
     access_token = create_access_token(token_payload)
@@ -334,6 +353,15 @@ async def register_recruiter(req: RegisterRecruiterRequest, response: Response):
         "created_at": datetime.now().isoformat()
     }
     await db.users.insert_one(user_doc)
+
+    await record_audit_event(
+        db=db,
+        user=user_doc,
+        action="RECRUITER_REGISTERED",
+        entity="Recruiter",
+        entity_id=user_id,
+        detail=f"Recruiter {req.name} ({req.companyName}) registered successfully."
+    )
 
     token_payload = {"sub": user_id, "email": clean_email, "role": "recruiter", "name": req.name, "companyId": comp_id, "companyName": req.companyName}
     access_token = create_access_token(token_payload)

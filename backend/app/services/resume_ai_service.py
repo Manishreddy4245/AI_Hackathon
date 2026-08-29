@@ -168,7 +168,8 @@ async def extract_resume_profile_ai(resume_text: str) -> ExtractedProfileSchema:
     Extracts structured resume profile using Gemini AI API (if GEMINI_API_KEY is configured),
     or falls back gracefully to structured text parsing.
     """
-    api_key = os.getenv("GEMINI_API_KEY") or settings.GEMINI_API_KEY or settings.AI_API_KEY
+    from app.core.config import get_gemini_api_key
+    api_key = get_gemini_api_key()
 
     if not api_key:
         logger.info("GEMINI_API_KEY not configured. Running fallback structured text extraction.")
@@ -209,76 +210,89 @@ Resume Text:
 {resume_text[:4000]}
 """
 
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key={api_key}"
+    models = [
+        "gemini-flash-lite-latest",
+        "gemini-3.1-flash-lite",
+        "gemini-3.5-flash-lite",
+        "gemini-flash-latest",
+        "gemini-2.0-flash",
+        "gemini-1.5-flash",
+        "gemma-4-26b-a4b-it"
+    ]
     payload = {
         "contents": [{"parts": [{"text": prompt}]}],
         "generationConfig": {"temperature": 0.1, "responseMimeType": "application/json"}
     }
 
-    try:
-        async with httpx.AsyncClient(timeout=15.0) as client:
-            response = await client.post(url, json=payload)
-            response.raise_for_status()
-            result_json = response.json()
-            
-            # Extract content from response
-            text_content = result_json["candidates"][0]["content"]["parts"][0]["text"]
-            parsed_data = json.loads(text_content)
+    for model in models:
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
+        try:
+            async with httpx.AsyncClient(timeout=12.0) as client:
+                response = await client.post(url, json=payload)
+                if response.status_code == 200:
+                    result_json = response.json()
+                    
+                    # Extract content from response
+                    text_content = result_json["candidates"][0]["content"]["parts"][0]["text"]
+                    parsed_data = json.loads(text_content)
 
-            # Build Pydantic model from AI JSON output
-            raw_skills = [s.get("name") for s in parsed_data.get("skills", []) if s.get("name")]
-            categorized_skills = [
-                CategorizedSkillSchema(
-                    name=s.get("name"),
-                    category=s.get("category", "Technical"),
-                    status="Detected"
-                )
-                for s in parsed_data.get("skills", []) if s.get("name")
-            ]
+                    # Build Pydantic model from AI JSON output
+                    raw_skills = [s.get("name") for s in parsed_data.get("skills", []) if s.get("name")]
+                    categorized_skills = [
+                        CategorizedSkillSchema(
+                            name=s.get("name"),
+                            category=s.get("category", "Technical"),
+                            status="Detected"
+                        )
+                        for s in parsed_data.get("skills", []) if s.get("name")
+                    ]
 
-            projects = [
-                ProjectSchema(
-                    name=p.get("name", "Project"),
-                    description=p.get("description"),
-                    techStack=p.get("techStack", [])
-                )
-                for p in parsed_data.get("projects", []) if isinstance(p, dict) and p.get("name")
-            ]
+                    projects = [
+                        ProjectSchema(
+                            name=p.get("name", "Project"),
+                            description=p.get("description"),
+                            techStack=p.get("techStack", [])
+                        )
+                        for p in parsed_data.get("projects", []) if isinstance(p, dict) and p.get("name")
+                    ]
 
-            certifications = [
-                CertificationSchema(
-                    name=c.get("name", "Certificate"),
-                    issuer=c.get("issuer"),
-                    date=c.get("date")
-                )
-                for c in parsed_data.get("certifications", []) if isinstance(c, dict) and c.get("name")
-            ]
+                    certifications = [
+                        CertificationSchema(
+                            name=c.get("name", "Certificate"),
+                            issuer=c.get("issuer"),
+                            date=c.get("date")
+                        )
+                        for c in parsed_data.get("certifications", []) if isinstance(c, dict) and c.get("name")
+                    ]
 
-            experience = [
-                ExperienceSchema(
-                    role=e.get("role", "Role"),
-                    company=e.get("company"),
-                    duration=e.get("duration"),
-                    description=e.get("description")
-                )
-                for e in parsed_data.get("experience", []) if isinstance(e, dict) and e.get("role")
-            ]
+                    experience = [
+                        ExperienceSchema(
+                            role=e.get("role", "Role"),
+                            company=e.get("company"),
+                            duration=e.get("duration"),
+                            description=e.get("description")
+                        )
+                        for e in parsed_data.get("experience", []) if isinstance(e, dict) and e.get("role")
+                    ]
 
-            return ExtractedProfileSchema(
-                name=parsed_data.get("name"),
-                email=parsed_data.get("email"),
-                phone=parsed_data.get("phone"),
-                education=parsed_data.get("education"),
-                branch=parsed_data.get("branch"),
-                graduation_year=parsed_data.get("graduation_year"),
-                cgpa=parsed_data.get("cgpa"),
-                skills=categorized_skills,
-                raw_skills=raw_skills,
-                projects=projects,
-                certifications=certifications,
-                experience=experience
-            )
+                    logger.info("Successfully extracted resume profile using Gemini AI (%s)", model)
+                    return ExtractedProfileSchema(
+                        name=parsed_data.get("name"),
+                        email=parsed_data.get("email"),
+                        phone=parsed_data.get("phone"),
+                        education=parsed_data.get("education"),
+                        branch=parsed_data.get("branch"),
+                        graduation_year=parsed_data.get("graduation_year"),
+                        cgpa=parsed_data.get("cgpa"),
+                        skills=categorized_skills,
+                        raw_skills=raw_skills,
+                        projects=projects,
+                        certifications=certifications,
+                        experience=experience
+                    )
+        except Exception as e:
+            logger.warning("Gemini AI model %s failed: %s. Trying next candidate model.", model, str(e))
+            continue
 
-    except Exception as e:
-        logger.warning("Gemini AI API call failed or timed out: %s. Switching to fallback parser.", str(e))
-        return regex_fallback_profile_extractor(resume_text)
+    logger.warning("All Gemini AI model attempts failed. Switching to deterministic fallback parser.")
+    return regex_fallback_profile_extractor(resume_text)

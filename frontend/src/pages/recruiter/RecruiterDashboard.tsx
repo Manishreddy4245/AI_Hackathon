@@ -25,6 +25,7 @@ import {
   Briefcase,
   Layers,
   RefreshCw,
+  Send,
 } from 'lucide-react';
 import { usePlacement } from '../../context/PlacementContext';
 import { useAuth } from '../../context/AuthContext';
@@ -36,6 +37,7 @@ import {
   DriveRecruiterDashboardData,
 } from '../../types';
 import { CreateDriveModal } from '../../components/companies/CreateDriveModal';
+import { CreateOfferModal } from '../../components/offers/CreateOfferModal';
 
 export const RecruiterDashboard: React.FC = () => {
   const { user } = useAuth();
@@ -45,6 +47,7 @@ export const RecruiterDashboard: React.FC = () => {
   const [recruiterDrives, setRecruiterDrives] = useState<PlacementDrive[]>([]);
   const [selectedDriveId, setSelectedDriveId] = useState<string>('');
   const [loadingDrives, setLoadingDrives] = useState<boolean>(true);
+  const [isSubmittingDrive, setIsSubmittingDrive] = useState<boolean>(false);
 
   // Dashboard Data for Selected Drive
   const [dashboardData, setDashboardData] = useState<DriveRecruiterDashboardData | null>(null);
@@ -56,6 +59,7 @@ export const RecruiterDashboard: React.FC = () => {
   const [driveToEdit, setDriveToEdit] = useState<PlacementDrive | null>(null);
   const [activeRoundModal, setActiveRoundModal] = useState<RecruitmentRound | null>(null);
   const [isConfigureRoundsOpen, setIsConfigureRoundsOpen] = useState<boolean>(false);
+  const [selectedCandidateForOffer, setSelectedCandidateForOffer] = useState<any | null>(null);
 
 
   // Configure Round Form Inputs
@@ -244,6 +248,20 @@ export const RecruiterDashboard: React.FC = () => {
 
   const selectedDrive = recruiterDrives.find((d) => d.id === selectedDriveId);
 
+  const handleSubmitDriveToOfficer = async () => {
+    if (!selectedDriveId) return;
+    setIsSubmittingDrive(true);
+    try {
+      await apiService.submitDriveToOfficer(selectedDriveId);
+      triggerToast('Drive successfully submitted to Placement Officer for review!', 'success');
+      await loadRecruiterDrives();
+    } catch (err: any) {
+      triggerToast(err?.response?.data?.detail || 'Failed to submit drive to officer.', 'error');
+    } finally {
+      setIsSubmittingDrive(false);
+    }
+  };
+
   return (
     <div className="space-y-6 pb-12">
       {/* Header Banner & Drive Filter */}
@@ -287,8 +305,15 @@ export const RecruiterDashboard: React.FC = () => {
 
           {selectedDriveId && (
             <button
-              onClick={() => {
-                const targetDrive = recruiterDrives.find((d) => d.id === selectedDriveId);
+              onClick={async () => {
+                let targetDrive: any = recruiterDrives.find((d) => d.id === selectedDriveId) || dashboardData?.drive || selectedDrive;
+                if (!targetDrive && selectedDriveId) {
+                  try {
+                    targetDrive = await apiService.getDrive(selectedDriveId);
+                  } catch (err) {
+                    console.warn('Failed to fetch drive by id', err);
+                  }
+                }
                 if (targetDrive) {
                   setDriveToEdit(targetDrive);
                   setIsCreateDriveOpen(true);
@@ -356,6 +381,82 @@ export const RecruiterDashboard: React.FC = () => {
       {/* Selected Drive Metrics & Pipeline */}
       {selectedDriveId && (
         <>
+          {/* Drive Lifecycle Status Banner */}
+          <div className="p-4 bg-[#101D31] rounded-2xl border border-[#243650] shadow-xs text-[#F8FAFC] flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="text-xs font-bold text-[#94A3B8] uppercase tracking-wider">Drive Status:</div>
+              <span
+                className={`px-3 py-1 rounded-full text-xs font-bold capitalize flex items-center gap-1.5 ${
+                  (selectedDrive?.status || '').toUpperCase() === 'ACTIVE' || (selectedDrive?.status || '').toUpperCase() === 'ANNOUNCED'
+                    ? 'bg-[rgba(34,197,94,0.15)] text-[#86EFAC] border border-[rgba(34,197,94,0.3)]'
+                    : (selectedDrive?.status || '').toUpperCase() === 'SUBMITTED_TO_OFFICER' || (selectedDrive?.status || '').toUpperCase() === 'PENDING_APPROVAL'
+                    ? 'bg-[rgba(59,130,246,0.15)] text-[#60A5FA] border border-[rgba(59,130,246,0.3)]'
+                    : (selectedDrive?.status || '').toUpperCase() === 'CHANGES_REQUESTED'
+                    ? 'bg-[rgba(245,158,11,0.15)] text-[#FCD34D] border border-[rgba(245,158,11,0.3)]'
+                    : (selectedDrive?.status || '').toUpperCase() === 'REJECTED'
+                    ? 'bg-[rgba(239,68,68,0.15)] text-[#FCA5A5] border border-[rgba(239,68,68,0.3)]'
+                    : 'bg-[#1E293B] text-[#CBD5E1] border border-[#334155]'
+                }`}
+              >
+                {(selectedDrive?.status || '').toUpperCase() === 'ACTIVE' || (selectedDrive?.status || '').toUpperCase() === 'ANNOUNCED'
+                  ? '● Live / Approved'
+                  : (selectedDrive?.status || '').toUpperCase() === 'SUBMITTED_TO_OFFICER' || (selectedDrive?.status || '').toUpperCase() === 'PENDING_APPROVAL'
+                  ? '⏳ Submitted to Placement Officer'
+                  : (selectedDrive?.status || '').toUpperCase() === 'CHANGES_REQUESTED'
+                  ? '⚠️ Adjustments Requested'
+                  : (selectedDrive?.status || '').toUpperCase() === 'REJECTED'
+                  ? '✕ Rejected by Placement Cell'
+                  : '📝 Draft (Private)'}
+              </span>
+            </div>
+
+            {/* Quick Action: Send to Officer if DRAFT or CHANGES_REQUESTED */}
+            {((selectedDrive?.status || '').toUpperCase() === 'DRAFT' ||
+              (selectedDrive?.status || '').toUpperCase() === 'CHANGES_REQUESTED') && (
+              <button
+                onClick={handleSubmitDriveToOfficer}
+                disabled={isSubmittingDrive}
+                className="flex items-center gap-1.5 px-4 py-2 bg-[#22C55E] hover:bg-[#16A34A] text-white text-xs font-bold rounded-xl transition-all shadow-md cursor-pointer disabled:opacity-50"
+              >
+                {isSubmittingDrive ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <Send className="w-3.5 h-3.5" />
+                )}
+                {(selectedDrive?.status || '').toUpperCase() === 'CHANGES_REQUESTED'
+                  ? 'Resubmit to Placement Officer'
+                  : 'Send to Placement Officer'}
+              </button>
+            )}
+          </div>
+
+          {/* Officer Feedback Notice Card if changes requested or rejected */}
+          {Boolean(selectedDrive?.changes_feedback || (selectedDrive as any)?.changesFeedback) && (selectedDrive?.status || '').toUpperCase() === 'CHANGES_REQUESTED' && (
+            <div className="p-4 bg-[rgba(245,158,11,0.08)] border border-[rgba(245,158,11,0.25)] rounded-2xl flex items-start gap-3 text-[#FCD34D]">
+              <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
+              <div>
+                <h4 className="text-xs font-bold uppercase tracking-wider text-[#F8FAFC]">Placement Cell Requested Adjustments</h4>
+                <p className="text-xs text-[#CBD5E1] mt-1 font-medium">
+                  {selectedDrive?.changes_feedback || (selectedDrive as any)?.changesFeedback}
+                </p>
+                <p className="text-[11px] text-[#94A3B8] mt-1.5">
+                  Click "Edit Drive" to adjust requirements or criteria, then click "Resubmit to Placement Officer".
+                </p>
+              </div>
+            </div>
+          )}
+
+          {Boolean(selectedDrive?.rejection_reason || (selectedDrive as any)?.rejectionReason) && (selectedDrive?.status || '').toUpperCase() === 'REJECTED' && (
+            <div className="p-4 bg-[rgba(239,68,68,0.08)] border border-[rgba(239,68,68,0.25)] rounded-2xl flex items-start gap-3 text-[#FCA5A5]">
+              <AlertCircle className="w-5 h-5 shrink-0 mt-0.5 text-[#EF4444]" />
+              <div>
+                <h4 className="text-xs font-bold uppercase tracking-wider text-[#F8FAFC]">Placement Cell Rejection Note</h4>
+                <p className="text-xs text-[#CBD5E1] mt-1 font-medium">
+                  {selectedDrive?.rejection_reason || (selectedDrive as any)?.rejectionReason}
+                </p>
+              </div>
+            </div>
+          )}
           {/* Drive Overview Metric Cards */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <div className="bg-[#101D31] p-5 rounded-2xl border border-[#243650] shadow-xs text-[#F8FAFC]">
@@ -678,15 +779,36 @@ export const RecruiterDashboard: React.FC = () => {
                             ) : (
                               <>
                                 {activeRoundModal.is_final ? (
-                                  <button
-                                    onClick={() =>
-                                      handleCandidateAction(cand.application_id, 'FINAL_SELECT', activeRoundModal.id, cand.student_name)
-                                    }
-                                    disabled={cand.round_status === 'PASSED'}
-                                    className="px-2.5 py-1 bg-[#22C55E] hover:bg-[#16a34a] disabled:opacity-50 text-white text-[11px] font-bold rounded-lg transition-colors cursor-pointer"
-                                  >
-                                    Final Select
-                                  </button>
+                                  <>
+                                    <button
+                                      onClick={() =>
+                                        handleCandidateAction(cand.application_id, 'FINAL_SELECT', activeRoundModal.id, cand.student_name)
+                                      }
+                                      disabled={cand.round_status === 'PASSED'}
+                                      className="px-2.5 py-1 bg-[#22C55E] hover:bg-[#16a34a] disabled:opacity-50 text-white text-[11px] font-bold rounded-lg transition-colors cursor-pointer"
+                                    >
+                                      Final Select
+                                    </button>
+                                    {cand.round_status === 'PASSED' && (
+                                      <button
+                                        onClick={() => {
+                                          setSelectedCandidateForOffer({
+                                            id: cand.application_id,
+                                            application_id: cand.application_id,
+                                            student_id: cand.student_id,
+                                            student_name: cand.student_name,
+                                            drive_id: selectedDriveId,
+                                            company_name: selectedDrive?.companyName,
+                                            job_title: selectedDrive?.roleTitle,
+                                            package_lpa: selectedDrive?.packageLpa,
+                                          });
+                                        }}
+                                        className="px-2.5 py-1 bg-cyan-600 hover:bg-cyan-500 text-white text-[11px] font-bold rounded-lg transition-colors cursor-pointer inline-flex items-center gap-1 shadow-xs"
+                                      >
+                                        <Award className="w-3 h-3" /> Issue Offer
+                                      </button>
+                                    )}
+                                  </>
                                 ) : (
                                   <button
                                     onClick={() =>
@@ -905,6 +1027,17 @@ export const RecruiterDashboard: React.FC = () => {
           triggerToast(`Placement drive '${newDrive.roleTitle}' created!`, 'success');
           await loadRecruiterDrives();
           setSelectedDriveId(newDrive.id);
+        }}
+      />
+
+      {/* ISSUE OFFICIAL OFFER MODAL */}
+      <CreateOfferModal
+        isOpen={!!selectedCandidateForOffer}
+        onClose={() => setSelectedCandidateForOffer(null)}
+        candidate={selectedCandidateForOffer}
+        onOfferIssued={() => {
+          if (selectedDriveId) loadDriveMetrics(selectedDriveId);
+          refreshAllData();
         }}
       />
     </div>

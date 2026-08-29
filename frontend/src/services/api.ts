@@ -8,10 +8,12 @@ import {
   Room,
   NotificationItem,
   ExceptionItem,
+  AgentActivityEvent,
   CopilotMessage,
   Company,
   RecruitmentRound,
   DriveRecruiterDashboardData,
+  CandidatePoolStats,
 } from '../types';
 
 export interface AuditLogItem {
@@ -413,8 +415,18 @@ export const apiService = {
     return res.data;
   },
 
+  async getDrive(id: string): Promise<PlacementDrive> {
+    const res = await apiClient.get<PlacementDrive>(`/drives/${id}`);
+    return res.data;
+  },
+
   async createDrive(data: Partial<PlacementDrive>): Promise<PlacementDrive> {
     const res = await apiClient.post<PlacementDrive>('/drives', data);
+    return res.data;
+  },
+
+  async submitDriveToOfficer(driveId: string): Promise<PlacementDrive> {
+    const res = await apiClient.post<PlacementDrive>(`/drives/${driveId}/submit`);
     return res.data;
   },
 
@@ -520,12 +532,36 @@ export const apiService = {
   },
 
   // Interviews
-  async getInterviews(): Promise<Interview[]> {
-    const res = await apiClient.get<Interview[]>('/interviews');
+  async getInterviews(driveId?: string): Promise<Interview[]> {
+    const url = driveId ? `/interviews?drive_id=${encodeURIComponent(driveId)}` : '/interviews';
+    const res = await apiClient.get<Interview[]>(url);
     return res.data;
   },
 
-  async scheduleInterview(data: Partial<Interview>): Promise<Interview> {
+  async checkInterviewAvailability(payload: {
+    candidate_id?: string;
+    candidate_name?: string;
+    panel_id?: string;
+    panel_name?: string;
+    room_id?: string;
+    room_name?: string;
+    date: string;
+    time_slot?: string;
+    start_time?: string;
+    end_time?: string;
+    duration?: string;
+  }): Promise<{
+    available: boolean;
+    candidate_available: boolean;
+    panel_available: boolean;
+    room_available: boolean;
+    conflict?: string;
+  }> {
+    const res = await apiClient.post('/interviews/check-availability', payload);
+    return res.data;
+  },
+
+  async scheduleInterview(data: Partial<Interview> | any): Promise<Interview> {
     const res = await apiClient.post<Interview>('/interviews', data);
     return res.data;
   },
@@ -603,9 +639,9 @@ export const apiService = {
     return res.data;
   },
 
-  async getCandidatePoolStats(driveId?: string): Promise<{ all: number; applied: number; shortlisted: number; not_shortlisted: number; interview_scheduled: number }> {
+  async getCandidatePoolStats(driveId?: string): Promise<CandidatePoolStats> {
     const url = driveId ? `/applications/stats?drive_id=${encodeURIComponent(driveId)}` : '/applications/stats';
-    const res = await apiClient.get<{ all: number; applied: number; shortlisted: number; not_shortlisted: number; interview_scheduled: number }>(url);
+    const res = await apiClient.get<CandidatePoolStats>(url);
     return res.data;
   },
 
@@ -678,6 +714,8 @@ export const apiService = {
     return res.data;
   },
 
+
+
   async getStudentAssessments(roundType?: string): Promise<any[]> {
     const url = roundType ? `/assessments/student/me?round_type=${encodeURIComponent(roundType)}` : '/assessments/student/me';
     const res = await apiClient.get<any[]>(url);
@@ -715,8 +753,13 @@ export const apiService = {
 
 
   // Exceptions / AI Operations
-  async getExceptions(): Promise<ExceptionItem[]> {
-    const res = await apiClient.get<ExceptionItem[]>('/exceptions');
+  async getExceptions(params?: {
+    severity?: string;
+    status?: string;
+    category?: string;
+    search?: string;
+  }): Promise<ExceptionItem[]> {
+    const res = await apiClient.get<ExceptionItem[]>('/exceptions', { params });
     return res.data;
   },
 
@@ -724,9 +767,31 @@ export const apiService = {
     await apiClient.post(`/exceptions/${id}/approve`);
   },
 
+  async updateExceptionStatus(id: string, status: string, notes?: string): Promise<ExceptionItem> {
+    const res = await apiClient.patch<ExceptionItem>(`/exceptions/${id}/status`, { status, notes });
+    return res.data;
+  },
+
+  async scanExceptions(): Promise<ExceptionItem[]> {
+    const res = await apiClient.post<ExceptionItem[]>('/exceptions/scan');
+    return res.data;
+  },
+
+  async getAgentActivities(): Promise<AgentActivityEvent[]> {
+    const res = await apiClient.get<AgentActivityEvent[]>('/exceptions/agent-activity');
+    return res.data;
+  },
+
   // Audit Logs
-  async getAuditLogs(): Promise<AuditLogItem[]> {
-    const res = await apiClient.get<AuditLogItem[]>('/audit');
+  async getAuditLogs(params?: {
+    page?: number;
+    page_size?: number;
+    role?: string;
+    action?: string;
+    entity?: string;
+    search?: string;
+  }): Promise<AuditLogItem[]> {
+    const res = await apiClient.get<AuditLogItem[]>('/audit', { params });
     return res.data;
   },
 
@@ -736,8 +801,16 @@ export const apiService = {
   },
 
   // Placement Copilot
-  async sendCopilotQuery(query: string): Promise<CopilotMessage> {
-    const res = await apiClient.post<CopilotMessage>('/copilot/chat', { query });
+  async sendCopilotQuery(query: string, conversationHistory?: Array<{ role: string; content: string }>): Promise<CopilotMessage> {
+    const res = await apiClient.post<CopilotMessage>('/copilot/chat', {
+      query,
+      conversation_history: conversationHistory
+    });
+    return res.data;
+  },
+
+  async executeCopilotAction(payload: { action_type: string; details: Record<string, any> }): Promise<{ status: string; message: string; interview?: any }> {
+    const res = await apiClient.post<{ status: string; message: string; interview?: any }>('/copilot/execute-action', payload);
     return res.data;
   },
 
@@ -861,8 +934,21 @@ export const apiService = {
     return res.data;
   },
 
-  async getAnalyticsSummary(): Promise<any> {
-    const res = await apiClient.get<any>('/analytics/summary');
+  async getAnalyticsSummary(params?: Record<string, any>): Promise<any> {
+    const res = await apiClient.get<any>('/analytics/summary', { params });
+    return res.data;
+  },
+
+  async getAnalyticsOverview(params?: Record<string, any>): Promise<any> {
+    const res = await apiClient.get<any>('/analytics/overview', { params });
+    return res.data;
+  },
+
+  async downloadAnalyticsCsv(params?: Record<string, any>): Promise<Blob> {
+    const res = await apiClient.get('/analytics/export/csv', {
+      params,
+      responseType: 'blob'
+    });
     return res.data;
   },
 
@@ -1119,6 +1205,89 @@ export const apiService = {
     const res = await apiClient.post<MockInterviewChatResponse>('/interview/chat', payload);
     return res.data;
   },
+
+  // =========================================================================
+  // AI INTERVIEW PRACTICE STUDIO API
+  // =========================================================================
+  async startPracticeSession(payload: PracticeSessionCreatePayload): Promise<PracticeSessionDetail> {
+    const res = await apiClient.post<PracticeSessionDetail>('/interviews/practice/start', payload);
+    return res.data;
+  },
+
+  async submitPracticeAnswer(payload: PracticeAnswerSubmitPayload): Promise<PracticeSessionDetail> {
+    const res = await apiClient.post<PracticeSessionDetail>('/interviews/practice/answer', payload);
+    return res.data;
+  },
+
+  async finishPracticeSession(sessionId: string): Promise<PracticeSessionDetail> {
+    const res = await apiClient.post<PracticeSessionDetail>(`/interviews/practice/finish?session_id=${sessionId}`);
+    return res.data;
+  },
+
+  async getPracticeSession(sessionId: string): Promise<PracticeSessionDetail> {
+    const res = await apiClient.get<PracticeSessionDetail>(`/interviews/practice/session/${sessionId}`);
+    return res.data;
+  },
+
+  async getPracticeInterviewHistory(): Promise<PracticeSessionSummaryItem[]> {
+    const res = await apiClient.get<PracticeSessionSummaryItem[]>('/interviews/practice/history');
+    return res.data;
+  },
+
+  async abandonPracticeSession(sessionId: string): Promise<any> {
+    const res = await apiClient.post<any>(`/interviews/practice/abandon/${sessionId}`);
+    return res.data;
+  },
+
+  async deletePracticeSession(sessionId: string): Promise<{ status: string; message: string; session_id: string }> {
+    const res = await apiClient.delete<{ status: string; message: string; session_id: string }>(`/interviews/practice/${sessionId}`);
+    return res.data;
+  },
+
+  // =========================================================================
+  // OFFERS & JOINING WORKFLOW API
+  // =========================================================================
+  async createOffer(payload: any): Promise<any> {
+    const res = await apiClient.post<any>('/offers', payload);
+    return res.data;
+  },
+
+  async getOffers(params?: { drive_id?: string; status?: string; student_id?: string }): Promise<any[]> {
+    const res = await apiClient.get<any[]>('/offers', { params });
+    return res.data;
+  },
+
+  async getMyOffers(): Promise<any[]> {
+    const res = await apiClient.get<any[]>('/offers/me');
+    return res.data;
+  },
+
+  async getOfferDetail(offerId: string): Promise<any> {
+    const res = await apiClient.get<any>(`/offers/${offerId}`);
+    return res.data;
+  },
+
+  async respondToOffer(offerId: string, payload: {
+    action: 'ACCEPT' | 'DECLINE';
+    joining_date?: string;
+    preferred_location?: string;
+    emergency_contact_name?: string;
+    emergency_contact_phone?: string;
+    decline_reason?: string;
+    notes?: string;
+  }): Promise<any> {
+    const res = await apiClient.post<any>(`/offers/${offerId}/respond`, payload);
+    return res.data;
+  },
+
+  async confirmJoining(offerId: string, payload: {
+    reporting_venue_or_link?: string;
+    reporting_time?: string;
+    onboarding_notes?: string;
+  }): Promise<any> {
+    const res = await apiClient.post<any>(`/offers/${offerId}/confirm-joining`, payload);
+    return res.data;
+  },
 };
 
 export interface MockInterviewChatMessage {
@@ -1141,6 +1310,103 @@ export interface MockInterviewChatResponse {
   company?: string;
   experienceLevel?: string;
   status?: string;
+}
+
+export interface PracticeSessionCreatePayload {
+  company: string;
+  role: string;
+  job_description?: string;
+  interview_style: string;
+  topics: string[];
+  custom_topics?: string[];
+  experience_level: string;
+  difficulty: string;
+  total_questions: number;
+  mode: 'text' | 'video' | 'hybrid';
+  voice_gender?: string;
+  voice_accent?: string;
+  voice_id?: string;
+}
+
+export interface PracticeAnswerSubmitPayload {
+  session_id: string;
+  question_index: number;
+  answer_text: string;
+  transcript?: string;
+  audio_video_metadata?: Record<string, any>;
+  time_taken_seconds?: number;
+  is_skipped?: boolean;
+}
+
+export interface TopicScoreItem {
+  topic: string;
+  score: number;
+  feedback: string;
+}
+
+export interface PracticeSessionEvaluation {
+  overall_score: number;
+  technical_score: number;
+  communication_score: number;
+  problem_solving_score: number;
+  readiness_level: string;
+  topic_scores: TopicScoreItem[];
+  strengths: string[];
+  weaknesses: string[];
+  missed_concepts: string[];
+  recommendations: string[];
+  detailed_feedback: string;
+  suggested_next_topics: string[];
+  video_feedback?: Record<string, any>;
+}
+
+export interface PracticeQuestionItem {
+  question_index: number;
+  question_text: string;
+  topic: string;
+  question_type: string;
+  difficulty: string;
+}
+
+export interface PracticeAnswerItem {
+  question_index: number;
+  answer_text: string;
+  transcript?: string;
+  is_skipped: boolean;
+  time_taken_seconds: number;
+  audio_video_metadata?: Record<string, any>;
+  submitted_at: string;
+}
+
+export interface PracticeSessionDetail {
+  session_id: string;
+  student_id: string;
+  student_name?: string;
+  config: Record<string, any>;
+  status: 'IN_PROGRESS' | 'COMPLETED' | 'ABANDONED';
+  started_at: string;
+  completed_at?: string;
+  current_question_index: number;
+  total_questions: number;
+  questions: PracticeQuestionItem[];
+  answers: PracticeAnswerItem[];
+  current_question?: PracticeQuestionItem;
+  evaluation?: PracticeSessionEvaluation;
+}
+
+export interface PracticeSessionSummaryItem {
+  session_id: string;
+  student_id: string;
+  company: string;
+  role: string;
+  mode: string;
+  topics: string[];
+  status: string;
+  started_at: string;
+  completed_at?: string;
+  questions_count: number;
+  answers_count: number;
+  overall_score?: number;
 }
 
 

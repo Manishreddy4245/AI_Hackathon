@@ -11,6 +11,7 @@ from app.services.skill_matching_engine import calculate_skill_match
 from app.services.skill_gap_engine import generate_recommendation_text, aggregate_skill_gaps_across_drives
 from app.services.profile_completion_engine import calculate_profile_completion
 from app.services.opportunity_aggregator import get_ranked_opportunities_for_student
+from app.services.audit_service import record_audit_event
 
 router = APIRouter(prefix="/api/students", tags=["Students"])
 
@@ -368,9 +369,49 @@ async def _process_student_application(
         }
         await db.students.update_one({"id": student_id}, {"$set": student}, upsert=True)
 
-    # 2. Check Drive Existence (internal college drive or external company opportunity)
+    # 2. Check Drive Existence & Active State (internal college drive or external company opportunity)
     drive = await db.drives.find_one({"$or": [{"id": drive_id}, {"driveId": drive_id}]}, {"_id": 0})
     if drive:
+        # State check: Only active/announced/open drives can accept applications
+        drive_status = (drive.get("status") or "").upper()
+        if drive_status not in ["ACTIVE", "ANNOUNCED", "OPEN"]:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"This placement drive is currently not accepting applications (status: {drive.get('status')})."
+            )
+
+        # Deadline check
+        deadline_str = drive.get("deadline") or drive.get("driveDate")
+        if deadline_str:
+            try:
+                clean_deadline = str(deadline_str).split("T")[0]
+                d_dt = datetime.strptime(clean_deadline, "%Y-%m-%d")
+                d_end = d_dt.replace(hour=23, minute=59, second=59)
+                if datetime.now() > d_end:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="Registration for this placement drive has closed as the deadline has passed."
+                    )
+            except HTTPException:
+                raise
+            except Exception:
+                pass
+
+        # Authoritative Server-Side Eligibility Validation
+        student_eval_data = {
+            "cgpa": float(student.get("cgpa") if student.get("cgpa") is not None else (current_user.get("cgpa") or 0.0)),
+            "branch": str(student.get("branch") or current_user.get("branch") or ""),
+            "graduationYear": student.get("batch") or student.get("graduationYear") or current_user.get("graduationYear"),
+            "activeBacklogs": student.get("activeBacklogs") if student.get("activeBacklogs") is not None else (student.get("backlogs") or 0),
+        }
+        is_eligible, reasons, missing_reqs = evaluate_drive_eligibility(student_eval_data, drive)
+        if not is_eligible:
+            reasons_msg = "; ".join(reasons)
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Ineligible candidate: You do not meet the criteria for this drive. Reasons: {reasons_msg}"
+            )
+
         resolved_company_name = drive.get("companyName", company_name or "Company")
         resolved_job_title = drive.get("roleTitle", job_title or "Software Engineer")
         resolved_company_id = drive.get("companyId", company_id or "comp-1")
@@ -578,6 +619,15 @@ async def _process_student_application(
             "timestamp": datetime.now().strftime("%I:%M %p • %d %b %Y"),
             "created_at": now_iso
         })
+
+    await record_audit_event(
+        db=db,
+        user=current_user,
+        action="APPLICATION_SUBMITTED",
+        entity="Application",
+        entity_id=app_id,
+        detail=f"Student {submitted_name} submitted application for {resolved_job_title} at {resolved_company_name}."
+    )
 
     return {
         "status": "ok",

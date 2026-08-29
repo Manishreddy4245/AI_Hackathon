@@ -61,7 +61,11 @@ async def get_current_user(request: Request, authorization: Optional[str] = Head
         "email": payload.get("email"),
         "role": payload.get("role"),
         "name": payload.get("name", "User"),
-        "companyId": payload.get("companyId"),
+        "companyId": payload.get("companyId") or payload.get("company_id"),
+        "company_id": payload.get("company_id") or payload.get("companyId"),
+        "company": payload.get("company") or payload.get("company_name") or payload.get("companyName"),
+        "company_name": payload.get("company_name") or payload.get("company") or payload.get("companyName"),
+        "companyName": payload.get("companyName") or payload.get("company") or payload.get("company_name"),
     }
 
 async def get_optional_current_user(request: Request, authorization: Optional[str] = Header(None)) -> Optional[Dict[str, Any]]:

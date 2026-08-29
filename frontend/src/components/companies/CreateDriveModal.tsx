@@ -16,6 +16,7 @@ import {
   MapPin,
   Briefcase,
   Calendar,
+  FileText,
 } from 'lucide-react';
 import { PlacementDrive } from '../../types';
 import { Button } from '../ui/Button';
@@ -38,25 +39,17 @@ export const CreateDriveModal: React.FC<CreateDriveModalProps> = ({
   onDriveUpdated,
 }) => {
   const { user } = useAuth();
-  const [step, setStep] = useState<'form' | 'analyzing' | 'review'>('form');
 
-  // Recruiter Form Inputs
+  // Primary Raw Input States
   const [companyName, setCompanyName] = useState('');
   const [roleTitle, setRoleTitle] = useState('');
   const [jobDescription, setJobDescription] = useState('');
   const [location, setLocation] = useState('');
   const [packageLpa, setPackageLpa] = useState<number>(0);
-  const [employmentType, setEmploymentType] = useState<'Full-time' | 'Internship' | 'PPO'>('Full-time');
+  const [employmentType, setEmploymentType] = useState<'Full-time' | 'Internship' | 'Contract'>('Full-time');
   const [deadline, setDeadline] = useState('');
 
-  // AI Extraction State strictly derived from Raw Text
-  const [lastAnalyzedText, setLastAnalyzedText] = useState<string>('');
-  const [hasAnalyzed, setHasAnalyzed] = useState(false);
-  const [analysisError, setAnalysisError] = useState<string | null>(null);
-  const [analysisStatusText, setAnalysisStatusText] = useState('AI is analyzing the current raw job description...');
-
-  // Extracted AI Requirements State (Editable by Recruiter)
-  const [isEditingRequirements, setIsEditingRequirements] = useState(false);
+  // Structured / Extracted Requirements States
   const [extractedMinCgpa, setExtractedMinCgpa] = useState<number>(0);
   const [extractedGradYear, setExtractedGradYear] = useState<number | null>(null);
   const [extractedGradYears, setExtractedGradYears] = useState<number[]>([]);
@@ -65,37 +58,106 @@ export const CreateDriveModal: React.FC<CreateDriveModalProps> = ({
   const [extractedPreferredSkills, setExtractedPreferredSkills] = useState<string[]>([]);
   const [extractedExplanation, setExtractedExplanation] = useState<string>('');
   const [extractedSummary, setExtractedSummary] = useState<string>('');
+
+  // Modal Flow & Analysis State
+  const [step, setStep] = useState<'form' | 'analyzing' | 'review'>('form');
+  const [hasAnalyzed, setHasAnalyzed] = useState(false);
+  const [lastAnalyzedText, setLastAnalyzedText] = useState('');
+  const [analysisError, setAnalysisError] = useState<string | null>(null);
+  const [analysisStatusText, setAnalysisStatusText] = useState('AI is analyzing the current raw job description...');
+  const [isEditingRequirements, setIsEditingRequirements] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+
+  // Helper inputs for adding new items in review step
   const [newSkillInput, setNewSkillInput] = useState('');
+  const [newPrefSkillInput, setNewPrefSkillInput] = useState('');
   const [newBranchInput, setNewBranchInput] = useState('');
   const [newGradYearInput, setNewGradYearInput] = useState('');
 
-  // Race condition & request cancellation protection
-  const latestRequestIdRef = useRef<number>(0);
   const abortControllerRef = useRef<AbortController | null>(null);
+  const latestRequestIdRef = useRef<number>(0);
 
   // Initialize or reset state when modal opens or initialDrive changes
   useEffect(() => {
     if (!isOpen) return;
 
     if (initialDrive) {
-      setCompanyName(initialDrive.companyName || '');
-      setRoleTitle(initialDrive.roleTitle || '');
-      setJobDescription(initialDrive.description || '');
-      setLocation(initialDrive.location || '');
-      setPackageLpa(initialDrive.packageLpa || 0);
-      setEmploymentType(initialDrive.employmentType || 'Full-time');
-      setDeadline(initialDrive.deadline || initialDrive.driveDate || '');
-      setExtractedMinCgpa(initialDrive.minCgpa ?? 0);
-      setExtractedGradYear(initialDrive.graduationYear ?? null);
-      setExtractedGradYears(initialDrive.graduationYears || (initialDrive.graduationYear ? [initialDrive.graduationYear] : []));
-      setExtractedBranches(initialDrive.eligibleBranches || []);
-      setExtractedRequiredSkills(initialDrive.requiredSkills || []);
-      setExtractedPreferredSkills(initialDrive.preferredSkills || []);
-      setExtractedExplanation(initialDrive.aiExplanation || '');
-      setLastAnalyzedText(initialDrive.description || '');
-      setHasAnalyzed(Boolean(initialDrive.description && initialDrive.requiredSkills?.length));
+      const d: any = initialDrive;
+      const comp = d.companyName || d.company_name || d.company || d.name || user?.companyName || (user?.role === 'recruiter' && user?.name && !user.name.toLowerCase().includes('demo') ? user.name : '') || '';
+      const role = d.roleTitle || d.role_title || d.job_title || d.title || d.role || d.designation || '';
+      let desc = d.description || d.rawText || d.raw_text || d.job_description || d.jobDescription || d.jd_text || d.jdText || '';
+      const loc = d.location || d.job_location || d.jobLocation || d.city || '';
+      const pkg = d.packageLpa ?? d.package_lpa ?? d.ctc ?? d.package ?? d.salary ?? 0;
+      const empType = d.employmentType || d.employment_type || d.type || 'Full-time';
+      const dead = d.deadline || d.applicationDeadline || d.application_deadline || d.driveDate || d.drive_date || d.endDate || d.end_date || '';
+      const cgpa = d.minCgpa ?? d.min_cgpa ?? d.cgpa_cutoff ?? d.cgpaCutoff ?? d.cgpa ?? 0;
+      const gradYear = d.graduationYear ?? d.graduation_year ?? d.grad_year ?? d.batch ?? null;
+      const gradYears = d.graduationYears || d.graduation_years || (gradYear ? [gradYear] : []);
+      const branches = d.eligibleBranches || d.eligible_branches || d.branches || d.department || d.departments || [];
+      const reqSkills = d.requiredSkills || d.required_skills || d.skills || d.technical_skills || [];
+      const prefSkills = d.preferredSkills || d.preferred_skills || d.good_to_have_skills || d.goodToHaveSkills || [];
+      const aiExp = d.aiExplanation || d.ai_explanation || d.explanation || '';
+
+      // If raw description is empty, synthesize a descriptive summary so the edit textarea is never blank
+      if (!desc.trim()) {
+        const parts = [];
+        if (role) parts.push(`Role: ${role}${comp ? ` at ${comp}` : ''}`);
+        if (loc) parts.push(`Location: ${loc}`);
+        if (pkg) parts.push(`Package: ₹${pkg} LPA`);
+        if (cgpa) parts.push(`Minimum CGPA: ${cgpa}`);
+        if (branches.length) parts.push(`Eligible Branches: ${branches.join(', ')}`);
+        if (gradYears.length) parts.push(`Graduation Batch: ${gradYears.join(', ')}`);
+        if (reqSkills.length) parts.push(`Required Skills: ${reqSkills.join(', ')}`);
+        if (prefSkills.length) parts.push(`Preferred Skills: ${prefSkills.join(', ')}`);
+        desc = parts.join('\n');
+      }
+
+      setCompanyName(comp);
+      setRoleTitle(role);
+      setJobDescription(desc);
+      setLocation(loc);
+      setPackageLpa(pkg);
+      setEmploymentType(empType as any);
+      setDeadline(dead);
+      setExtractedMinCgpa(cgpa);
+      setExtractedGradYear(gradYear);
+      setExtractedGradYears(gradYears);
+      setExtractedBranches(branches);
+      setExtractedRequiredSkills(reqSkills);
+      setExtractedPreferredSkills(prefSkills);
+      setExtractedExplanation(aiExp);
+      setLastAnalyzedText(desc);
+      setHasAnalyzed(Boolean(reqSkills.length > 0 || branches.length > 0 || cgpa > 0));
       setStep('form');
       setAnalysisError(null);
+
+      // Asynchronously fetch complete document from backend to ensure deep consistency
+      if (d.id) {
+        apiService.getDrive(d.id).then((fullDrive: any) => {
+          if (!fullDrive) return;
+          const fullComp = fullDrive.companyName || fullDrive.company_name || fullDrive.company;
+          const fullRole = fullDrive.roleTitle || fullDrive.role_title || fullDrive.job_title;
+          const fullDesc = fullDrive.description || fullDrive.rawText || fullDrive.raw_text;
+          const fullLoc = fullDrive.location;
+          const fullPkg = fullDrive.packageLpa ?? fullDrive.package_lpa;
+          const fullDead = fullDrive.deadline || fullDrive.applicationDeadline || fullDrive.driveDate;
+          const fullCgpa = fullDrive.minCgpa ?? fullDrive.min_cgpa;
+          const fullBranches = fullDrive.eligibleBranches || fullDrive.eligible_branches;
+          const fullReqSkills = fullDrive.requiredSkills || fullDrive.required_skills;
+          const fullPrefSkills = fullDrive.preferredSkills || fullDrive.preferred_skills;
+
+          if (fullComp) setCompanyName(fullComp);
+          if (fullRole) setRoleTitle(fullRole);
+          if (fullDesc && fullDesc.trim()) setJobDescription(fullDesc);
+          if (fullLoc) setLocation(fullLoc);
+          if (fullPkg != null) setPackageLpa(fullPkg);
+          if (fullDead) setDeadline(fullDead);
+          if (fullCgpa != null) setExtractedMinCgpa(fullCgpa);
+          if (fullBranches?.length) setExtractedBranches(fullBranches);
+          if (fullReqSkills?.length) setExtractedRequiredSkills(fullReqSkills);
+          if (fullPrefSkills?.length) setExtractedPreferredSkills(fullPrefSkills);
+        }).catch(() => {});
+      }
     } else {
       // Clean slate for creating a new drive
       const initialCompany = user?.companyName || (user?.role === 'recruiter' && user?.name && !user.name.toLowerCase().includes('demo') ? user.name : '');
@@ -249,16 +311,15 @@ export const CreateDriveModal: React.FC<CreateDriveModalProps> = ({
     setExtractedPreferredSkills(extractedPreferredSkills.filter((s) => s !== skill));
   };
 
-  const handleSaveDraft = () => {
+  const handleSaveDraft = async () => {
     const rawText = jobDescription.trim();
     if (!rawText) {
       setAnalysisError('Please enter a job description to save draft.');
       return;
     }
 
-    const drivePayload: PlacementDrive = {
-      id: initialDrive?.id || `drive-${Date.now()}`,
-      companyId: initialDrive?.companyId || `comp-${Date.now()}`,
+    const initD: any = initialDrive;
+    const drivePayload: any = {
       companyName: companyName.trim() || 'Company',
       companyLogo: (companyName.trim() || 'CO').substring(0, 2).toUpperCase(),
       roleTitle: roleTitle.trim() || 'Placement Role (Draft)',
@@ -270,26 +331,35 @@ export const CreateDriveModal: React.FC<CreateDriveModalProps> = ({
       graduationYear: extractedGradYears[0],
       graduationYears: extractedGradYears,
       driveDate: deadline,
-      status: 'draft',
-      registeredCount: initialDrive?.registeredCount || 0,
-      shortlistedCount: initialDrive?.shortlistedCount || 0,
-      selectedCount: initialDrive?.selectedCount || 0,
+      status: 'DRAFT',
+      registeredCount: initD?.registeredCount ?? initD?.registered_count ?? 0,
+      shortlistedCount: initD?.shortlistedCount ?? initD?.shortlisted_count ?? 0,
+      selectedCount: initD?.selectedCount ?? initD?.selected_count ?? 0,
       deadline,
       description: rawText,
       requiredSkills: extractedRequiredSkills,
       preferredSkills: extractedPreferredSkills,
       aiConfirmed: false,
-      recruiter_id: initialDrive?.recruiter_id || user?.id,
-      recruiter_email: initialDrive?.recruiter_email || user?.email,
-      created_at: initialDrive?.created_at || new Date().toISOString(),
+      recruiter_id: initD?.recruiter_id ?? initD?.recruiterId ?? user?.id,
+      recruiter_email: initD?.recruiter_email ?? initD?.recruiterEmail ?? user?.email,
     };
 
-    if (initialDrive && onDriveUpdated) {
-      onDriveUpdated(drivePayload);
-    } else {
-      onDriveCreated(drivePayload);
+    setIsSaving(true);
+    try {
+      let savedDrive: PlacementDrive;
+      if (initialDrive && initialDrive.id) {
+        savedDrive = await apiService.updateDrive(initialDrive.id, drivePayload);
+        if (onDriveUpdated) onDriveUpdated(savedDrive);
+      } else {
+        savedDrive = await apiService.createDrive(drivePayload);
+        if (onDriveCreated) onDriveCreated(savedDrive);
+      }
+      onClose();
+    } catch (err: any) {
+      setAnalysisError(err?.response?.data?.detail || err?.message || 'Failed to save draft.');
+    } finally {
+      setIsSaving(false);
     }
-    onClose();
   };
 
   const handleConfirmRequirements = async () => {
@@ -300,9 +370,8 @@ export const CreateDriveModal: React.FC<CreateDriveModalProps> = ({
       return;
     }
 
-    const drivePayload: PlacementDrive = {
-      id: initialDrive?.id || `drive-${Date.now()}`,
-      companyId: initialDrive?.companyId || `comp-${Date.now()}`,
+    const initD: any = initialDrive;
+    const drivePayload: any = {
       companyName: companyName.trim() || 'Company',
       companyLogo: (companyName.trim() || 'CO').substring(0, 2).toUpperCase(),
       roleTitle: roleTitle.trim() || 'Campus Placement Opportunity',
@@ -314,37 +383,43 @@ export const CreateDriveModal: React.FC<CreateDriveModalProps> = ({
       graduationYear: extractedGradYears[0],
       graduationYears: extractedGradYears,
       driveDate: deadline,
-      status: (initialDrive?.status || 'PENDING_APPROVAL') as any,
-      registeredCount: initialDrive?.registeredCount || 0,
-      shortlistedCount: initialDrive?.shortlistedCount || 0,
-      selectedCount: initialDrive?.selectedCount || 0,
+      status: 'SUBMITTED_TO_OFFICER',
+      registeredCount: initD?.registeredCount ?? initD?.registered_count ?? 0,
+      shortlistedCount: initD?.shortlistedCount ?? initD?.shortlisted_count ?? 0,
+      selectedCount: initD?.selectedCount ?? initD?.selected_count ?? 0,
       deadline,
       description: rawText,
       requiredSkills: extractedRequiredSkills,
       preferredSkills: extractedPreferredSkills,
       aiExplanation: extractedExplanation || `Requirements extracted strictly from the recruiter-provided job description for ${roleTitle}.`,
       aiConfirmed: true,
-      recruiter_id: initialDrive?.recruiter_id || user?.id,
-      recruiter_email: initialDrive?.recruiter_email || user?.email,
-      created_at: initialDrive?.created_at || new Date().toISOString(),
-      pipeline: initialDrive?.pipeline || {
-        eligible: 150,
-        applied: 0,
-        shortlisted: 0,
-        interview: 0,
-        selected: 0,
-      },
+      recruiter_id: initD?.recruiter_id ?? initD?.recruiterId ?? user?.id,
+      recruiter_email: initD?.recruiter_email ?? initD?.recruiterEmail ?? user?.email,
     };
 
+    setIsSaving(true);
     try {
-      if (initialDrive && onDriveUpdated) {
-        onDriveUpdated(drivePayload);
+      let savedDrive: PlacementDrive;
+      if (initialDrive && initialDrive.id) {
+        savedDrive = await apiService.updateDrive(initialDrive.id, drivePayload);
+        const currSt = (initialDrive.status || '').toUpperCase();
+        if (currSt !== 'ACTIVE' && currSt !== 'ANNOUNCED') {
+          try {
+            savedDrive = await apiService.submitDriveToOfficer(initialDrive.id);
+          } catch {
+            // Already submitted or updated
+          }
+        }
+        if (onDriveUpdated) onDriveUpdated(savedDrive);
       } else {
-        onDriveCreated(drivePayload);
+        savedDrive = await apiService.createDrive(drivePayload);
+        if (onDriveCreated) onDriveCreated(savedDrive);
       }
       onClose();
     } catch (err: any) {
-      setAnalysisError(err?.message || 'Failed to save confirmed placement drive.');
+      setAnalysisError(err?.response?.data?.detail || err?.message || 'Failed to submit placement drive.');
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -380,6 +455,37 @@ export const CreateDriveModal: React.FC<CreateDriveModalProps> = ({
             <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 text-xs flex items-center gap-2">
               <AlertCircle className="w-4 h-4 flex-shrink-0" />
               <span>{analysisError}</span>
+            </div>
+          )}
+
+          {/* Step Navigation Tabs for Existing Drive */}
+          {initialDrive && (
+            <div className="flex items-center gap-2 p-1 bg-[#101D31] border border-[#243650] rounded-xl">
+              <button
+                type="button"
+                onClick={() => setStep('form')}
+                className={`flex-1 py-2 px-3 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                  step === 'form'
+                    ? 'bg-[#3B82F6] text-white shadow-sm'
+                    : 'text-[#CBD5E1] hover:text-white hover:bg-[#1E293B]'
+                }`}
+              >
+                <FileText className="w-3.5 h-3.5" /> 1. Job Description & Details
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setHasAnalyzed(true);
+                  setStep('review');
+                }}
+                className={`flex-1 py-2 px-3 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                  step === 'review'
+                    ? 'bg-[#3B82F6] text-white shadow-sm'
+                    : 'text-[#CBD5E1] hover:text-white hover:bg-[#1E293B]'
+                }`}
+              >
+                <Sparkles className="w-3.5 h-3.5" /> 2. Extracted Criteria ({extractedRequiredSkills.length} skills, {extractedBranches.length} branches)
+              </button>
             </div>
           )}
 

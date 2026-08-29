@@ -39,6 +39,26 @@ class InterviewAvailabilitySchema(BaseModel):
     created_at: Optional[str] = None
     updated_at: Optional[str] = None
 
+class InterviewAvailabilityCheckRequest(BaseModel):
+    candidate_id: Optional[str] = None
+    candidate_name: Optional[str] = None
+    panel_id: Optional[str] = None
+    panel_name: Optional[str] = None
+    room_id: Optional[str] = None
+    room_name: Optional[str] = None
+    date: str
+    time_slot: Optional[str] = None
+    start_time: Optional[str] = None
+    end_time: Optional[str] = None
+    duration: Optional[str] = "45 mins"
+
+class InterviewAvailabilityCheckResponse(BaseModel):
+    available: bool
+    candidate_available: bool
+    panel_available: bool
+    room_available: bool
+    conflict: Optional[str] = None
+
 class InterviewSchema(BaseModel):
     id: str
     driveId: Optional[str] = None
@@ -51,13 +71,13 @@ class InterviewSchema(BaseModel):
 
     round: str
     timeSlot: str
-    startTime: str
-    endTime: str
+    startTime: Optional[str] = None
+    endTime: Optional[str] = None
     date: str
     panelId: Optional[str] = None
-    panelName: str
+    panelName: Optional[str] = "Interview Panel"
     roomId: Optional[str] = None
-    roomName: str
+    roomName: Optional[str] = "Interview Room"
     status: str
     panelConfirmed: bool
     conflictNote: Optional[str] = None
@@ -76,10 +96,14 @@ class InterviewCreate(BaseModel):
     endTime: Optional[str] = None
     date: str
     panelId: Optional[str] = None
-    panelName: str
+    panel_id: Optional[str] = None
+    panelName: Optional[str] = None
+    panel_name: Optional[str] = None
     panelMembers: Optional[List[str]] = Field(default_factory=list)
     roomId: Optional[str] = None
-    roomName: str
+    room_id: Optional[str] = None
+    roomName: Optional[str] = None
+    room_name: Optional[str] = None
     block: Optional[str] = None
     roomNumber: Optional[str] = None
     driveId: Optional[str] = None
@@ -90,9 +114,10 @@ class InterviewRescheduleRequest(BaseModel):
     timeSlot: Optional[str] = None
     panelName: Optional[str] = None
     roomName: Optional[str] = None
+    panelId: Optional[str] = None
+    roomId: Optional[str] = None
     new_slot_id: Optional[str] = None
 
 class InterviewStatusUpdateRequest(BaseModel):
     status: Optional[str] = None
     status_val: Optional[str] = None
-
