@@ -187,10 +187,13 @@ export interface FormSubmission {
   status: string;
 }
 
-const API_BASE_URL = (import.meta as any).env?.VITE_API_URL || 'http://localhost:8000/api';
+const API_BASE_URL = import.meta.env.VITE_API_URL || "https://ai-hackathon-3-j57k.onrender.com";
+const NORMALIZED_API_URL = API_BASE_URL.replace(/\/+$/, '').endsWith('/api')
+  ? API_BASE_URL.replace(/\/+$/, '')
+  : `${API_BASE_URL.replace(/\/+$/, '')}/api`;
 
 export const apiClient = axios.create({
-  baseURL: API_BASE_URL,
+  baseURL: NORMALIZED_API_URL,
   withCredentials: true,
   headers: {
     'Content-Type': 'application/json',
@@ -251,7 +254,7 @@ apiClient.interceptors.response.use(
       try {
         const storedRefreshToken = localStorage.getItem('placemind_refresh_token');
         const res = await axios.post(
-          `${API_BASE_URL}/auth/refresh`,
+          `${NORMALIZED_API_URL}/auth/refresh`,
           { refreshToken: storedRefreshToken || undefined },
           { withCredentials: true }
         );
