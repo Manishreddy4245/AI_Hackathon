@@ -78,31 +78,31 @@ export const CompanySkillGapModal: React.FC<CompanySkillGapModalProps> = ({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fadeIn"
+      className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/80 backdrop-blur-sm animate-fadeIn overflow-y-auto"
       onClick={onClose}
     >
       <div
-        className="relative w-full max-w-2xl max-h-[90vh] overflow-y-auto bg-[#0F172A] border border-[#243650] rounded-2xl shadow-2xl text-[#F8FAFC]"
+        className="relative w-full max-w-2xl max-h-[94vh] sm:max-h-[90vh] flex flex-col bg-[#0F172A] border border-[#243650] rounded-2xl shadow-2xl text-[#F8FAFC] my-auto overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Modal Header */}
-        <div className="sticky top-0 z-10 flex items-center justify-between p-5 bg-[#101D31]/95 backdrop-blur border-b border-[#243650]">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-[#3B82F6]/10 border border-[#3B82F6]/30 flex items-center justify-center text-[#60A5FA]">
+        <div className="shrink-0 flex items-center justify-between p-4 sm:p-5 bg-[#101D31]/95 backdrop-blur border-b border-[#243650] gap-3">
+          <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-[#3B82F6]/10 border border-[#3B82F6]/30 flex items-center justify-center text-[#60A5FA] shrink-0">
               <Target className="w-5 h-5 text-[#3B82F6]" />
             </div>
-            <div>
-              <h2 className="text-base font-bold text-[#F8FAFC]">
+            <div className="min-w-0">
+              <h2 className="text-sm sm:text-base font-bold text-[#F8FAFC] truncate">
                 {data ? `${data.company} — Skill Gap Analysis` : 'Loading Skill Gap...'}
               </h2>
-              <p className="text-xs text-[#94A3B8] font-medium">
+              <p className="text-[11px] sm:text-xs text-[#94A3B8] font-medium truncate">
                 {data ? `${data.role} • ${data.source_label}` : 'Target Opportunity Breakdown'}
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-lg text-[#94A3B8] hover:text-white hover:bg-[#1E293B] transition-colors cursor-pointer"
+            className="p-1.5 rounded-lg text-[#94A3B8] hover:text-white hover:bg-[#1E293B] transition-colors cursor-pointer shrink-0 min-h-[36px] min-w-[36px] flex items-center justify-center"
             aria-label="Close modal"
           >
             <X className="w-5 h-5" />
@@ -110,7 +110,7 @@ export const CompanySkillGapModal: React.FC<CompanySkillGapModalProps> = ({
         </div>
 
         {/* Modal Content */}
-        <div className="p-6 space-y-6">
+        <div className="p-4 sm:p-6 space-y-4 sm:space-y-6 overflow-y-auto flex-1 min-h-0">
           {loading ? (
             <div className="min-h-[30vh] flex flex-col items-center justify-center gap-3 text-[#94A3B8]">
               <Loader2 className="w-8 h-8 animate-spin text-[#3B82F6]" />

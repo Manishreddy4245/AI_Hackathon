@@ -424,26 +424,27 @@ export const CreateDriveModal: React.FC<CreateDriveModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-[#0B1628] border border-[#243650] rounded-2xl w-full max-w-3xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden">
+    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
+      <div className="bg-[#0B1628] border border-[#243650] rounded-2xl w-full max-w-3xl max-h-[94vh] sm:max-h-[90vh] flex flex-col shadow-2xl overflow-hidden my-auto">
         {/* Modal Header */}
-        <div className="flex items-center justify-between p-4 border-b border-[#243650] bg-[#101D31]">
-          <div className="flex items-center gap-2.5">
-            <div className="p-2 rounded-xl bg-[rgba(59,130,246,0.15)] text-[#60A5FA] border border-[rgba(59,130,246,0.30)]">
+        <div className="shrink-0 flex items-center justify-between p-3.5 sm:p-4 border-b border-[#243650] bg-[#101D31] gap-3">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="p-2 rounded-xl bg-[rgba(59,130,246,0.15)] text-[#60A5FA] border border-[rgba(59,130,246,0.30)] shrink-0">
               <Sparkles className="w-5 h-5" />
             </div>
-            <div>
-              <h3 className="text-sm font-bold text-[#F8FAFC]">
+            <div className="min-w-0">
+              <h3 className="text-sm font-bold text-[#F8FAFC] truncate">
                 {initialDrive ? 'Edit Placement Drive Requirements' : 'Create Campus Placement Drive'}
               </h3>
-              <p className="text-[11px] text-[#94A3B8]">
+              <p className="text-[10px] sm:text-[11px] text-[#94A3B8] truncate">
                 Driven strictly by recruiter raw text & dynamic AI requirement extraction
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-lg text-[#94A3B8] hover:text-[#F8FAFC] hover:bg-[#1E293B] transition-colors cursor-pointer"
+            aria-label="Close"
+            className="p-1.5 rounded-lg text-[#94A3B8] hover:text-[#F8FAFC] hover:bg-[#1E293B] transition-colors cursor-pointer shrink-0 min-h-[36px] min-w-[36px] flex items-center justify-center"
           >
             <X className="w-4 h-4" />
           </button>

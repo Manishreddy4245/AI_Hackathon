@@ -221,3 +221,18 @@
   color: #F8FAFC !important;
   backdrop-filter: blur(8px) !important;
 }
+
+/* RESPONSIVE HELPERS */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.break-words-safe {
+  overflow-wrap: break-word;
+  word-break: break-word;
+}
+

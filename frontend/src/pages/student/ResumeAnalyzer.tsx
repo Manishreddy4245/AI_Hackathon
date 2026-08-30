@@ -258,17 +258,17 @@ export const ResumeAnalyzer: React.FC = () => {
             </div>
           </div>
         ) : (
-          <div className="p-4 bg-slate-950/80 border border-slate-800 rounded-xl flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-indigo-600 text-white flex items-center justify-center font-bold text-xs uppercase">
+          <div className="p-3.5 sm:p-4 bg-slate-950/80 border border-slate-800 rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-10 h-10 rounded-lg bg-indigo-600 text-white flex items-center justify-center font-bold text-xs uppercase shrink-0">
                 {selectedFile.name.split('.').pop()}
               </div>
-              <div>
-                <p className="text-sm font-bold text-white">{selectedFile.name}</p>
+              <div className="min-w-0">
+                <p className="text-sm font-bold text-white truncate max-w-xs sm:max-w-md">{selectedFile.name}</p>
                 <p className="text-xs text-slate-400">{formatFileSize(selectedFile.size)}</p>
               </div>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
               <Button
                 variant="outline"
                 size="sm"
@@ -300,11 +300,11 @@ export const ResumeAnalyzer: React.FC = () => {
 
       {/* ANALYSIS PROCESSING STATE (PART 1 STEP STATE) */}
       {isAnalyzing && (
-        <Card className="p-6 bg-slate-900 text-white space-y-6">
+        <Card className="p-4 sm:p-6 bg-slate-900 text-white space-y-4 sm:space-y-6">
           <div className="flex items-center gap-3">
-            <Loader2 className="w-6 h-6 text-brand-400 animate-spin" />
+            <Loader2 className="w-6 h-6 text-brand-400 animate-spin shrink-0" />
             <div>
-              <h3 className="text-base font-bold text-white">AI Processing Engine Active</h3>
+              <h3 className="text-sm sm:text-base font-bold text-white">AI Processing Engine Active</h3>
               <p className="text-xs text-slate-400">Performing structured extraction and drive matching</p>
             </div>
           </div>
@@ -317,7 +317,7 @@ export const ResumeAnalyzer: React.FC = () => {
               return (
                 <div key={idx} className="flex items-center gap-3 text-xs">
                   <div
-                    className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${
+                    className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 ${
                       isDone
                         ? 'bg-emerald-500 text-white'
                         : isCurrent
@@ -350,11 +350,11 @@ export const ResumeAnalyzer: React.FC = () => {
         <>
           {/* PROFILE UPDATED CONFIRMATION BANNER */}
           <div className="p-4 bg-[rgba(34,197,94,0.10)] border border-[rgba(34,197,94,0.30)] rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-[#86EFAC] shadow-lg">
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 min-w-0">
               <div className="w-10 h-10 rounded-xl bg-[rgba(34,197,94,0.15)] flex items-center justify-center shrink-0">
                 <CheckCircle2 className="w-6 h-6 text-[#22C55E]" />
               </div>
-              <div>
+              <div className="min-w-0">
                 <h4 className="text-sm font-bold text-[#F8FAFC]">Resume Analysis Complete &amp; Profile Updated</h4>
                 <p className="text-xs text-[#CBD5E1] font-medium mt-0.5">
                   Your extracted technical skills, projects, and readiness score have been synchronized to your student profile. Placement drive applications are now unlocked!
@@ -365,7 +365,7 @@ export const ResumeAnalyzer: React.FC = () => {
               <Button
                 variant="primary"
                 size="sm"
-                className="text-xs py-2 px-3.5"
+                className="text-xs py-2 px-3.5 w-full sm:w-auto"
                 onClick={() => navigate('/student/drives')}
               >
                 View Eligible Drives &rarr;
@@ -373,9 +373,9 @@ export const ResumeAnalyzer: React.FC = () => {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 sm:gap-4">
             {/* Readiness Score */}
-            <Card className="p-5 flex items-center gap-4 text-white">
+            <Card className="p-4 sm:p-5 flex items-center gap-4 text-white">
               <div className="relative w-14 h-14 flex items-center justify-center shrink-0">
                 <svg className="w-14 h-14 transform -rotate-90">
                   <circle cx="28" cy="28" r="22" stroke="#1e293b" strokeWidth="4" fill="transparent" />
@@ -401,11 +401,11 @@ export const ResumeAnalyzer: React.FC = () => {
             </Card>
 
             {/* Top Company Match */}
-            <Card className="p-5 flex items-center gap-4 text-white">
+            <Card className="p-4 sm:p-5 flex items-center gap-4 text-white">
               <div className="w-10 h-10 rounded-xl bg-indigo-950 text-indigo-300 border border-indigo-800 flex items-center justify-center font-black text-sm shrink-0">
                 {topMatch?.company_logo || 'TN'}
               </div>
-              <div>
+              <div className="min-w-0">
                 <span className="text-xs font-semibold text-slate-400 block">Top Company Match</span>
                 <span className="text-sm font-bold text-white truncate block">
                   {topMatch ? topMatch.company : 'N/A'}
@@ -417,7 +417,7 @@ export const ResumeAnalyzer: React.FC = () => {
             </Card>
 
             {/* Eligible Drives */}
-            <Card className="p-5 flex items-center gap-4 text-white">
+            <Card className="p-4 sm:p-5 flex items-center gap-4 text-white">
               <div className="w-10 h-10 rounded-xl bg-emerald-950 text-emerald-300 border border-emerald-800 flex items-center justify-center shrink-0">
                 <ShieldCheck className="w-5 h-5" />
               </div>
@@ -429,7 +429,7 @@ export const ResumeAnalyzer: React.FC = () => {
             </Card>
 
             {/* Total Skill Gaps */}
-            <Card className="p-5 flex items-center gap-4 text-white">
+            <Card className="p-4 sm:p-5 flex items-center gap-4 text-white">
               <div className="w-10 h-10 rounded-xl bg-amber-950 text-amber-300 border border-amber-800 flex items-center justify-center shrink-0">
                 <Code className="w-5 h-5" />
               </div>

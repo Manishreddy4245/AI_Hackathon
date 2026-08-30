@@ -1,9 +1,29 @@
 import asyncio
 import logging
 from typing import Optional, Any, List, Dict
-import mongomock
 from pymongo import AsyncMongoClient
 from app.core.config import settings
+import os
+from pymongo import MongoClient
+
+# Safe import for mongomock (agar nahi milega toh error nahi aayega)
+try:
+    import mongomock
+except ImportError:
+    mongomock = None
+
+# Check karein ki app local testing mein hai ya Render (production) par
+TESTING = os.getenv("TESTING", "false").lower() == "true"
+
+if TESTING and mongomock is not None:
+    # Testing mode mein mock database use hoga
+    client = mongomock.MongoClient()
+else:
+    # Production / Render par real MongoDB connection use hoga
+    MONGO_URL = os.getenv("MONGO_URL", "mongodb://localhost:27017")
+    client = MongoClient(MONGO_URL)
+
+db = client.get_database("dipeshkumarvu98_db_user")  # Yahan apna database name daalein
 
 logger = logging.getLogger("placemind.db")
 

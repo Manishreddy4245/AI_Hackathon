@@ -490,23 +490,23 @@ export const AptitudeTestView: React.FC = () => {
 
       {/* CONFIRMATION MODAL */}
       {isSubmitModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
-          <div className="bg-[#0B1628] rounded-2xl p-6 max-w-md w-full border border-[#243650] space-y-4 text-[#F8FAFC]">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/70 backdrop-blur-sm overflow-y-auto">
+          <div className="bg-[#0B1628] rounded-2xl p-4 sm:p-6 max-w-md w-full border border-[#243650] space-y-4 text-[#F8FAFC] my-auto">
             <div className="flex items-center gap-3 text-emerald-400">
-              <Send className="w-6 h-6" />
+              <Send className="w-6 h-6 shrink-0" />
               <h3 className="text-base font-bold text-white">Confirm Test Submission</h3>
             </div>
             <p className="text-xs text-[#CBD5E1] leading-relaxed">
               You have answered <strong className="text-emerald-400">{answeredCount}</strong> of <strong className="text-white">{totalQ}</strong> questions. Are you sure you want to submit your aptitude test?
             </p>
-            <div className="flex justify-end gap-3 pt-2">
-              <Button variant="outline" size="sm" onClick={() => setIsSubmitModalOpen(false)}>
+            <div className="flex flex-col-reverse sm:flex-row justify-end gap-2.5 sm:gap-3 pt-2">
+              <Button variant="outline" size="sm" onClick={() => setIsSubmitModalOpen(false)} className="w-full sm:w-auto">
                 Continue Test
               </Button>
               <Button
                 variant="primary"
                 size="sm"
-                className="bg-emerald-600 hover:bg-emerald-500 text-white"
+                className="bg-emerald-600 hover:bg-emerald-500 text-white w-full sm:w-auto"
                 disabled={submitting}
                 onClick={() => handleFinalSubmit(false)}
               >

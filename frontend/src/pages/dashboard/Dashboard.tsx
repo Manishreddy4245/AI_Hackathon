@@ -314,7 +314,7 @@ export const Dashboard: React.FC = () => {
           </Button>
         </CardHeader>
         <CardContent className="p-0 pt-6">
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-4 perspective-1000">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3.5 sm:gap-4 perspective-1000">
             {pipelineData.map((item: any, idx: number) => {
               const baseCount = pipelineData[0]?.count || 1;
               const conversionRate = baseCount > 0 ? Math.round((item.count / baseCount) * 100) : 0;
@@ -332,7 +332,7 @@ export const Dashboard: React.FC = () => {
                   </div>
 
                   <div className="flex items-baseline justify-between">
-                    <span className="text-3xl font-black text-[#F8FAFC] drop-shadow-xs group-hover:text-[#60A5FA] transition-colors">
+                    <span className="text-2xl sm:text-3xl font-black text-[#F8FAFC] drop-shadow-xs group-hover:text-[#60A5FA] transition-colors">
                       {item.count}
                     </span>
                     <span className="text-xs font-bold text-[#94A3B8]">{conversionRate}%</span>
@@ -354,7 +354,7 @@ export const Dashboard: React.FC = () => {
                   </div>
 
                   {idx < pipelineData.length - 1 && (
-                    <div className="hidden md:flex absolute -right-3 top-1/2 -translate-y-1/2 z-20 w-6 h-6 rounded-full bg-[#101D31] border border-[#243650] text-[#F8FAFC] items-center justify-center text-xs font-bold shadow-md">
+                    <div className="hidden lg:flex absolute -right-3 top-1/2 -translate-y-1/2 z-20 w-6 h-6 rounded-full bg-[#101D31] border border-[#243650] text-[#F8FAFC] items-center justify-center text-xs font-bold shadow-md">
                       →
                     </div>
                   )}
@@ -366,24 +366,24 @@ export const Dashboard: React.FC = () => {
       </Card>
 
       {/* AI OPERATIONS CENTER */}
-      <Card className="p-6 ai-card-surface text-[#F8FAFC] shadow-3d-md">
-        <CardHeader className="p-0 pb-4 flex flex-row items-center justify-between border-b border-[#243650]">
+      <Card className="p-4 sm:p-6 ai-card-surface text-[#F8FAFC] shadow-3d-md">
+        <CardHeader className="p-0 pb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#243650]">
           <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-xl bg-gradient-to-tr from-[#3B82F6] to-[#06B6D4] text-white shadow-glow-brand">
+            <div className="p-2.5 rounded-xl bg-gradient-to-tr from-[#3B82F6] to-[#06B6D4] text-white shadow-glow-brand shrink-0">
               <Sparkles className="w-5 h-5" />
             </div>
             <div>
-              <CardTitle className="text-lg font-black text-[#F8FAFC]">AI Operations Center</CardTitle>
+              <CardTitle className="text-base sm:text-lg font-black text-[#F8FAFC]">AI Operations Center</CardTitle>
               <p className="text-xs text-[#CBD5E1] font-medium">Interactive autonomous agent network monitoring campus placement workflows</p>
             </div>
           </div>
-          <Button variant="outline" size="sm" onClick={() => navigate('/exceptions')}>
+          <Button variant="outline" size="sm" onClick={() => navigate('/exceptions')} className="self-start sm:self-auto">
             All Exceptions ({exceptionsList.length})
           </Button>
         </CardHeader>
         <CardContent className="p-0 pt-6 space-y-6">
           {/* Agent Modules Grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5 sm:gap-4">
             {[
               { name: 'Eligibility Agent', role: 'Deterministic CGPA & Branch Guard', status: 'Active', route: '/companies' },
               { name: 'Matching Agent', role: 'Transparent Skill Overlap Ranking', status: 'Active', route: '/matching' },
@@ -422,7 +422,7 @@ export const Dashboard: React.FC = () => {
       </Card>
 
       {/* Visual Analytics Charts Section */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
         {/* Pipeline Chart */}
         <Card className="bg-[#101D31] border-[#243650]">
           <CardHeader>
@@ -479,14 +479,14 @@ export const Dashboard: React.FC = () => {
       </div>
 
       {/* Grid: Upcoming Interviews & Recent Agent Activity */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
         <Card className="lg:col-span-2 bg-[#101D31] border-[#243650]">
-          <CardHeader className="flex flex-row items-center justify-between">
+          <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
             <div>
               <CardTitle>Scheduled Interviews</CardTitle>
               <p className="text-xs text-[#CBD5E1]">Real scheduled candidate evaluation slots</p>
             </div>
-            <Button variant="ghost" size="sm" icon={<ArrowRight className="w-3.5 h-3.5" />} onClick={() => navigate('/interviews')}>
+            <Button variant="ghost" size="sm" icon={<ArrowRight className="w-3.5 h-3.5" />} onClick={() => navigate('/interviews')} className="self-start sm:self-auto">
               View all interviews
             </Button>
           </CardHeader>
@@ -499,12 +499,12 @@ export const Dashboard: React.FC = () => {
               <div className="divide-y divide-[#243650]">
                 {interviewsList.slice(0, 5).map((item: any) => (
                   <div key={item.id || item.interview_id} className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-[#14243B] transition-colors">
-                    <div className="flex items-start gap-3">
+                    <div className="flex items-start gap-3 min-w-0">
                       <div className="p-2 rounded-lg bg-[#0B1628] text-[#3B82F6] border border-[#243650] font-semibold text-xs shrink-0 mt-0.5">
                         <Building2 className="w-4 h-4 text-[#3B82F6]" />
                       </div>
-                      <div>
-                        <div className="flex items-center gap-2">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
                           <span className="text-sm font-bold text-[#F8FAFC]">{item.company_name || item.companyName}</span>
                           <span className="text-xs font-semibold text-[#CBD5E1]">&bull; {item.job_title || item.roleTitle}</span>
                         </div>
@@ -513,7 +513,7 @@ export const Dashboard: React.FC = () => {
                         </div>
                       </div>
                     </div>
-                    <div className="flex items-center gap-3 text-xs shrink-0 sm:self-center">
+                    <div className="flex flex-wrap items-center gap-2 text-xs shrink-0 sm:self-center">
                       <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-[rgba(245,158,11,0.10)] text-[#FCD34D] font-bold border border-[rgba(245,158,11,0.25)]">
                         <Clock className="w-3 h-3 text-[#F59E0B]" /> {item.date} — {item.timeSlot || item.time || `${item.start_time} - ${item.end_time}`}
                       </span>

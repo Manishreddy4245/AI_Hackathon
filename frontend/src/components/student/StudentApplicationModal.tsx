@@ -206,24 +206,25 @@ export const StudentApplicationModal: React.FC<StudentApplicationModalProps> = (
 
   return (
     <>
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-in fade-in duration-200 text-[#F8FAFC]">
-        <div className="bg-[#101D31] border border-[#243650] rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/75 backdrop-blur-sm animate-in fade-in duration-200 text-[#F8FAFC] overflow-y-auto">
+        <div className="bg-[#101D31] border border-[#243650] rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden flex flex-col max-h-[94vh] sm:max-h-[90vh] my-auto">
           {/* Header */}
-          <div className="flex items-center justify-between p-5 border-b border-[#243650] bg-[#0B1628]">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-xl bg-[#3B82F6]/20 text-[#60A5FA] border border-[#3B82F6]/30">
+          <div className="shrink-0 flex items-center justify-between p-4 sm:p-5 border-b border-[#243650] bg-[#0B1628] gap-3">
+            <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+              <div className="p-2 rounded-xl bg-[#3B82F6]/20 text-[#60A5FA] border border-[#3B82F6]/30 shrink-0">
                 <Briefcase className="w-5 h-5" />
               </div>
-              <div>
-                <h3 className="text-base font-bold text-[#F8FAFC]">Apply for Placement Drive</h3>
-                <p className="text-xs text-[#94A3B8]">
+              <div className="min-w-0">
+                <h3 className="text-sm sm:text-base font-bold text-[#F8FAFC] truncate">Apply for Placement Drive</h3>
+                <p className="text-[11px] sm:text-xs text-[#94A3B8] truncate">
                   <strong className="text-[#60A5FA]">{companyName}</strong> &bull; {roleTitle}
                 </p>
               </div>
             </div>
             <button
               onClick={onClose}
-              className="p-1.5 text-[#94A3B8] hover:text-white hover:bg-[#192B45] rounded-lg transition-colors cursor-pointer"
+              aria-label="Close"
+              className="p-1.5 text-[#94A3B8] hover:text-white hover:bg-[#192B45] rounded-lg transition-colors cursor-pointer shrink-0 min-h-[36px] min-w-[36px] flex items-center justify-center"
             >
               <X className="w-5 h-5" />
             </button>
@@ -232,7 +233,7 @@ export const StudentApplicationModal: React.FC<StudentApplicationModalProps> = (
           {/* Form Body */}
           <form
             onSubmit={handleSubmit}
-            className="p-6 space-y-4 overflow-y-auto text-xs text-[#CBD5E1]"
+            className="p-4 sm:p-6 space-y-4 overflow-y-auto text-xs text-[#CBD5E1] flex-1 min-h-0"
           >
             {errorMsg && (
               <div className="p-3 bg-[rgba(239,68,68,0.15)] border border-[rgba(239,68,68,0.30)] rounded-xl flex items-center gap-2 text-xs text-[#F87171] font-semibold">

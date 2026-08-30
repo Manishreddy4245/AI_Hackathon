@@ -16,19 +16,23 @@ export const SkillDetailDrawer: React.FC<SkillDetailDrawerProps> = ({ skillGap, 
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end bg-black/65 backdrop-blur-md animate-in fade-in">
-      <div className="w-full max-w-md bg-[#0B1628] text-[#F8FAFC] h-full p-6 shadow-[0_12px_35px_rgba(0,0,0,0.5)] overflow-y-auto space-y-6 border-l border-[#243650]">
+      <div className="w-full max-w-md bg-[#0B1628] text-[#F8FAFC] h-full p-4 sm:p-6 shadow-[0_12px_35px_rgba(0,0,0,0.5)] overflow-y-auto space-y-4 sm:space-y-6 border-l border-[#243650]">
         {/* Header */}
-        <div className="flex items-center justify-between pb-4 border-b border-[#243650]">
-          <div className="flex items-center gap-2">
-            <div className="p-2 rounded-lg bg-[rgba(59,130,246,0.15)] text-[#60A5FA] border border-[rgba(59,130,246,0.30)] font-bold text-xs shadow-xs">
+        <div className="flex items-center justify-between pb-3 sm:pb-4 border-b border-[#243650] gap-3">
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="p-2 rounded-lg bg-[rgba(59,130,246,0.15)] text-[#60A5FA] border border-[rgba(59,130,246,0.30)] font-bold text-xs shadow-xs shrink-0">
               <BarChart2 className="w-4 h-4 text-[#3B82F6]" />
             </div>
-            <div>
-              <h3 className="text-base font-bold text-[#F8FAFC]">{skillGap.skill} Skill Gap Analysis</h3>
-              <p className="text-xs text-[#CBD5E1]">Industry demand vs campus proficiency</p>
+            <div className="min-w-0">
+              <h3 className="text-sm sm:text-base font-bold text-[#F8FAFC] truncate">{skillGap.skill} Skill Gap Analysis</h3>
+              <p className="text-[11px] sm:text-xs text-[#CBD5E1] truncate">Industry demand vs campus proficiency</p>
             </div>
           </div>
-          <button onClick={onClose} className="p-1 rounded-lg text-[#94A3B8] hover:text-white transition-colors cursor-pointer">
+          <button
+            onClick={onClose}
+            aria-label="Close"
+            className="p-1 rounded-lg text-[#94A3B8] hover:text-white transition-colors cursor-pointer shrink-0 min-h-[36px] min-w-[36px] flex items-center justify-center"
+          >
             <X className="w-5 h-5" />
           </button>
         </div>

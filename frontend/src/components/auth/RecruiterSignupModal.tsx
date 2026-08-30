@@ -64,11 +64,12 @@ export const RecruiterSignupModal: React.FC<RecruiterSignupModalProps> = ({ isOp
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/65 backdrop-blur-md overflow-y-auto">
-      <div className="w-full max-w-lg bg-[#0B1628] border border-[#243650] rounded-2xl p-6 sm:p-8 shadow-[0_12px_35px_rgba(0,0,0,0.5)] relative text-[#F8FAFC]">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/65 backdrop-blur-md overflow-y-auto">
+      <div className="w-full max-w-lg bg-[#0B1628] border border-[#243650] rounded-2xl p-5 sm:p-8 shadow-[0_12px_35px_rgba(0,0,0,0.5)] relative text-[#F8FAFC] max-h-[94vh] sm:max-h-[90vh] overflow-y-auto my-auto">
         <button
           onClick={onClose}
-          className="absolute top-4 right-4 text-[#94A3B8] hover:text-white p-1 rounded-lg transition-colors cursor-pointer"
+          aria-label="Close"
+          className="absolute top-4 right-4 text-[#94A3B8] hover:text-white p-1 rounded-lg transition-colors cursor-pointer shrink-0 min-h-[36px] min-w-[36px] flex items-center justify-center"
         >
           <X className="w-5 h-5" />
         </button>

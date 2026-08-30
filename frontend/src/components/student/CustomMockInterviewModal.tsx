@@ -395,34 +395,35 @@ export const CustomMockInterviewModal: React.FC<CustomMockInterviewModalProps> =
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto">
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-4xl w-full overflow-hidden shadow-2xl flex flex-col max-h-[92vh] animate-in fade-in zoom-in-95">
+    <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
+      <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-4xl w-full overflow-hidden shadow-2xl flex flex-col max-h-[94vh] sm:max-h-[92vh] animate-in fade-in zoom-in-95 my-auto">
         
         {/* Header */}
-        <div className="px-6 py-4 bg-slate-950/70 border-b border-slate-800 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-xl bg-gradient-to-r from-purple-500/20 to-cyan-500/20 border border-purple-500/40 text-purple-300">
+        <div className="px-4 py-3 sm:px-6 sm:py-4 bg-slate-950/70 border-b border-slate-800 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+            <div className="p-2 sm:p-2.5 rounded-xl bg-gradient-to-r from-purple-500/20 to-cyan-500/20 border border-purple-500/40 text-purple-300 shrink-0">
               <BrainCircuit className="w-5 h-5" />
             </div>
-            <div>
-              <h3 className="text-white font-bold text-base flex items-center gap-2">
-                🤖 Custom-Topic AI Mock Interview System
+            <div className="min-w-0">
+              <h3 className="text-white font-bold text-sm sm:text-base flex items-center gap-2 truncate">
+                <span>Custom AI Mock Interview</span>
               </h3>
-              <p className="text-slate-400 text-xs">
-                Targeted company interview simulation with live technical viva probes & 1-10 skill rating breakdown.
+              <p className="text-slate-400 text-[11px] sm:text-xs truncate">
+                Targeted company interview simulation with technical viva probes & skill ratings.
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="text-slate-400 hover:text-white p-1.5 rounded-lg hover:bg-slate-800 transition"
+            aria-label="Close"
+            className="text-slate-400 hover:text-white p-1.5 rounded-lg hover:bg-slate-800 transition shrink-0 min-h-[36px] min-w-[36px] flex items-center justify-center"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Content Body */}
-        <div className="p-6 overflow-y-auto flex-1 space-y-6">
+        <div className="p-4 sm:p-6 overflow-y-auto flex-1 space-y-6 min-h-0">
           {phase === 'SETUP' && (
             /* ========================================================================= */
             /* PHASE 4.1: CUSTOM SETUP & TOPIC SELECTION                                 */

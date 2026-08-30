@@ -35,14 +35,15 @@ export const Card: React.FC<CardProps> = ({
 export const CardHeader: React.FC<{ children: React.ReactNode; className?: string }> = ({
   children,
   className = '',
-}) => <div className={`p-5 pb-3 border-b border-[#1B2A40] ${className}`}>{children}</div>;
+}) => <div className={`p-4 sm:p-5 pb-2.5 sm:pb-3 border-b border-[#1B2A40] ${className}`}>{children}</div>;
 
 export const CardTitle: React.FC<{ children: React.ReactNode; className?: string }> = ({
   children,
   className = '',
-}) => <h3 className={`text-base font-black text-[#F8FAFC] tracking-tight ${className}`}>{children}</h3>;
+}) => <h3 className={`text-sm sm:text-base font-black text-[#F8FAFC] tracking-tight ${className}`}>{children}</h3>;
 
 export const CardContent: React.FC<{ children: React.ReactNode; className?: string }> = ({
   children,
   className = '',
-}) => <div className={`p-5 text-[#CBD5E1] ${className}`}>{children}</div>;
+}) => <div className={`p-4 sm:p-5 text-[#CBD5E1] ${className}`}>{children}</div>;
+

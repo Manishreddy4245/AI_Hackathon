@@ -703,25 +703,25 @@ export const AIInterviewPracticeStudioModal: React.FC<AIInterviewPracticeStudioM
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-black/85 backdrop-blur-md overflow-hidden select-none cursor-default">
-      <div className="relative w-full max-w-5xl h-[92vh] max-h-[880px] bg-[#0B1528] border border-[#223552] rounded-3xl shadow-2xl overflow-hidden flex flex-col transform-none transition-none">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 md:p-5 bg-black/85 backdrop-blur-md overflow-hidden select-none cursor-default">
+      <div className="relative w-full max-w-5xl h-[95vh] sm:h-[92vh] max-h-[880px] bg-[#0B1528] border border-[#223552] rounded-2xl sm:rounded-3xl shadow-2xl overflow-hidden flex flex-col transform-none transition-none">
         
         {/* TOP HEADER */}
-        <div className="shrink-0 px-6 py-4 border-b border-[#1E293B] bg-[#0E1A2E] flex items-center justify-between gap-4 z-10">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-cyan-500 to-blue-600 flex items-center justify-center text-white shadow-lg shadow-cyan-500/20">
-              <BrainCircuit className="w-5 h-5" />
+        <div className="shrink-0 px-4 py-3 sm:px-6 sm:py-4 border-b border-[#1E293B] bg-[#0E1A2E] flex items-center justify-between gap-2 sm:gap-4 z-10">
+          <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl sm:rounded-2xl bg-gradient-to-tr from-cyan-500 to-blue-600 flex items-center justify-center text-white shadow-lg shadow-cyan-500/20 shrink-0">
+              <BrainCircuit className="w-4 h-4 sm:w-5 sm:h-5" />
             </div>
-            <div>
+            <div className="min-w-0">
               <div className="flex items-center gap-2">
-                <h2 className="text-base sm:text-lg font-black text-white tracking-tight">
-                  AI Interview Practice Studio
+                <h2 className="text-sm sm:text-base md:text-lg font-black text-white tracking-tight truncate">
+                  AI Interview Studio
                 </h2>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-cyan-500/10 text-cyan-400 border border-cyan-500/30">
+                <span className="px-1.5 sm:px-2 py-0.5 rounded-full text-[9px] sm:text-[10px] font-extrabold uppercase bg-cyan-500/10 text-cyan-400 border border-cyan-500/30 shrink-0">
                   Gemini Live
                 </span>
               </div>
-              <p className="text-xs text-[#94A3B8]">
+              <p className="text-[11px] sm:text-xs text-[#94A3B8] truncate max-w-xs sm:max-w-md">
                 {phase === 'SETUP' && 'Configure custom target company, topics, and dynamic interview style'}
                 {phase === 'LIVE' && `${session?.config.company} • ${session?.config.role} • ${session?.config.interview_style}`}
                 {phase === 'REPORT' && `Comprehensive Performance Evaluation & Placement Readiness`}
@@ -729,12 +729,12 @@ export const AIInterviewPracticeStudioModal: React.FC<AIInterviewPracticeStudioM
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 shrink-0">
             {phase === 'LIVE' && (
               <Button
                 variant="outline"
                 size="sm"
-                className="text-xs text-rose-400 border-rose-900/50 hover:bg-rose-950/30"
+                className="text-[11px] sm:text-xs text-rose-400 border-rose-900/50 hover:bg-rose-950/30 px-2 sm:px-3"
                 onClick={handleFinishEarly}
                 disabled={actionLoading}
               >
@@ -743,7 +743,8 @@ export const AIInterviewPracticeStudioModal: React.FC<AIInterviewPracticeStudioM
             )}
             <button
               onClick={onClose}
-              className="p-2 rounded-xl text-[#94A3B8] hover:text-white hover:bg-[#1E293B] transition-colors"
+              aria-label="Close"
+              className="p-1.5 sm:p-2 rounded-xl text-[#94A3B8] hover:text-white hover:bg-[#1E293B] transition-colors min-h-[36px] min-w-[36px] flex items-center justify-center"
             >
               <X className="w-5 h-5" />
             </button>
@@ -1629,12 +1630,12 @@ export const AIInterviewPracticeStudioModal: React.FC<AIInterviewPracticeStudioM
                   </div>
 
                   {/* ACTION BAR */}
-                  <div className="flex items-center justify-between pt-2 border-t border-[#1E293B]">
+                  <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-between gap-2.5 pt-2 border-t border-[#1E293B]">
                     <Button
                       type="button"
                       variant="outline"
                       size="sm"
-                      className="text-xs text-[#94A3B8]"
+                      className="text-xs text-[#94A3B8] w-full sm:w-auto"
                       onClick={() => handleSubmitAnswer(true)}
                       disabled={actionLoading}
                     >
@@ -1644,7 +1645,7 @@ export const AIInterviewPracticeStudioModal: React.FC<AIInterviewPracticeStudioM
                     <Button
                       type="button"
                       variant="primary"
-                      className="bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-extrabold text-xs px-6 py-2.5 rounded-xl shadow-lg shadow-cyan-500/20"
+                      className="bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-extrabold text-xs px-6 py-2.5 rounded-xl shadow-lg shadow-cyan-500/20 w-full sm:w-auto flex items-center justify-center"
                       onClick={() => handleSubmitAnswer(false)}
                       disabled={actionLoading}
                     >
@@ -1671,18 +1672,18 @@ export const AIInterviewPracticeStudioModal: React.FC<AIInterviewPracticeStudioM
                 <div className="space-y-6 animate-fadeIn">
                   
                   {/* SCORE HEADER */}
-                  <div className="p-6 rounded-3xl bg-gradient-to-br from-[#12233E] via-[#0E1A2E] to-[#0A1220] border border-cyan-500/40 shadow-2xl relative overflow-hidden">
-                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-                      <div className="space-y-2">
-                        <div className="flex items-center gap-2">
+                  <div className="p-4 sm:p-6 rounded-2xl sm:rounded-3xl bg-gradient-to-br from-[#12233E] via-[#0E1A2E] to-[#0A1220] border border-cyan-500/40 shadow-2xl relative overflow-hidden">
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 sm:gap-6">
+                      <div className="space-y-2 min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
                           <span className="px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider bg-cyan-500/20 text-cyan-300 border border-cyan-500/40">
                             {session.evaluation.readiness_level}
                           </span>
-                          <span className="text-xs text-[#94A3B8]">
+                          <span className="text-xs text-[#94A3B8] break-words-safe">
                             {session.config.company} • {session.config.role}
                           </span>
                         </div>
-                        <h3 className="text-xl sm:text-2xl font-black text-white">
+                        <h3 className="text-lg sm:text-xl md:text-2xl font-black text-white">
                           Placement Practice Evaluation Report
                         </h3>
                         <p className="text-xs text-[#94A3B8] max-w-xl leading-relaxed">
@@ -1691,7 +1692,7 @@ export const AIInterviewPracticeStudioModal: React.FC<AIInterviewPracticeStudioM
                       </div>
 
                       {/* Overall Score Circle */}
-                      <div className="flex items-center gap-4 bg-[#0B1528]/80 p-4 rounded-2xl border border-[#243650] shrink-0">
+                      <div className="flex items-center gap-4 bg-[#0B1528]/80 p-3 sm:p-4 rounded-2xl border border-[#243650] shrink-0 self-start md:self-auto">
                         <div className="text-center">
                           <span className="text-3xl sm:text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-500">
                             {Math.round(session.evaluation.overall_score)}%
@@ -1722,7 +1723,7 @@ export const AIInterviewPracticeStudioModal: React.FC<AIInterviewPracticeStudioM
 
                   {/* STRENGTHS & WEAKNESSES */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <Card hover3d={false} className="p-5 bg-[#101D31] border-[#243650]">
+                    <Card hover3d={false} className="p-4 sm:p-5 bg-[#101D31] border-[#243650]">
                       <h4 className="text-xs font-extrabold text-emerald-400 uppercase tracking-wider flex items-center gap-1.5 mb-3">
                         <CheckCircle2 className="w-4 h-4 text-emerald-400" />
                         Key Demonstrated Strengths
@@ -1737,7 +1738,7 @@ export const AIInterviewPracticeStudioModal: React.FC<AIInterviewPracticeStudioM
                       </ul>
                     </Card>
 
-                    <Card hover3d={false} className="p-5 bg-[#101D31] border-[#243650]">
+                    <Card hover3d={false} className="p-4 sm:p-5 bg-[#101D31] border-[#243650]">
                       <h4 className="text-xs font-extrabold text-amber-400 uppercase tracking-wider flex items-center gap-1.5 mb-3">
                         <AlertCircle className="w-4 h-4 text-amber-400" />
                         Areas for Targeted Improvement
@@ -1755,7 +1756,7 @@ export const AIInterviewPracticeStudioModal: React.FC<AIInterviewPracticeStudioM
 
                   {/* ACTIONABLE RECOMMENDATIONS & SUGGESTIONS */}
                   {session.evaluation.recommendations && session.evaluation.recommendations.length > 0 && (
-                    <div className="p-5 rounded-2xl bg-cyan-950/20 border border-cyan-500/30 space-y-2.5">
+                    <div className="p-4 sm:p-5 rounded-2xl bg-cyan-950/20 border border-cyan-500/30 space-y-2.5">
                       <h4 className="text-xs font-extrabold text-cyan-300 uppercase tracking-wider flex items-center gap-1.5">
                         <Sparkles className="w-4 h-4 text-cyan-400" />
                         Actionable Suggestions & Placement Prep Guidance
@@ -1827,7 +1828,7 @@ export const AIInterviewPracticeStudioModal: React.FC<AIInterviewPracticeStudioM
                         <Video className="w-4 h-4 text-cyan-400" />
                         <span className="text-xs font-bold text-white uppercase tracking-wider">Video & Speech Practice Metrics</span>
                       </div>
-                      <div className="flex items-center gap-4 text-xs">
+                      <div className="flex flex-wrap items-center gap-4 text-xs">
                         <div>
                           <span className="text-[10px] text-[#94A3B8] block">Total Speaking Time</span>
                           <span className="font-mono font-bold text-cyan-400">{session.evaluation.video_feedback.total_speaking_time_seconds || 0}s</span>
@@ -1865,7 +1866,7 @@ export const AIInterviewPracticeStudioModal: React.FC<AIInterviewPracticeStudioM
                               </span>
                             </div>
                             <p className="text-xs font-medium text-white">{q.question_text}</p>
-                            <div className="p-3 rounded-xl bg-[#0B1528] border border-[#1E293B] text-[11px] text-[#94A3B8] font-mono">
+                            <div className="p-3 rounded-xl bg-[#0B1528] border border-[#1E293B] text-[11px] text-[#94A3B8] font-mono break-words-safe">
                               <span className="text-slate-400 font-bold block mb-1">Your Submitted Response:</span>
                               {ans?.answer_text || ans?.transcript || '[Skipped / No Answer]'}
                             </div>
@@ -1876,10 +1877,11 @@ export const AIInterviewPracticeStudioModal: React.FC<AIInterviewPracticeStudioM
                   </div>
 
                   {/* ACTION FOOTER */}
-                  <div className="flex items-center justify-between pt-4 border-t border-[#1E293B]">
+                  <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-between gap-2.5 pt-4 border-t border-[#1E293B]">
                     <Button
                       variant="outline"
                       size="sm"
+                      className="w-full sm:w-auto"
                       onClick={() => setPhase('SETUP')}
                       icon={<RotateCcw className="w-3.5 h-3.5" />}
                     >
@@ -1888,7 +1890,7 @@ export const AIInterviewPracticeStudioModal: React.FC<AIInterviewPracticeStudioM
                     <Button
                       variant="primary"
                       size="sm"
-                      className="bg-cyan-600 hover:bg-cyan-500 text-white font-bold"
+                      className="bg-cyan-600 hover:bg-cyan-500 text-white font-bold w-full sm:w-auto"
                       onClick={onClose}
                     >
                       Close Report

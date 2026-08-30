@@ -262,29 +262,30 @@ export const StudentOffers: React.FC = () => {
 
       {/* ACCEPT OFFER MODAL */}
       {isAcceptModalOpen && selectedOffer && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in overflow-y-auto">
-          <div className="bg-[#101D31] border border-[#243650] rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl my-8">
-            <div className="p-6 border-b border-[#243650] flex items-center justify-between bg-[#14243B]">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/80 backdrop-blur-sm animate-fade-in overflow-y-auto">
+          <div className="bg-[#101D31] border border-[#243650] rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl flex flex-col max-h-[94vh] sm:max-h-[90vh] my-auto">
+            <div className="p-4 sm:p-5 border-b border-[#243650] flex items-center justify-between bg-[#14243B] shrink-0 gap-3">
+              <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+                <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400 shrink-0">
                   <CheckCircle2 className="w-5 h-5" />
                 </div>
-                <div>
-                  <h3 className="text-lg font-black text-white">Accept Employment Offer</h3>
-                  <p className="text-xs text-[#94A3B8]">
+                <div className="min-w-0">
+                  <h3 className="text-base sm:text-lg font-black text-white truncate">Accept Employment Offer</h3>
+                  <p className="text-[11px] sm:text-xs text-[#94A3B8] truncate">
                     {selectedOffer.company_name} — {selectedOffer.designation || selectedOffer.job_title}
                   </p>
                 </div>
               </div>
               <button
                 onClick={() => setIsAcceptModalOpen(false)}
-                className="w-8 h-8 rounded-lg bg-[#0B1628] border border-[#243650] text-[#94A3B8] hover:text-white flex items-center justify-center"
+                aria-label="Close"
+                className="w-8 h-8 rounded-lg bg-[#0B1628] border border-[#243650] text-[#94A3B8] hover:text-white flex items-center justify-center shrink-0"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            <form onSubmit={handleConfirmAccept} className="p-6 space-y-4">
+            <form onSubmit={handleConfirmAccept} className="p-4 sm:p-6 space-y-4 overflow-y-auto flex-1 min-h-0">
               <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-xl text-xs text-emerald-300 leading-relaxed">
                 🎉 By accepting, your student profile will be officially marked as <strong>Placed</strong> and your confirmed joining date will be communicated to {selectedOffer.company_name}.
               </div>
@@ -349,13 +350,13 @@ export const StudentOffers: React.FC = () => {
                 />
               </div>
 
-              <div className="pt-4 border-t border-[#243650] flex items-center justify-end gap-3">
+              <div className="pt-4 border-t border-[#243650] flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-2.5 sm:gap-3">
                 <Button
                   type="button"
                   variant="outline"
                   onClick={() => setIsAcceptModalOpen(false)}
                   disabled={accepting}
-                  className="border-[#243650] text-[#CBD5E1]"
+                  className="border-[#243650] text-[#CBD5E1] w-full sm:w-auto"
                 >
                   Cancel
                 </Button>
@@ -363,7 +364,7 @@ export const StudentOffers: React.FC = () => {
                   type="submit"
                   variant="primary"
                   disabled={accepting}
-                  className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold flex items-center gap-2"
+                  className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold flex items-center justify-center gap-2 w-full sm:w-auto"
                 >
                   {accepting ? (
                     <>
@@ -383,27 +384,28 @@ export const StudentOffers: React.FC = () => {
 
       {/* DECLINE OFFER MODAL */}
       {isDeclineModalOpen && selectedOffer && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in overflow-y-auto">
-          <div className="bg-[#101D31] border border-[#243650] rounded-2xl w-full max-w-md overflow-hidden shadow-2xl my-8">
-            <div className="p-6 border-b border-[#243650] flex items-center justify-between bg-[#14243B]">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-rose-500/10 border border-rose-500/30 flex items-center justify-center text-rose-400">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/80 backdrop-blur-sm animate-fade-in overflow-y-auto">
+          <div className="bg-[#101D31] border border-[#243650] rounded-2xl w-full max-w-md overflow-hidden shadow-2xl flex flex-col max-h-[94vh] sm:max-h-[90vh] my-auto">
+            <div className="p-4 sm:p-5 border-b border-[#243650] flex items-center justify-between bg-[#14243B] shrink-0 gap-3">
+              <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+                <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-rose-500/10 border border-rose-500/30 flex items-center justify-center text-rose-400 shrink-0">
                   <AlertTriangle className="w-5 h-5" />
                 </div>
-                <div>
-                  <h3 className="text-lg font-black text-white">Decline Offer Letter</h3>
-                  <p className="text-xs text-[#94A3B8]">{selectedOffer.company_name}</p>
+                <div className="min-w-0">
+                  <h3 className="text-base sm:text-lg font-black text-white truncate">Decline Offer Letter</h3>
+                  <p className="text-[11px] sm:text-xs text-[#94A3B8] truncate">{selectedOffer.company_name}</p>
                 </div>
               </div>
               <button
                 onClick={() => setIsDeclineModalOpen(false)}
-                className="w-8 h-8 rounded-lg bg-[#0B1628] border border-[#243650] text-[#94A3B8] hover:text-white flex items-center justify-center"
+                aria-label="Close"
+                className="w-8 h-8 rounded-lg bg-[#0B1628] border border-[#243650] text-[#94A3B8] hover:text-white flex items-center justify-center shrink-0"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            <form onSubmit={handleConfirmDecline} className="p-6 space-y-4">
+            <form onSubmit={handleConfirmDecline} className="p-4 sm:p-6 space-y-4 overflow-y-auto flex-1 min-h-0">
               <p className="text-xs text-[#CBD5E1] leading-relaxed">
                 Are you sure you want to decline this employment offer from <strong>{selectedOffer.company_name}</strong>? This action will notify the placement cell and cannot be undone.
               </p>
@@ -419,13 +421,13 @@ export const StudentOffers: React.FC = () => {
                 />
               </div>
 
-              <div className="pt-4 border-t border-[#243650] flex items-center justify-end gap-3">
+              <div className="pt-4 border-t border-[#243650] flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-2.5 sm:gap-3">
                 <Button
                   type="button"
                   variant="outline"
                   onClick={() => setIsDeclineModalOpen(false)}
                   disabled={declining}
-                  className="border-[#243650] text-[#CBD5E1]"
+                  className="border-[#243650] text-[#CBD5E1] w-full sm:w-auto"
                 >
                   Cancel
                 </Button>
@@ -433,7 +435,7 @@ export const StudentOffers: React.FC = () => {
                   type="submit"
                   variant="primary"
                   disabled={declining}
-                  className="bg-rose-600 hover:bg-rose-500 text-white font-bold flex items-center gap-2"
+                  className="bg-rose-600 hover:bg-rose-500 text-white font-bold flex items-center justify-center gap-2 w-full sm:w-auto"
                 >
                   {declining ? (
                     <>

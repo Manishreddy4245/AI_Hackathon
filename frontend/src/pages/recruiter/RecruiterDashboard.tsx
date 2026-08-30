@@ -683,31 +683,32 @@ export const RecruiterDashboard: React.FC = () => {
 
       {/* MODAL 1: VIEW ROUND CANDIDATES & EVALUATION */}
       {activeRoundModal && (
-        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-[#101D31] rounded-2xl border border-[#243650] w-full max-w-4xl max-h-[90vh] flex flex-col shadow-2xl text-[#F8FAFC]">
+        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
+          <div className="bg-[#101D31] rounded-2xl border border-[#243650] w-full max-w-4xl max-h-[94vh] sm:max-h-[90vh] flex flex-col shadow-2xl text-[#F8FAFC] my-auto">
             {/* Modal Header */}
-            <div className="p-5 border-b border-[#243650] flex items-center justify-between">
-              <div>
+            <div className="shrink-0 p-4 sm:p-5 border-b border-[#243650] flex items-center justify-between gap-3">
+              <div className="min-w-0">
                 <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase bg-[rgba(59,130,246,0.15)] text-[#60A5FA] border border-[rgba(59,130,246,0.3)]">
                   {activeRoundModal.round_type || 'Round'}
                 </span>
-                <h3 className="text-lg font-bold text-[#F8FAFC] mt-1">
+                <h3 className="text-base sm:text-lg font-bold text-[#F8FAFC] mt-1 truncate">
                   {activeRoundModal.name} — Candidates List
                 </h3>
-                <p className="text-xs text-[#CBD5E1]">
+                <p className="text-[10px] sm:text-xs text-[#CBD5E1] truncate">
                   Evaluate candidates entering this round. Select action to pass to next round or reject.
                 </p>
               </div>
               <button
                 onClick={() => setActiveRoundModal(null)}
-                className="p-1.5 text-[#94A3B8] hover:text-white rounded-lg hover:bg-[#14243B] transition-colors cursor-pointer"
+                aria-label="Close"
+                className="p-1.5 text-[#94A3B8] hover:text-white rounded-lg hover:bg-[#14243B] transition-colors cursor-pointer shrink-0 min-h-[36px] min-w-[36px] flex items-center justify-center"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             {/* Candidates Table */}
-            <div className="p-5 overflow-y-auto flex-1 space-y-4">
+            <div className="p-4 sm:p-5 overflow-y-auto flex-1 space-y-4 min-h-0">
               {activeRoundModal.candidates && activeRoundModal.candidates.length > 0 ? (
                 <div className="overflow-x-auto rounded-xl border border-[#243650]">
                   <table className="w-full text-left text-xs">

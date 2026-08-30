@@ -91,28 +91,29 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
   };
 
   return (
-    <header className="h-16 bg-[#07111F]/90 backdrop-blur-md border-b border-[#1B2A40] sticky top-0 z-30 px-4 md:px-6 flex items-center justify-between gap-4 shadow-3d-md text-[#F8FAFC]">
-      <div className="flex items-center gap-3">
+    <header className="h-16 bg-[#07111F]/90 backdrop-blur-md border-b border-[#1B2A40] sticky top-0 z-30 px-3 sm:px-4 md:px-6 flex items-center justify-between gap-2 sm:gap-4 shadow-3d-md text-[#F8FAFC]">
+      <div className="flex items-center gap-2 sm:gap-3 min-w-0">
         <button
           onClick={onMobileMenuToggle}
-          className="p-2 text-[#94A3B8] hover:text-white rounded-xl md:hidden hover:bg-[#101D31] transition-colors cursor-pointer"
+          aria-label="Toggle navigation menu"
+          className="p-2 text-[#94A3B8] hover:text-white rounded-xl md:hidden hover:bg-[#101D31] transition-colors cursor-pointer shrink-0 min-h-[40px] min-w-[40px] flex items-center justify-center"
         >
           <Menu className="w-5 h-5" />
         </button>
-        <div>
-          <h2 className="text-base font-black text-[#F8FAFC] tracking-tight leading-none flex items-center gap-2">
-            <span>{currentTitle}</span>
+        <div className="min-w-0">
+          <h2 className="text-sm sm:text-base font-black text-[#F8FAFC] tracking-tight leading-tight flex items-center gap-2 truncate">
+            <span className="truncate max-w-[150px] sm:max-w-[280px] md:max-w-md lg:max-w-xl">{currentTitle}</span>
           </h2>
-          <div className="flex items-center gap-1.5 mt-1">
-            <span className="w-2 h-2 rounded-full bg-[#22C55E] animate-pulse"></span>
-            <span className="text-[11px] text-[#94A3B8] font-semibold">Secure Portal Session</span>
+          <div className="flex items-center gap-1.5 mt-0.5 sm:mt-1">
+            <span className="w-2 h-2 rounded-full bg-[#22C55E] animate-pulse shrink-0"></span>
+            <span className="text-[10px] sm:text-[11px] text-[#94A3B8] font-semibold truncate">Secure Portal Session</span>
           </div>
         </div>
       </div>
 
-      <div className="flex items-center gap-3 md:gap-4">
+      <div className="flex items-center gap-1.5 sm:gap-3 md:gap-4 shrink-0">
         {/* Search Input */}
-        <div className="hidden sm:flex relative w-56 lg:w-64">
+        <div className="hidden sm:flex relative w-48 md:w-56 lg:w-64">
           <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#64748B]" />
           <input
             type="text"
@@ -128,19 +129,20 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
               setNotificationsOpen(!notificationsOpen);
               setProfileOpen(false);
             }}
-            className="relative p-2 rounded-xl text-[#CBD5E1] hover:text-white hover:bg-[#101D31] transition-all cursor-pointer"
+            aria-label="Notifications"
+            className="relative p-2 rounded-xl text-[#CBD5E1] hover:text-white hover:bg-[#101D31] transition-all cursor-pointer min-h-[40px] min-w-[40px] flex items-center justify-center"
             title="Notifications"
           >
             <Bell className="w-5 h-5" />
             {unreadCount > 0 && (
-              <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-[#3B82F6] rounded-full ring-2 ring-[#07111F] animate-pulse" />
+              <span className="absolute top-1.5 right-1.5 w-2.5 h-2.5 bg-[#3B82F6] rounded-full ring-2 ring-[#07111F] animate-pulse" />
             )}
           </button>
 
           {/* NOTIFICATIONS DROPDOWN MENU */}
           {notificationsOpen && (
-            <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-[#0B1628] rounded-2xl shadow-3d-lg border border-[#243650] overflow-hidden z-50 animate-in fade-in zoom-in-95 duration-150">
-              <div className="p-4 border-b border-[#1B2A40] bg-[#101D31]/80 flex items-center justify-between">
+            <div className="fixed sm:absolute left-2 right-2 sm:left-auto sm:right-0 top-16 sm:top-auto sm:mt-2 w-auto sm:w-96 max-w-sm bg-[#0B1628] rounded-2xl shadow-3d-lg border border-[#243650] overflow-hidden z-50 animate-in fade-in zoom-in-95 duration-150">
+              <div className="p-3.5 sm:p-4 border-b border-[#1B2A40] bg-[#101D31]/80 flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <Bell className="w-4 h-4 text-[#3B82F6]" />
                   <h3 className="text-xs font-bold text-[#F8FAFC] uppercase tracking-wider">Notifications</h3>
@@ -207,15 +209,16 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
         </div>
 
         {/* PROFILE DROPDOWN */}
-        <div className="relative pl-2 border-l border-[#243650]" ref={profileRef}>
+        <div className="relative pl-1.5 sm:pl-2 border-l border-[#243650]" ref={profileRef}>
           <button
             onClick={() => {
               setProfileOpen(!profileOpen);
               setNotificationsOpen(false);
             }}
-            className="flex items-center gap-2.5 p-1.5 rounded-xl hover:bg-[#101D31] transition-all cursor-pointer"
+            aria-label="User Profile"
+            className="flex items-center gap-2 sm:gap-2.5 p-1 sm:p-1.5 rounded-xl hover:bg-[#101D31] transition-all cursor-pointer min-h-[40px]"
           >
-            <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-[#3B82F6] to-[#06B6D4] text-white flex items-center justify-center font-black text-xs shadow-3d-sm">
+            <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-[#3B82F6] to-[#06B6D4] text-white flex items-center justify-center font-black text-xs shadow-3d-sm shrink-0">
               {user?.name ? user.name[0].toUpperCase() : 'U'}
             </div>
             <div className="hidden md:block text-left">
@@ -226,12 +229,12 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
                 {badgeInfo.label}
               </span>
             </div>
-            <ChevronDown className="w-3.5 h-3.5 text-[#94A3B8]" />
+            <ChevronDown className="w-3.5 h-3.5 text-[#94A3B8] hidden sm:block" />
           </button>
 
           {/* PROFILE DROPDOWN MENU */}
           {profileOpen && (
-            <div className="absolute right-0 mt-2 w-72 bg-[#0B1628] rounded-2xl shadow-3d-lg border border-[#243650] overflow-hidden z-50 animate-in fade-in zoom-in-95 duration-150">
+            <div className="fixed sm:absolute left-2 right-2 sm:left-auto sm:right-0 top-16 sm:top-auto sm:mt-2 w-auto sm:w-72 max-w-xs bg-[#0B1628] rounded-2xl shadow-3d-lg border border-[#243650] overflow-hidden z-50 animate-in fade-in zoom-in-95 duration-150">
               <div className="p-4 border-b border-[#1B2A40] bg-[#101D31]/80 space-y-2">
                 <div>
                   <span className="text-xs font-black text-[#F8FAFC] block">

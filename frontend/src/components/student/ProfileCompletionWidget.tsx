@@ -82,16 +82,16 @@ export const ProfileCompletionWidget: React.FC<ProfileCompletionWidgetProps> = (
   }
 
   return (
-    <div className="p-6 bg-[#101D31] rounded-2xl border border-[#243650] shadow-[0_12px_35px_rgba(0,0,0,0.22)] space-y-5 text-[#F8FAFC]">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-        <div className="space-y-1.5">
+    <div className="p-4 sm:p-5 md:p-6 bg-[#101D31] rounded-2xl border border-[#243650] shadow-[0_12px_35px_rgba(0,0,0,0.22)] space-y-4 sm:space-y-5 text-[#F8FAFC]">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 sm:gap-6">
+        <div className="space-y-1.5 min-w-0">
           <div className="flex items-center gap-2">
             <span className={`px-2.5 py-0.5 rounded text-[11px] font-bold uppercase tracking-wider flex items-center gap-1 ${isComplete ? 'bg-[rgba(34,197,94,0.15)] text-[#86EFAC] border border-[rgba(34,197,94,0.30)]' : 'bg-[rgba(245,158,11,0.15)] text-[#FCD34D] border border-[rgba(245,158,11,0.30)]'}`}>
               {isComplete ? <ShieldCheck className="w-3.5 h-3.5 text-[#22C55E]" /> : <ShieldAlert className="w-3.5 h-3.5 text-[#F59E0B]" />}
               {isComplete ? 'Placement Eligible' : 'Application Submission Gated'}
             </span>
           </div>
-          <h3 className="text-lg font-black text-[#F8FAFC]">
+          <h3 className="text-base sm:text-lg font-black text-[#F8FAFC]">
             {isComplete ? 'Profile Complete & Placement Verified' : 'Complete Your Placement Profile'}
           </h3>
           <p className="text-xs text-[#CBD5E1] max-w-xl font-medium leading-relaxed">
@@ -102,9 +102,9 @@ export const ProfileCompletionWidget: React.FC<ProfileCompletionWidgetProps> = (
         </div>
 
         {/* Circular Progress Gauge */}
-        <div className="p-4 bg-[#0B1628] rounded-xl border border-[#243650] flex items-center gap-4 shrink-0 shadow-md">
-          <div className="relative w-16 h-16 flex items-center justify-center">
-            <svg className="w-16 h-16 transform -rotate-90">
+        <div className="p-3 sm:p-4 bg-[#0B1628] rounded-xl border border-[#243650] flex items-center gap-3.5 sm:gap-4 shrink-0 shadow-md self-start md:self-auto">
+          <div className="relative w-14 h-14 sm:w-16 sm:h-16 flex items-center justify-center shrink-0">
+            <svg className="w-14 h-14 sm:w-16 sm:h-16 transform -rotate-90">
               <circle cx="32" cy="32" r="26" stroke="#17253A" strokeWidth="5" fill="transparent" />
               <circle
                 cx="32"
@@ -119,20 +119,20 @@ export const ProfileCompletionWidget: React.FC<ProfileCompletionWidgetProps> = (
                 className="transition-all duration-700 ease-out"
               />
             </svg>
-            <span className="absolute text-sm font-black text-[#FFFFFF]">
+            <span className="absolute text-xs sm:text-sm font-black text-[#FFFFFF]">
               {clampedCompletion}%
             </span>
           </div>
           <div>
             <span className="text-xs font-bold text-[#F8FAFC] block">Profile Completion</span>
-            <span className="text-[11px] text-[#94A3B8] block">
+            <span className="text-[10px] sm:text-[11px] text-[#94A3B8] block">
               {isComplete ? 'All Requirements Met' : `${clampedCompletion} of 100% completed`}
             </span>
             {!isComplete && (
               <Button
                 variant="outline"
                 size="sm"
-                className="mt-1.5 text-[11px] py-1 bg-[#101D31] border-[#243650] text-[#60A5FA] hover:text-white"
+                className="mt-1.5 text-[10px] sm:text-[11px] py-1 bg-[#101D31] border-[#243650] text-[#60A5FA] hover:text-white"
                 icon={<ArrowRight className="w-3 h-3" />}
                 onClick={() => navigate('/student/resume')}
               >
@@ -145,18 +145,18 @@ export const ProfileCompletionWidget: React.FC<ProfileCompletionWidgetProps> = (
 
       {/* Progress Bar & Checklist */}
       <div className="space-y-3 pt-2 border-t border-[#1B2A40]">
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3">
           {items.map((item) => (
             <div
               key={item.key}
-              className={`p-3 rounded-xl border flex items-center gap-2.5 text-xs font-semibold ${item.completed ? 'bg-[rgba(34,197,94,0.08)] border-[rgba(34,197,94,0.25)] text-[#86EFAC]' : 'bg-[#0B1628] border-[#243650] text-[#94A3B8]'}`}
+              className={`p-2.5 sm:p-3 rounded-xl border flex items-center gap-2.5 text-xs font-semibold ${item.completed ? 'bg-[rgba(34,197,94,0.08)] border-[rgba(34,197,94,0.25)] text-[#86EFAC]' : 'bg-[#0B1628] border-[#243650] text-[#94A3B8]'}`}
             >
               {item.completed ? (
                 <CheckCircle2 className="w-4 h-4 text-[#22C55E] shrink-0" />
               ) : (
                 <AlertTriangle className="w-4 h-4 text-[#F59E0B] shrink-0" />
               )}
-              <span className={item.completed ? 'text-[#F8FAFC]' : 'text-[#94A3B8]'}>
+              <span className={item.completed ? 'text-[#F8FAFC] break-words-safe' : 'text-[#94A3B8] break-words-safe'}>
                 {item.label}
               </span>
             </div>

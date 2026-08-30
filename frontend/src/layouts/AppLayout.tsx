@@ -290,20 +290,23 @@ export const AppLayout: React.FC = () => {
   );
 
   return (
-    <div className="min-h-screen flex bg-[#07111F] text-[#CBD5E1]">
+    <div className="min-h-screen flex bg-[#07111F] text-[#CBD5E1] overflow-x-hidden">
       {/* Desktop Sidebar */}
       <aside className="hidden md:block w-64 shrink-0 fixed inset-y-0 z-40">
         {SidebarContent}
       </aside>
 
-      {/* Mobile Sidebar Overlay */}
+      {/* Mobile Sidebar Overlay and Drawer */}
       {mobileMenuOpen && (
         <div className="md:hidden fixed inset-0 z-50 flex">
           <div
-            className="fixed inset-0 bg-[#050C18]/80 backdrop-blur-md"
+            className="fixed inset-0 bg-black/80 backdrop-blur-sm transition-opacity duration-300 animate-fadeIn"
             onClick={() => setMobileMenuOpen(false)}
+            aria-hidden="true"
           />
-          <aside className="relative w-64 max-w-full z-10">{SidebarContent}</aside>
+          <aside className="relative w-72 max-w-[85vw] h-full z-10 shadow-2xl animate-in slide-in-from-left duration-200">
+            {SidebarContent}
+          </aside>
         </div>
       )}
 
@@ -313,7 +316,7 @@ export const AppLayout: React.FC = () => {
           currentTitle={getPageTitle(location.pathname)}
           onMobileMenuToggle={() => setMobileMenuOpen(true)}
         />
-        <main className="flex-1 p-4 md:p-6 max-w-7xl w-full mx-auto">
+        <main className="flex-1 p-3.5 sm:p-5 md:p-6 max-w-7xl w-full mx-auto min-w-0 overflow-x-hidden">
           <Outlet />
         </main>
       </div>

@@ -41,25 +41,29 @@ export const SendNotificationModal: React.FC<SendNotificationModalProps> = ({ is
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/65 backdrop-blur-md overflow-y-auto">
-      <div className="bg-[#0B1628] rounded-2xl shadow-[0_12px_35px_rgba(0,0,0,0.5)] w-full max-w-lg overflow-hidden border border-[#243650] my-6 animate-in fade-in zoom-in-95 duration-150 text-[#F8FAFC]">
-        <div className="px-6 py-4 bg-[#101D31] border-b border-[#243650] text-[#F8FAFC] flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <div className="p-2 rounded-lg bg-gradient-to-tr from-[#3B82F6] to-[#06B6D4] text-white font-bold text-xs shadow-glow-brand">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/65 backdrop-blur-md overflow-y-auto">
+      <div className="bg-[#0B1628] rounded-2xl shadow-[0_12px_35px_rgba(0,0,0,0.5)] w-full max-w-lg overflow-hidden border border-[#243650] max-h-[94vh] sm:max-h-[90vh] flex flex-col my-auto animate-in fade-in zoom-in-95 duration-150 text-[#F8FAFC]">
+        <div className="shrink-0 px-4 sm:px-6 py-3.5 sm:py-4 bg-[#101D31] border-b border-[#243650] text-[#F8FAFC] flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="p-2 rounded-lg bg-gradient-to-tr from-[#3B82F6] to-[#06B6D4] text-white font-bold text-xs shadow-glow-brand shrink-0">
               <Bell className="w-4 h-4" />
             </div>
-            <div>
-              <h3 className="text-base font-bold text-[#F8FAFC] tracking-tight">Send Placement Notification</h3>
-              <p className="text-xs text-[#CBD5E1]">Broadcast updates to candidates, panels, or campus officers</p>
+            <div className="min-w-0">
+              <h3 className="text-sm sm:text-base font-bold text-[#F8FAFC] tracking-tight truncate">Send Placement Notification</h3>
+              <p className="text-[10px] sm:text-xs text-[#CBD5E1] truncate">Broadcast updates to candidates, panels, or campus officers</p>
             </div>
           </div>
-          <button onClick={onClose} className="p-1 rounded-lg text-[#94A3B8] hover:text-white transition-colors cursor-pointer">
+          <button
+            onClick={onClose}
+            aria-label="Close"
+            className="p-1 rounded-lg text-[#94A3B8] hover:text-white transition-colors cursor-pointer shrink-0 min-h-[36px] min-w-[36px] flex items-center justify-center"
+          >
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
-          <div className="grid grid-cols-2 gap-3">
+        <form onSubmit={handleSubmit} className="p-4 sm:p-6 space-y-4 overflow-y-auto flex-1 min-h-0">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-bold text-[#E2E8F0] mb-1">Recipient Category</label>
               <select
@@ -92,7 +96,7 @@ export const SendNotificationModal: React.FC<SendNotificationModalProps> = ({ is
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-bold text-[#E2E8F0] mb-1">Notification Type</label>
               <select

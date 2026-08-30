@@ -332,45 +332,46 @@ export const VideoPracticeModal: React.FC<VideoPracticeModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto">
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-4xl w-full overflow-hidden shadow-2xl flex flex-col max-h-[92vh] animate-in fade-in zoom-in-95">
+    <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
+      <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-4xl w-full overflow-hidden shadow-2xl flex flex-col max-h-[94vh] sm:max-h-[92vh] animate-in fade-in zoom-in-95 my-auto">
         
         {/* Header */}
-        <div className="px-6 py-4 bg-slate-950/60 border-b border-slate-800 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="p-2 rounded-xl bg-purple-500/20 border border-purple-500/30 text-purple-400">
+        <div className="px-4 py-3 sm:px-6 sm:py-4 bg-slate-950/60 border-b border-slate-800 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+            <div className="p-2 rounded-xl bg-purple-500/20 border border-purple-500/30 text-purple-400 shrink-0">
               <Video className="w-5 h-5" />
             </div>
-            <div>
-              <h3 className="text-white font-bold text-base flex items-center gap-2">
-                🎥 AI Video Practice & Body Language Assessor
+            <div className="min-w-0">
+              <h3 className="text-white font-bold text-sm sm:text-base flex items-center gap-2 truncate">
+                <span>AI Video Practice Assessor</span>
               </h3>
-              <p className="text-slate-400 text-xs">
-                Real-time WebRTC camera feed, speech filler word detection, and audio pacing analytics.
+              <p className="text-slate-400 text-[11px] sm:text-xs truncate">
+                Real-time WebRTC camera feed, speech filler detection, and pacing analytics.
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="text-slate-400 hover:text-white p-1.5 rounded-lg hover:bg-slate-800 transition"
+            aria-label="Close"
+            className="text-slate-400 hover:text-white p-1.5 rounded-lg hover:bg-slate-800 transition shrink-0 min-h-[36px] min-w-[36px] flex items-center justify-center"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Question Prompt Bar */}
-        <div className="bg-purple-950/30 border-b border-purple-800/40 px-6 py-3 flex items-center justify-between text-xs">
-          <div className="flex items-center gap-2 text-purple-200">
-            <BrainCircuit className="w-4 h-4 text-purple-400 flex-shrink-0" />
-            <span><strong>Interview Prompt:</strong> "{questionPrompt}"</span>
+        <div className="bg-purple-950/30 border-b border-purple-800/40 px-4 py-2.5 sm:px-6 sm:py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+          <div className="flex items-start sm:items-center gap-2 text-purple-200 min-w-0">
+            <BrainCircuit className="w-4 h-4 text-purple-400 shrink-0 mt-0.5 sm:mt-0" />
+            <span className="break-words-safe"><strong>Interview Prompt:</strong> "{questionPrompt}"</span>
           </div>
-          <span className="font-mono text-purple-300 font-bold bg-purple-500/20 px-2 py-0.5 rounded border border-purple-500/30 flex-shrink-0">
-            Target Time: 2 mins
+          <span className="font-mono text-purple-300 font-bold bg-purple-500/20 px-2 py-0.5 rounded border border-purple-500/30 shrink-0 self-start sm:self-auto text-[11px]">
+            Target: 2 mins
           </span>
         </div>
 
         {/* Content Body */}
-        <div className="p-6 overflow-y-auto space-y-6 flex-1">
+        <div className="p-4 sm:p-6 overflow-y-auto space-y-6 flex-1 min-h-0">
           {viewState !== 'REPORT' ? (
             /* ========================================================================= */
             /* VIEW 1: WEBCAM FEED & RECORDING CONTROLS                                  */
